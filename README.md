@@ -114,4 +114,7 @@ latexmk -pdf -interaction=nonstopmode main.tex
 | 2026-07-08 | B | N registrado = 8117 tras saneamiento base | Arquitectura A; split posterior 70/15/15 | C2: 3000 ≤ N < 10000 |
 | 2026-07-08 | B | Clase mortal = 951/8117 = 11.7162% | Balanceo posterior: `class_weight` solamente | C5: 5% ≤ clase MORTAL ≤ 25% |
 | 2026-07-08 | B | CSV auditado y saneado | Se generó `data/processed/base_limpia.parquet` localmente y tablas de auditoría en `report/tables/` | Encoding `latin-1`, separador `;`, 35 duplicados eliminados, 3 targets NaN eliminados |
+| 2026-07-08 | D | Split estratificado creado | Train/Val/Test = 5681/1218/1218; clase mortal 11.7057%/11.7406%/11.7406% | Diferencia < 1 punto porcentual entre subconjuntos |
+| 2026-07-08 | D | Contrato de features congelado | Se generaron 72 features, `models/feature_list.json`, `models/scaler.pkl`, `models/encoders.pkl` y `tab02_feature_contract.csv` | Estadísticos fit solo con train; `preparar_entrada()` verificado |
+| 2026-07-08 | D | Casos demo separados del test final | Se generó `data/processed/demo_cases.csv` desde validación y casos controlados | Incluye caso base, atropello, nocturno, código no visto y PUNO |
 

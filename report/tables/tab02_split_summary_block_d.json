@@ -1,0 +1,10 @@
+{
+  "train_rows": 5681,
+  "val_rows": 1218,
+  "test_rows": 1218,
+  "feature_count": 72,
+  "train_mortal_percentage": 11.705685618729097,
+  "val_mortal_percentage": 11.74055829228243,
+  "test_mortal_percentage": 11.74055829228243,
+  "demo_cases": 5
+}
