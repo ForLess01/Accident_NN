@@ -1,0 +1,6 @@
+caso_id,probabilidad_mortal,clasificacion,threshold,observacion
+demo_01_tipico_no_mortal,0.29649076,NO_MORTAL,0.5,Probabilidad base baja o moderada.
+demo_02_atropello,0.8018773,MORTAL,0.5,Debe subir la probabilidad frente al caso base.
+demo_03_nocturno,0.32870865,NO_MORTAL,0.5,Debe cambiar la probabilidad de forma razonable.
+demo_04_codigo_no_visto,0.30336863,NO_MORTAL,0.5,La app no debe romperse y debe mapear via_freq=0.
+demo_05_puno,0.48931924,NO_MORTAL,0.5,Debe confirmar que el encoding geográfico acepta PUNO.

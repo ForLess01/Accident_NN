@@ -1,0 +1,20 @@
+{
+  "test_rows": 1218,
+  "threshold": 0.5,
+  "f1_mortal": 0.29411764705882354,
+  "recall_mortal": 0.48951048951048953,
+  "precision_mortal": 0.21021021021021022,
+  "pr_auc": 0.2890018461925514,
+  "roc_auc": 0.6840006505122784,
+  "accuracy": 0.7241379310344828,
+  "false_negatives": 73,
+  "false_negative_examples_written": 5,
+  "top5_shap": [
+    "modalidad_despiste",
+    "mes",
+    "modalidad_atropello",
+    "nocturno",
+    "hora_cos"
+  ],
+  "test_evaluations": 1
+}

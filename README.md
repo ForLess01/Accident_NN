@@ -120,4 +120,7 @@ latexmk -pdf -interaction=nonstopmode main.tex
 | 2026-07-08 | E | Grid cerrado de 6 corridas ejecutado | Mejor modelo: `R5_one_hidden_layer`; se guardó `models/severidad_nn.keras` | Selección por F1-mortal en validación; test no usado |
 | 2026-07-08 | E | Umbral calibrado en validación | `threshold=0.5`; recall-mortal=0.5315; F1-mortal=0.3077 | Regla: máximo recall con F1 ≥ 90% del mejor F1 de validación |
 | 2026-07-08 | E | Baselines comparados | Dummy, Regresión Logística balanceada y Random Forest balanceado registrados en `tab03` | La red supera al Dummy y queda por encima de los baselines en F1-mortal de validación |
+| 2026-07-08 | F | Test final evaluado una sola vez | MLP: F1-mortal=0.2941, recall-mortal=0.4895, PR-AUC=0.2890, ROC-AUC=0.6840, accuracy=0.7241 | `test_evaluations=1`; umbral 0.5 congelado desde validación |
+| 2026-07-08 | F | Falsos negativos analizados | 73 accidentes mortales quedaron bajo el umbral; se guardaron 5 ejemplos en `tab05_false_negatives_examples.csv` | Error de mayor costo: subestimación de accidente mortal |
+| 2026-07-08 | F | SHAP y calibración generados | Top-5: `modalidad_despiste`, `mes`, `modalidad_atropello`, `nocturno`, `hora_cos`; se guardó curva de calibración | SHAP con muestra de test hasta 1000 filas por C14 preventivo |
 
