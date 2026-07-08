@@ -111,4 +111,7 @@ latexmk -pdf -interaction=nonstopmode main.tex
 | 2026-07-08 | A/B | `Plan.md`, dataset y diccionario de datos ya subidos | Se verifica ubicación, fuente y reproducibilidad en README antes de procesar datos | Estado confirmado por Rendo |
 | 2026-07-08 | B/H | Fuente exacta del dataset confirmada | Usar recurso oficial `3398beff-8440-4343-a54d-0911d11dfcd5` de Datos Abiertos; citarlo en README y `report/bib/referencias.bib` | Confirmado por Rendo + ficha oficial |
 | 2026-07-08 | A | Python 3.12 no estaba disponible localmente como `python3.12` | Se instaló CPython 3.12.13 con `uv`, se creó `.venv`, se instalaron dependencias y se generó `requirements-macos.txt` | Verificación macOS: `import tensorflow, sklearn, pandas, pyarrow, shap, streamlit` ejecutado correctamente |
+| 2026-07-08 | B | N registrado = 8117 tras saneamiento base | Arquitectura A; split posterior 70/15/15 | C2: 3000 ≤ N < 10000 |
+| 2026-07-08 | B | Clase mortal = 951/8117 = 11.7162% | Balanceo posterior: `class_weight` solamente | C5: 5% ≤ clase MORTAL ≤ 25% |
+| 2026-07-08 | B | CSV auditado y saneado | Se generó `data/processed/base_limpia.parquet` localmente y tablas de auditoría en `report/tables/` | Encoding `latin-1`, separador `;`, 35 duplicados eliminados, 3 targets NaN eliminados |
 

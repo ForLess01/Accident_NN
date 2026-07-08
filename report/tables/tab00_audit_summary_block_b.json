@@ -1,0 +1,91 @@
+{
+  "encoding": "latin-1",
+  "separator": ";",
+  "raw_file": "data/raw/Accidentes de tránsito en carreteras-2020-2021-Sutran.csv",
+  "original_shape": [
+    8155,
+    9
+  ],
+  "final_shape": [
+    8117,
+    10
+  ],
+  "original_columns": [
+    "FECHA_CORTE",
+    "FECHA",
+    "HORA",
+    "DEPARTAMENTO",
+    "CODIGO_VÍA",
+    "KILOMETRO",
+    "MODALIDAD",
+    "FALLECIDOS",
+    "HERIDOS"
+  ],
+  "normalized_columns": [
+    "FECHA_CORTE",
+    "FECHA",
+    "HORA",
+    "DEPARTAMENTO",
+    "CODIGO_VIA",
+    "KILOMETRO",
+    "MODALIDAD",
+    "FALLECIDOS",
+    "HERIDOS"
+  ],
+  "not_informed_counts": {
+    "FECHA_CORTE": 0,
+    "FECHA": 0,
+    "HORA": 88,
+    "DEPARTAMENTO": 7,
+    "CODIGO_VÍA": 46,
+    "KILOMETRO": 45,
+    "MODALIDAD": 28,
+    "FALLECIDOS": 3,
+    "HERIDOS": 10
+  },
+  "fecha_min": "2020-01-01",
+  "fecha_max": "2021-09-30",
+  "fecha_parse_failures": 0,
+  "hour_sample": [
+    "19:10",
+    "06:00",
+    "06:45",
+    "05:30",
+    "07:00",
+    "16:10",
+    "06:05",
+    "21:10",
+    "16:30",
+    "13:17",
+    "23:00",
+    "15:30",
+    "20:30",
+    "08:35",
+    "06:50",
+    "15:10",
+    "06:30",
+    "17:45",
+    "16:50",
+    "22:10"
+  ],
+  "invalid_hours_after_parse": 88,
+  "kilometer_upper_bound_p995": 1395.3649999999998,
+  "kilometer_outliers_set_nan": 41,
+  "outcome_upper_bounds_p999": {
+    "FALLECIDOS": 10.69800000000032,
+    "HERIDOS": 28.855999999999767
+  },
+  "outcome_outliers_above_p999": {
+    "FALLECIDOS": 9,
+    "HERIDOS": 9
+  },
+  "duplicates_removed": 35,
+  "target_nan_removed": 3,
+  "mortal_count": 951,
+  "non_mortal_count": 7166,
+  "mortal_percentage": 11.71615128742146,
+  "contingency_size": "C2",
+  "architecture": "Architecture A",
+  "contingency_balance": "C5",
+  "balance_strategy": "class_weight only"
+}
