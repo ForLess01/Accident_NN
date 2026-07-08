@@ -110,5 +110,5 @@ latexmk -pdf -interaction=nonstopmode main.tex
 | 2026-07-08 | A | Repositorio creado por Rendo | Se continúa desde verificación de estructura, entorno y permisos; no desde creación del repo | Estado confirmado por Rendo |
 | 2026-07-08 | A/B | `Plan.md`, dataset y diccionario de datos ya subidos | Se verifica ubicación, fuente y reproducibilidad en README antes de procesar datos | Estado confirmado por Rendo |
 | 2026-07-08 | B/H | Fuente exacta del dataset confirmada | Usar recurso oficial `3398beff-8440-4343-a54d-0911d11dfcd5` de Datos Abiertos; citarlo en README y `report/bib/referencias.bib` | Confirmado por Rendo + ficha oficial |
-| 2026-07-08 | A | Python 3.12 no está disponible localmente como `python3.12` | Queda pendiente crear `.venv`, instalar dependencias y generar `requirements-macos.txt` cuando Python 3.12 esté instalado | Bloque A parcialmente pendiente por entorno local |
+| 2026-07-08 | A | Python 3.12 no estaba disponible localmente como `python3.12` | Se instaló CPython 3.12.13 con `uv`, se creó `.venv`, se instalaron dependencias y se generó `requirements-macos.txt` | Verificación macOS: `import tensorflow, sklearn, pandas, pyarrow, shap, streamlit` ejecutado correctamente |
 
