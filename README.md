@@ -117,4 +117,7 @@ latexmk -pdf -interaction=nonstopmode main.tex
 | 2026-07-08 | D | Split estratificado creado | Train/Val/Test = 5681/1218/1218; clase mortal 11.7057%/11.7406%/11.7406% | Diferencia < 1 punto porcentual entre subconjuntos |
 | 2026-07-08 | D | Contrato de features congelado | Se generaron 72 features, `models/feature_list.json`, `models/scaler.pkl`, `models/encoders.pkl` y `tab02_feature_contract.csv` | Estadísticos fit solo con train; `preparar_entrada()` verificado |
 | 2026-07-08 | D | Casos demo separados del test final | Se generó `data/processed/demo_cases.csv` desde validación y casos controlados | Incluye caso base, atropello, nocturno, código no visto y PUNO |
+| 2026-07-08 | E | Grid cerrado de 6 corridas ejecutado | Mejor modelo: `R5_one_hidden_layer`; se guardó `models/severidad_nn.keras` | Selección por F1-mortal en validación; test no usado |
+| 2026-07-08 | E | Umbral calibrado en validación | `threshold=0.5`; recall-mortal=0.5315; F1-mortal=0.3077 | Regla: máximo recall con F1 ≥ 90% del mejor F1 de validación |
+| 2026-07-08 | E | Baselines comparados | Dummy, Regresión Logística balanceada y Random Forest balanceado registrados en `tab03` | La red supera al Dummy y queda por encima de los baselines en F1-mortal de validación |
 
