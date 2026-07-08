@@ -1,0 +1,114 @@
+# Clasificación de severidad de accidentes de tránsito en carreteras del Perú
+
+Proyecto del curso **Redes Neuronales — Segunda Unidad**. El objetivo es construir una red neuronal para clasificación binaria de severidad de accidentes de tránsito en carreteras del Perú, con EDA, preprocesamiento, ingeniería de características, entrenamiento, evaluación, interfaz gráfica local con Streamlit, informe y anexos.
+
+## Integrantes
+
+- Rendo — líder técnico, entrenamiento canónico en macOS.
+- Yimmy — EDA, GUI e informe bajo revisión técnica de Rendo.
+
+## Fuente de datos
+
+Dataset oficial: **Accidentes de tránsito en carreteras 2020-2021 – Sutran**.
+
+- Fuente: Plataforma Nacional de Datos Abiertos.
+- Recurso exacto: https://www.datosabiertos.gob.pe/dataset/accidentes-de-tr%C3%A1nsito-en-carreteras/resource/3398beff-8440-4343-a54d-0911d11dfcd5
+- Fecha de verificación local en el repositorio: 2026-07-08.
+
+Archivos versionados en `data/raw/`:
+
+| Archivo | Tamaño | Observación |
+|---|---:|---|
+| `Accidentes de tránsito en carreteras-2020-2021-Sutran.csv` | 444600 bytes | CSV oficial; encoding detectado `latin-1`; separador real `;`. |
+| `Formato_2_Diccionario_de_datos.docx` | 14887 bytes | Diccionario de datos asociado a la misma fuente oficial. |
+
+## Estructura del repositorio
+
+```text
+.
+├── Plan.md
+├── data/
+│   ├── raw/
+│   ├── processed/
+│   └── geo/
+├── notebooks/
+├── src/
+├── app/
+├── models/
+├── report/
+│   ├── main.tex
+│   ├── sections/
+│   ├── bib/referencias.bib
+│   ├── figures/
+│   ├── tables/
+│   └── output/
+├── tests/
+├── docs/
+├── requirements.txt
+└── README.md
+```
+
+## Requisitos
+
+- Python 3.12.x.
+- Entorno virtual local por integrante.
+
+### macOS
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pip freeze > requirements-macos.txt
+```
+
+### Windows PowerShell
+
+```powershell
+py -3.12 -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+pip freeze > requirements-windows.txt
+```
+
+## Ejecución prevista
+
+### Notebooks
+
+```bash
+jupyter notebook notebooks/
+```
+
+Orden previsto:
+
+1. `00_auditoria_dataset.ipynb`
+2. `01_eda.ipynb`
+3. `02_prep_features.ipynb`
+4. `03_model.ipynb`
+
+### Entrenamiento
+
+El modelo canónico se entrena una sola vez en la máquina de Rendo. Los artefactos esperados se guardan en `models/`.
+
+### Interfaz Streamlit
+
+```bash
+streamlit run app/streamlit_app.py
+```
+
+### Informe LaTeX
+
+```bash
+cd report
+latexmk -pdf -interaction=nonstopmode main.tex
+```
+
+## Bitácora de decisiones
+
+| Fecha | Bloque | Situación | Decisión | Contingencia aplicada / Justificación |
+|---|---|---|---|---|
+| 2026-07-08 | A | Repositorio creado por Rendo | Se continúa desde verificación de estructura, entorno y permisos; no desde creación del repo | Estado confirmado por Rendo |
+| 2026-07-08 | A/B | `Plan.md`, dataset y diccionario de datos ya subidos | Se verifica ubicación, fuente y reproducibilidad en README antes de procesar datos | Estado confirmado por Rendo |
+| 2026-07-08 | B/H | Fuente exacta del dataset confirmada | Usar recurso oficial `3398beff-8440-4343-a54d-0911d11dfcd5` de Datos Abiertos; citarlo en README y `report/bib/referencias.bib` | Confirmado por Rendo + ficha oficial |
+| 2026-07-08 | A | Python 3.12 no está disponible localmente como `python3.12` | Queda pendiente crear `.venv`, instalar dependencias y generar `requirements-macos.txt` cuando Python 3.12 esté instalado | Bloque A parcialmente pendiente por entorno local |
+

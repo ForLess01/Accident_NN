@@ -1,0 +1,19 @@
+.DS_Store
+.atl/
+.venv/
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# Regenerable local outputs
+data/processed/*
+!data/processed/.gitkeep
+data/geo/*
+!data/geo/.gitkeep
+report/output/*
+!report/output/.gitkeep
+
+# Local environment files
+.env
+.env.*
+
