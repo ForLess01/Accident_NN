@@ -116,7 +116,7 @@ def plot_posthoc_calibration(y_test: pd.Series, raw_test: np.ndarray, calibrated
         label=f"Post-hoc {selected_method} (Brier={calibrated_brier:.4f})",
     )
     ax.set_xlabel("Score medio predicho")
-    ax.set_ylabel("Frecuencia mortal observada")
+    ax.set_ylabel("Frecuencia multifatal observada")
     ax.set_title("Calibración post-hoc - test congelado")
     ax.grid(True, alpha=0.3)
     ax.legend()
@@ -190,9 +190,9 @@ def write_report_snippet(
 
     text = f"""Para corregir la interpretación de la salida sigmoide, se ajustó un calibrador post-hoc usando solamente el conjunto de validación. Se compararon Platt e isotónica por \\emph{{Brier score}} de validación y se seleccionó \\textbf{{{selected_method}}}. El test se mantuvo como diagnóstico congelado: no se usó para elegir el calibrador.
 
-En test, la salida sigmoide cruda obtuvo Brier {float(raw_test['brier_score']):.4f} y ECE {float(raw_test['ece_10_bins']):.4f}; el score calibrado obtuvo Brier {float(calibrated_test['brier_score']):.4f} y ECE {float(calibrated_test['ece_10_bins']):.4f}. Por eso, la GUI deja de presentar la salida como ``probabilidad operacional'' y la muestra como \\textbf{{score calibrado de riesgo mortal}}.
+En test, la salida sigmoide cruda obtuvo Brier {float(raw_test['brier_score']):.4f} y ECE {float(raw_test['ece_10_bins']):.4f}; el score calibrado obtuvo Brier {float(calibrated_test['brier_score']):.4f} y ECE {float(calibrated_test['ece_10_bins']):.4f}. Por eso, la GUI deja de presentar la salida como ``probabilidad operacional'' y la muestra como \\textbf{{score calibrado de riesgo multifatal}}.
 
-Además, se calcularon intervalos de confianza bootstrap al 95\\,\\% sobre las predicciones congeladas del test: F1-mortal {float(f1['estimate']):.4f} [{float(f1['ci95_low']):.4f}, {float(f1['ci95_high']):.4f}], recall-mortal {float(recall['estimate']):.4f} [{float(recall['ci95_low']):.4f}, {float(recall['ci95_high']):.4f}] y PR-AUC {float(pr_auc['estimate']):.4f} [{float(pr_auc['ci95_low']):.4f}, {float(pr_auc['ci95_high']):.4f}]. Estos intervalos evitan vender el resultado como un punto exacto: muestran la incertidumbre real de un test pequeño y desbalanceado.
+Además, se calcularon intervalos de confianza bootstrap al 95\\,\\% sobre las predicciones congeladas del test: F1-multifatal {float(f1['estimate']):.4f} [{float(f1['ci95_low']):.4f}, {float(f1['ci95_high']):.4f}], recall-multifatal {float(recall['estimate']):.4f} [{float(recall['ci95_low']):.4f}, {float(recall['ci95_high']):.4f}] y PR-AUC {float(pr_auc['estimate']):.4f} [{float(pr_auc['ci95_low']):.4f}, {float(pr_auc['ci95_high']):.4f}]. Estos intervalos evitan vender el resultado como un punto exacto: muestran la incertidumbre real de un test pequeño y desbalanceado.
 """
     (SECTIONS_DIR / "calibration_posthoc.tex").write_text(text, encoding="utf-8")
 

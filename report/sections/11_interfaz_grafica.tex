@@ -4,64 +4,39 @@
 La interfaz se construyó en \textbf{Streamlit} (web local con \texttt{streamlit run}), confirmada como aceptable por el docente. Se organizó en cuatro pestañas con \texttt{st.tabs}, todas operativas en macOS y Windows. El código vive en \texttt{app/streamlit\_app.py}.
 
 \subsection{Contrato de preprocesamiento compartido}
-La regla metodológica más importante del Bloque G es que \textbf{la interfaz nunca recodifica a mano}. Toda transformación de entrada pasa por la función compartida \texttt{preparar\_entrada(dict) -> np.array} en \texttt{src/preprocessing.py}, importada tanto por el notebook de preprocesamiento como por la app. Misma función = imposible divergir. La función consume \texttt{models/feature\_list.json}, \texttt{models/scaler.pkl} y \texttt{models/encoders.pkl}, lo que garantiza que el vector de entrada tenga exactamente las 72 columnas en el orden correcto.
+La regla metodológica más importante del Bloque G es que \textbf{la interfaz nunca recodifica a mano}. Toda transformación de entrada pasa por la función compartida \texttt{preparar\_entrada()} en \texttt{src/preprocessing.py}, importada tanto por el pipeline de entrenamiento como por la app. Misma función = imposible divergir. La función consume \texttt{models/feature\_list.json}, \texttt{models/scaler.pkl} y \texttt{models/encoders.pkl}, lo que garantiza que el vector de entrada tenga exactamente las 116 columnas en el orden correcto.
 
 \subsection{Pestañas}
-\subsubsection{Pestaña 1: Predicción de severidad}
-Formulario con \emph{selectbox} para departamento y modalidad, \emph{date\_input} para fecha, \emph{text\_input} para hora, \emph{text\_input} para el código de vía y \emph{number\_input} $\geq 0$ para kilómetro. La inferencia muestra:
+\subsubsection{Pestaña 1: Predicción de alta letalidad}
+Formulario con \emph{selectbox} para departamento, zona, red vial, tipo de vía, clase de siniestro, clima, característica de vía, perfil y superficie; \emph{date\_input} para fecha, \emph{text\_input} para hora y para el código de carretera (opcional). La inferencia muestra:
 \begin{itemize}
-  \item Un medidor tipo \emph{gauge} (Plotly) con el \textbf{score calibrado de riesgo mortal} (0--100\,\%). Ya no se presenta como probabilidad operacional directa porque la sigmoide cruda estaba mal calibrada.
-  \item Una etiqueta grande MORTAL / NO MORTAL según el umbral crudo de \texttt{threshold.json}; la clasificación y el score calibrado se muestran separados para no mezclar decisión con comunicación de riesgo.
-  \item Una gráfica comparativa entre el score calibrado del modelo y tasas históricas observadas (global, modalidad, departamento, hora, vía y casos similares). Esa gráfica no pretende ser comprobación individual del caso manual: solo da contexto empírico.
-  \item Una nota de alcance al pie: ``El score calibrado mejora la lectura del riesgo, pero sigue siendo una estimación académica; no reemplaza evaluación vial profesional ni decisiones operativas.''
+  \item Un medidor tipo \emph{gauge} (Plotly) con la \textbf{probabilidad calibrada de 2+ fallecidos} (0--100\,\%). Gracias a la calibración isotónica (Brier 0.0872 en test), esta lectura sí es una probabilidad real y no solo un score.
+  \item Una etiqueta grande ALTA LETALIDAD / LETALIDAD SIMPLE según el umbral crudo de \texttt{threshold.json}; la clasificación y la probabilidad calibrada se muestran separadas para no mezclar decisión con comunicación de riesgo, y la nota al pie indica el valor crudo usado para clasificar.
+  \item Una gráfica comparativa entre la probabilidad calibrada del modelo y tasas multifatales históricas observadas (global, clase, zona, clima, departamento, hora y casos similares). Esa gráfica no pretende ser comprobación individual del caso manual: solo da contexto empírico.
+  \item Una nota de alcance: ``Es una estimación académica; no reemplaza evaluación vial profesional.''
 \end{itemize}
-La salida natural de un modelo de clasificación sigue siendo un medidor de riesgo (\emph{gauge}). La gráfica de líneas se usa únicamente como comparación transversal contra tasas históricas, no como pronóstico temporal.
 
 \subsubsection{Pestaña 2: Análisis exploratorio}
-Replica con Plotly interactivo los hallazgos del Bloque C: tasa de mortalidad por modalidad, accidentes por hora del día, tasa de mortalidad por hora, serie temporal mensual de accidentes y distribución del target. Cada gráfico con 1--2 líneas de lectura.
+Muestra las figuras clave del Bloque C: distribución del target, serie mensual, tasa multifatal por clase, tasas por condiciones pre-impacto (zona, clima, característica, superficie), mapa mes $\times$ hora y el scatter geográfico de siniestros. Incluye el expander con los hallazgos H1--H11.
 
-\subsubsection{Pestaña 3: Riesgo por departamento}
-Ranking interactivo por departamento (barras y tabla ordenable) con número de accidentes y tasa de mortalidad. Además, se versionó un GeoJSON departamental del Perú para activar el mapa coroplético cuando el archivo está disponible en \texttt{data/geo/}.
+\subsubsection{Pestaña 3: Letalidad por departamento}
+Ranking interactivo por departamento (barras y tabla ordenable) con número de siniestros fatales y tasa multifatal, filtrado a departamentos con al menos 30 casos. Además, con el GeoJSON departamental versionado en \texttt{data/geo/}, se activa el mapa coroplético del Perú coloreado por tasa multifatal.
 
 \subsubsection{Pestaña 4: Sobre el modelo}
-Arquitectura del modelo (\texttt{model.summary()}), tabla comparativa contra las líneas base, matriz de confusión, curvas ROC y Precision-Recall, ficha del dataset y declaración de la regla anti-fuga. Cierra con créditos del equipo, curso y universidad.
+Métricas del test (F1, recall, PR-AUC, ROC-AUC), definición del problema condicional, umbral, método de calibración, contrato de preprocesamiento, fuente de datos y top-5 SHAP. Cierra con créditos del equipo.
 
 \subsection{Pruebas funcionales}
-El checklist del Bloque G (\texttt{tab09\_gui\_checklist.csv}) verificó:
+El checklist del Bloque G (\texttt{tab09\_gui\_checklist.csv}) verificó siete condiciones, todas superadas:
 \begin{itemize}
-  \item Las cuatro pestañas cargan sin error.
-  \item El caso típico responde en menos de 2 segundos.
-  \item Cambiar solo la modalidad de baja letalidad a ATROPELLO sube la sigmoide cruda de modo coherente con el EDA (demo\_02: 0.30 $\rightarrow$ 0.80) y el score calibrado también aumenta (0.056 $\rightarrow$ 0.368).
-  \item La hora nocturna vs.\ diurna produce cambios razonables en la sigmoide cruda (demo\_03: 0.30 $\rightarrow$ 0.33) y en el score calibrado (0.056 $\rightarrow$ 0.070).
-  \item Un código de vía no visto no rompe la app y mapea \texttt{via\_freq = 0} (demo\_04: sigmoide 0.30; score 0.056).
-  \item La pestaña departamental funciona como barras/ranking y, con GeoJSON versionado, como mapa coroplético.
+  \item Los cinco casos de demostración predicen sin error.
+  \item El caso típico responde en menos de 2 segundos (0.16\,s).
+  \item Cambiar solo la hora a nocturna modifica la probabilidad de forma coherente (demo\_02: sigmoide 0.652 $\rightarrow$ 0.659; score calibrado 0.144 $\rightarrow$ 0.199).
+  \item Un código de carretera no visto no rompe la app y mapea \texttt{via\_freq = 0} (demo\_04).
+  \item El caso de Puno rural confirma el encoding geográfico (demo\_05).
+  \item La comparación histórica entrega al menos cuatro tasas de contexto (entregó 8).
+  \item El calibrador post-hoc está disponible y activo (isotónico).
 \end{itemize}
+Adicionalmente, la app completa se verificó de punta a punta en un navegador local: las cuatro pestañas cargan sin excepciones y el mapa coroplético renderiza los 25 departamentos.
 
-\subsection{Capturas}
-\begin{figure}[H]
-  \centering
-  \begin{minipage}{0.49\textwidth}\centering
-    \includegraphics[width=\linewidth]{figures/gui01_prediccion.png}
-    \caption{Pestaña 1: predicción de severidad con score calibrado y comparación histórica.}
-    \label{fig:gui01}
-  \end{minipage}\hfill
-  \begin{minipage}{0.49\textwidth}\centering
-    \includegraphics[width=\linewidth]{figures/gui02_eda.png}
-    \caption{Pestaña 2: análisis exploratorio interactivo.}
-    \label{fig:gui02}
-  \end{minipage}
-\end{figure}
-
-\begin{figure}[H]
-  \centering
-  \begin{minipage}{0.49\textwidth}\centering
-    \includegraphics[width=\linewidth]{figures/gui03_riesgo_departamento.png}
-    \caption{Pestaña 3: riesgo por departamento.}
-    \label{fig:gui03}
-  \end{minipage}\hfill
-  \begin{minipage}{0.49\textwidth}\centering
-    \includegraphics[width=\linewidth]{figures/gui04_sobre_modelo.png}
-    \caption{Pestaña 4: sobre el modelo y comparación.}
-    \label{fig:gui04}
-  \end{minipage}
-\end{figure}
+\subsection{Naturaleza de solo lectura}
+La GUI es de solo lectura: consume los artefactos versionados (\texttt{letalidad\_nn.keras}, \texttt{calibrator.pkl}, \texttt{scaler.pkl}, \texttt{encoders.pkl}, \texttt{threshold.json}) y no reentrena nada. Esta separación entrenamiento/inferencia garantiza que lo que se defiende ante el jurado es exactamente lo que corre la aplicación, y permite ejecutarla cualquier cantidad de veces sin alterar los resultados del informe.

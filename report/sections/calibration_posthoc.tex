@@ -1,5 +1,5 @@
 Para corregir la interpretación de la salida sigmoide, se ajustó un calibrador post-hoc usando solamente el conjunto de validación. Se compararon Platt e isotónica por \emph{Brier score} de validación y se seleccionó \textbf{isotonic}. El test se mantuvo como diagnóstico congelado: no se usó para elegir el calibrador.
 
-En test, la salida sigmoide cruda obtuvo Brier 0.2139 y ECE 0.3154; el score calibrado obtuvo Brier 0.0872 y ECE 0.0161. Por eso, la GUI deja de presentar la salida como ``probabilidad operacional'' y la muestra como \textbf{score calibrado de riesgo mortal}.
+En test, la salida sigmoide cruda obtuvo Brier 0.2139 y ECE 0.3154; el score calibrado obtuvo Brier 0.0872 y ECE 0.0161. Por eso, la GUI deja de presentar la salida como ``probabilidad operacional'' y la muestra como \textbf{score calibrado de riesgo multifatal}.
 
-Además, se calcularon intervalos de confianza bootstrap al 95\,\% sobre las predicciones congeladas del test: F1-mortal 0.2746 [0.2383, 0.3130], recall-mortal 0.8849 [0.8322, 0.9323] y PR-AUC 0.2038 [0.1661, 0.2602]. Estos intervalos evitan vender el resultado como un punto exacto: muestran la incertidumbre real de un test pequeño y desbalanceado.
+Además, se calcularon intervalos de confianza bootstrap al 95\,\% sobre las predicciones congeladas del test: F1-multifatal 0.2746 [0.2383, 0.3130], recall-multifatal 0.8849 [0.8322, 0.9323] y PR-AUC 0.2038 [0.1661, 0.2602]. Estos intervalos evitan vender el resultado como un punto exacto: muestran la incertidumbre real de un test pequeño y desbalanceado.

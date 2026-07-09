@@ -1,6 +1,6 @@
 {
   "passed": true,
-  "elapsed_seconds": 0.1637148750014603,
+  "elapsed_seconds": 0.1693897919903975,
   "checks": [
     {
       "check": "demo_cases_predict",
@@ -10,7 +10,7 @@
     {
       "check": "response_under_2_seconds",
       "passed": true,
-      "detail": "0.164s"
+      "detail": "0.169s"
     },
     {
       "check": "nocturno_changes_probability",

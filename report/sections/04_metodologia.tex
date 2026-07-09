@@ -11,12 +11,12 @@ El proceso se organizó siguiendo el ciclo CRISP-DM, adaptado a la naturaleza de
 \toprule
 Fase CRISP-DM & Bloque & Entregable principal \\
 \midrule
-Comprensión del negocio y de los datos & A, B & Repositorio, auditoría, \texttt{base\_limia.parquet} \\
-Análisis exploratorio & C & fig01--fig13, hallazgos H1--H10 \\
-Preparación de datos & D & 72 características, escalado, codificación, \texttt{demo\_cases.csv} \\
-Modelado & E & \texttt{severidad\_nn.keras}, \texttt{threshold.json}, \texttt{tab04} \\
-Evaluación & F & \texttt{tab03}, \texttt{tab05}, fig16--fig21, top-5 SHAP \\
-Despliegue & G & App Streamlit, gui01--gui04 \\
+Comprensión del negocio y de los datos & A, B & Repositorio, auditoría, \texttt{base\_limpia.parquet} \\
+Análisis exploratorio & C & fig01--fig13 y fig23, hallazgos H1--H11 \\
+Preparación de datos & D & 116 características, escalado, codificación, \texttt{demo\_cases.csv} \\
+Modelado & E & \texttt{letalidad\_nn.keras}, \texttt{threshold.json}, \texttt{tab04} \\
+Evaluación & F & \texttt{tab03}, \texttt{tab05}, fig16--fig22, top-5 SHAP, bootstrap \\
+Despliegue & G & App Streamlit, checklist \texttt{tab09} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -24,7 +24,7 @@ Despliegue & G & App Streamlit, gui01--gui04 \\
 \subsection{Pipeline}
 El flujo completo, reproducible de punta a punta, es:
 \[
-\texttt{data/raw/} \xrightarrow{\text{Bloque B}} \texttt{base\_limia.parquet} \xrightarrow{\text{Bloque D}} X_{\text{train}}, X_{\text{val}}, X_{\text{test}} \xrightarrow{\text{Bloque E}} \texttt{severidad\_nn.keras} \xrightarrow{\text{Bloque F}} \text{eval. en test} \xrightarrow{\text{Bloque G}} \texttt{streamlit\_app.py}
+\texttt{data/raw/} \xrightarrow{\text{Bloque B}} \texttt{base\_limpia.parquet} \xrightarrow{\text{Bloque D}} X_{\text{train}}, X_{\text{val}}, X_{\text{test}} \xrightarrow{\text{Bloque E}} \texttt{letalidad\_nn.keras} \xrightarrow{\text{Bloque F}} \text{eval. en test} \xrightarrow{\text{Bloque G}} \texttt{streamlit\_app.py}
 \]
 
 \subsection{Herramientas y versiones}
@@ -48,7 +48,7 @@ SEED = 42
 os.environ["PYTHONHASHSEED"] = str(SEED)
 random.seed(SEED); np.random.seed(SEED); tf.random.set_seed(SEED)
 \end{lstlisting}
-El modelo canónico se entrenó una sola vez en la máquina macOS del integrante Rendo. Los artefactos \texttt{severidad\_nn.keras}, \texttt{scaler.pkl}, \texttt{encoders.pkl}, \texttt{feature\_list.json} y \texttt{threshold.json} se versionaron en Git y los consumió el otro integrante, sin re-entrenar. Las cifras de este informe provienen exclusivamente de ese artefacto.
+El modelo canónico se entrenó una sola vez en la máquina macOS del integrante Rendo. Los artefactos \texttt{letalidad\_nn.keras}, \texttt{scaler.pkl}, \texttt{encoders.pkl}, \texttt{feature\_list.json} y \texttt{threshold.json} se versionaron en Git y los consumió el otro integrante, sin re-entrenar. Las cifras de este informe provienen exclusivamente de ese artefacto.
 
 \subsection{Separación de subconjuntos}
 Para no confundir ``probar la interfaz'' con ``evaluar el modelo'', se manejaron cuatro conceptos distintos: entrenamiento (ajustar pesos y \emph{fits}), validación (elegir hiperparámetros, \emph{early stopping} y calibrar el umbral), prueba final (evaluación única e intocable) y casos de demostración (probar la inferencia de la interfaz, jamás medir desempeño). Los casos de demostración se construyeron desde validación y casos sintéticos controlados, nunca desde la prueba final.

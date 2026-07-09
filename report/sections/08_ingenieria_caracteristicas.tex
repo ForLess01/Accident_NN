@@ -1,46 +1,55 @@
 \section{Ingeniería de características}\label{sec:ingenieria}
 
-Se construyeron 72 características finales a partir de las seis variables base. Cada una justificada por una señal observada en el análisis exploratorio o por una razón técnica de las redes neuronales. La \autoref{tab:features-principales} muestra las derivadas más relevantes (el listado completo de las 72 está en el Anexo y en \texttt{tab02\_feature\_contract.csv}).
+Se construyeron 116 características finales a partir de las variables pre-impacto del registro. Cada una justificada por una señal observada en el análisis exploratorio o por una razón técnica de las redes neuronales. La \autoref{tab:features-principales} muestra las derivadas más relevantes (el listado completo está en el Anexo y en \texttt{tab02\_feature\_contract.csv}).
 
 \subsection{Características temporales (de \texttt{FECHA})}
 \begin{itemize}
-  \item \texttt{anio}: menos útil para modelos, se conserva por completitud.
+  \item \texttt{anio}: captura la deriva del registro 2021--2025; se escala como continua.
   \item \texttt{mes} (1--12): estacionalidad.
   \item \texttt{dia\_semana} (0--6) y \texttt{fin\_de\_semana} (booleano): patrones por día de semana (H4).
   \item \texttt{feriado} (booleano, usando \texttt{holidays.country\_holidays("PE")}).
-  \item \texttt{quincena} (booleano, días 14--16 y 29--2): \emph{proxy} de pago y viajes, justificado en el informe como señal socioeconómica conocida en Perú.
+  \item \texttt{quincena} (booleano, días 14--16 y 29--2): \emph{proxy} de pago y viajes.
 \end{itemize}
 
 \subsection{Características horarias (de \texttt{hora\_entera})}
 \begin{itemize}
-  \item \textbf{Codificación cífácil:} \texttt{hora\_sin = sin(2$\pi$ h/24)} y \texttt{hora\_cos = cos(2$\pi$ h/24)}. La razón técnica es que para la red, 23 y 0 deben ser vecinos; con la hora cruda distan 23 unidades, lo que rompe la continuidad cíclica del día.
+  \item \textbf{Codificación cíclica:} \texttt{hora\_sin = sin(2$\pi$ h/24)} y \texttt{hora\_cos = cos(2$\pi$ h/24)}. Para la red, 23 y 0 deben ser vecinos; con la hora cruda distan 23 unidades, lo que rompe la continuidad cíclica del día.
   \item \texttt{nocturno} (booleano, 20:00--05:59): nocturnidad y fatiga.
-  \item \texttt{franja} (MADRUGADA 0--5, MAÑANA 6--11, TARDE 12--17, NOCHE 18--23): agrupa periodos interpretables.
+  \item \texttt{franja} (MADRUGADA 0--5, MAÑANA 6--11, TARDE 12--17, NOCHE 18--23).
   \item Filas con \texttt{hora\_entera} nula: \texttt{hora\_sin = hora\_cos = 0} + \texttt{hora\_faltante = 1}.
 \end{itemize}
 
 \subsection{Características geográficas}
 \begin{itemize}
   \item \emph{One-Hot} de \texttt{DEPARTAMENTO} (25 columnas).
-  \item \texttt{region\_natural} (COSTA / SIERRA / SELVA / DESCONOCIDO): mapeo fijo departamento $\rightarrow$ región, escrito explícitamente en \texttt{src/features.py}. Agrupa patrones geográficos generales para reducir dispersión.
+  \item \texttt{region\_natural} (COSTA / SIERRA / SELVA / DESCONOCIDO): mapeo fijo departamento $\rightarrow$ región, escrito explícitamente en \texttt{src/features.py}.
+  \item \texttt{LATITUD} y \texttt{LONGITUD}: señal espacial continua estandarizada, con imputación por mediana de \emph{train} y \emph{flag} \texttt{coord\_faltante}. Es la primera vez que el proyecto dispone de geolocalización exacta (H11).
 \end{itemize}
 
-\subsection{Características de vía (contingencia C11)}
+\subsection{Características de vía}
 \begin{itemize}
-  \item \texttt{via\_prefijo}: parte alfabética del código (p.\,ej.\ \texttt{PE}, \texttt{LM}, \texttt{IC}) $\rightarrow$ \emph{One-Hot}. Representa familias de vías sin depender del código completo.
-  \item \texttt{via\_freq}: frecuencia relativa del código completo, calculada solo en \emph{train}. Códigos no vistos en \emph{val} o \emph{test} se mapean a 0, evitando fuga y manejando categoría no vista.
+  \item \texttt{via\_prefijo}: parte alfabética del código de carretera (p.\,ej.\ \texttt{PE}, \texttt{LM}, \texttt{CU}) $\rightarrow$ \emph{One-Hot}. Representa familias de vías.
+  \item \texttt{via\_freq}: frecuencia relativa del código completo, calculada solo en \emph{train}; códigos no vistos se mapean a 0.
+  \item \texttt{red\_vial\_*}: NACIONAL / DEPARTAMENTAL / PROVINCIAL / URBANO / DESCONOCIDO.
+  \item \texttt{tipo\_via\_*}: CARRETERA / AVENIDA / CALLE / EXPRESA / OTRO / DESCONOCIDO (agrupa calle, jirón, pasaje y alameda en CALLE; vía expresa y autopista en EXPRESA).
 \end{itemize}
-No se aplicó \emph{One-Hot} masivo sobre el código completo (la cardinalidad es alta y el \emph{One-Hot} generaría miles de columnas sin generalización): se usó \emph{frequency encoding} en su lugar, decisión que figura en el listado de errores prohibidos del Plan.
 
-\subsection{Característica numérica de kilómetro}
-\texttt{KILOMETRO} se imputa con la mediana de \emph{train} y se le añade el \emph{flag} \texttt{km\_faltante}; posteriormente se escala. La distribución observada en la figura~\ref{fig:fig11} (concentración por tramos) justifica conservarla como variable numérica.
+\subsection{Características de condiciones pre-impacto (nuevas en esta fuente)}
+Estas variables son el aporte central del cambio de dataset (H8):
+\begin{itemize}
+  \item \texttt{zona\_*}: RURAL / URBANA / DESCONOCIDO. La ruralidad cuadruplica la tasa multifatal.
+  \item \texttt{clima\_*}: DESPEJADO / NUBLADO / LLUVIOSO / NIEBLA / OTRO / DESCONOCIDO (agrupa soleado en despejado; granizo y nieve en lluvioso).
+  \item \texttt{caracteristica\_*}: RECTO / CURVA / INTERSECCION / ESTRUCTURA / OTRO / DESCONOCIDO (agrupa sinuosa en curva; óvalo en intersección; puente, túnel y pase a desnivel en estructura).
+  \item \texttt{perfil\_*}: PLANA / INCLINADA / DESCONOCIDO.
+  \item \texttt{superficie\_*}: PAVIMENTADA / AFIRMADO / TROCHA / DESCONOCIDO (agrupa asfaltada, concreto, adoquinado y empedrado en pavimentada; cascajo/ripio en trocha).
+\end{itemize}
 
-\subsection{Característica de modalidad}
-\texttt{MODALIDAD} se imputa a \texttt{DESCONOCIDO} y se codifica con \emph{One-Hot} de seis categorías cerradas: ATROPELLO, CHOQUE, DESPISTE, ESPECIAL, VOLCADURA, DESCONOCIDO. La mecánica del accidente impacta directamente la severidad (figura~\ref{fig:fig07}, H5).
+\subsection{Característica de clase de siniestro}
+\texttt{CLASE} se normaliza a seis categorías cerradas: ATROPELLO (incluye atropello con fuga), CHOQUE (incluye choque con fuga y con objeto fijo), DESPISTE (incluye despiste y volcadura combinados), VOLCADURA, ESPECIAL (caída de pasajero, ferroviario, incendio) y DESCONOCIDO. La mecánica del evento impacta directamente la letalidad (figura~\ref{fig:fig07}, H5).
 
 \subsection{Resumen de características principales}
-\begin{longtable}{p{3.7cm} p{2.5cm} p{3.5cm} p{4.8cm}}
-\caption{Características derivadas principales (listado completo de 72 en el Anexo).} \label{tab:features-principales} \\
+\begin{longtable}{p{3.7cm} p{2.8cm} p{3.2cm} p{4.8cm}}
+\caption{Características derivadas principales (listado completo de 116 en el Anexo).} \label{tab:features-principales} \\
 \toprule
 Característica & Origen & Tipo & Justificación \\
 \midrule
@@ -59,14 +68,15 @@ Característica & Origen & Tipo & Justificación \\
 \texttt{feriado}, \texttt{quincena} & \texttt{FECHA} & booleana & Feriados PE y proxy de pago / viajes \\
 \texttt{hora\_sin}, \texttt{hora\_cos} & \texttt{HORA} & cíclica & 23 y 0 son vecinos; preserva continuidad \\
 \texttt{nocturno}, \texttt{franja} & \texttt{HORA} & booleana / categórica & Nocturnidad, fatiga, visibilidad (H3) \\
-\texttt{hora\_faltante}, \texttt{km\_faltante} & \texttt{HORA}, \texttt{KILOMETRO} & booleana & El modelo aprende del faltante sin mentirle \\
-\texttt{departamento\_*} & \texttt{DEPARTAMENTO} & \emph{one-hot} & Captura geografía del riesgo (H6) \\
-\texttt{region\_*} & \texttt{DEPARTAMENTO} & derivada + \emph{one-hot} & Agrupa patrones geográficos \\
-\texttt{via\_prefijo\_*} & \texttt{CODIGO\_VIA} & derivada + \emph{one-hot} & Familias de vías \\
-\texttt{via\_freq} & \texttt{CODIGO\_VIA} & \emph{frequency encoding} & Frecuencia de la vía calculada en \emph{train} (H7) \\
-\texttt{KILOMETRO} & \texttt{KILOMETRO} & numérica escalada & Tramos peligrosos (H8) \\
-\texttt{anio} & \texttt{FECHA} & numérica escalada & Completa el espacio temporal \\
-\texttt{modalidad\_*} & \texttt{MODALIDAD} & \emph{one-hot} & Mecánica del accidente, predictor dominante (H5) \\
+\texttt{hora\_faltante}, \texttt{coord\_faltante} & \texttt{HORA}, coordenadas & booleana & El modelo aprende del faltante sin mentirle \\
+\texttt{departamento\_*}, \texttt{region\_*} & \texttt{DEPARTAMENTO} & \emph{one-hot} & Geografía del riesgo (H6) \\
+\texttt{LATITUD}, \texttt{LONGITUD} & coordenadas & numérica escalada & Señal espacial continua (H11) \\
+\texttt{via\_prefijo\_*}, \texttt{via\_freq} & \texttt{COD CARRETERA} & derivada & Familias y frecuencia de vías (H7) \\
+\texttt{red\_vial\_*}, \texttt{tipo\_via\_*} & registro vial & \emph{one-hot} & Jerarquía y tipo de la vía \\
+\texttt{zona\_*} & \texttt{ZONA} & \emph{one-hot} & Ruralidad: 15.1\,\% vs.\ 3.6\,\% (H8) \\
+\texttt{clima\_*} & \texttt{CONDICIÓN CLIMÁTICA} & \emph{one-hot} & Lluvia: 17.6\,\% vs.\ 9.8\,\% (H8) \\
+\texttt{caracteristica\_*}, \texttt{perfil\_*}, \texttt{superficie\_*} & geometría de vía & \emph{one-hot} & Curvatura, pendiente y calzada (H8) \\
+\texttt{clase\_*} & \texttt{CLASE SINIESTRO} & \emph{one-hot} & Mecánica del evento, predictor dominante (H5) \\
 \end{longtable}
 
-El total de características finales es de 72, muy por encima del mínimo de 12 exigido en OE2. La verificación automática del contrato confirma que ninguna contiene \texttt{FALLECIDOS} ni \texttt{HERIDOS}.
+El total de características finales es de 116, muy por encima del mínimo de 12 exigido en OE2. La verificación automática del contrato confirma que ninguna deriva de \texttt{FALLECIDOS}, \texttt{LESIONADOS}, \texttt{VEHICULOS\_DANADOS} ni de las columnas de causa.

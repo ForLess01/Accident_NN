@@ -1,13 +1,13 @@
 \section{Resultados}\label{sec:resultados}
 
 \subsection{Evaluación única en el conjunto de prueba}
-La regla absoluta del Bloque F es que el test se usa exactamente una vez. Si se evalúa dos veces ``para ver'', deja de ser test. La evaluación que sigue es esa única vez.
+La regla absoluta del Bloque F es que el test se usa exactamente una vez. Si se evalúa dos veces ``para ver'', deja de ser test. La evaluación que sigue es esa única vez, con el umbral 0.35 congelado desde validación.
 
 \subsubsection{Matriz de confusión y reporte de clasificación}
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.7\textwidth]{figures/fig16_confusion_matrix.png}
-  \caption{Matriz de confusión en el conjunto de prueba. El modelo produce 73 falsos negativos sobre 143 accidentes mortales del test, el error de mayor costo en este dominio.}
+  \caption{Matriz de confusión en el conjunto de prueba. El modelo produce solo 16 falsos negativos sobre 139 siniestros multifatales del test (recall 0.8849), a costa de 634 falsos positivos: el intercambio elegido por la regla de costo asimétrico.}
   \label{fig:fig16}
 \end{figure}
 
@@ -19,27 +19,29 @@ La regla absoluta del Bloque F es que el test se usa exactamente una vez. Si se 
 \toprule
 Clase / Métrica & Precision & Recall & F1-score \\
 \midrule
-No mortal & 0.9175 & 0.7553 & 0.8286 \\
-Mortal    & 0.2102 & 0.4895 & 0.2941 \\
+Letalidad simple & 0.9737 & 0.4833 & 0.6460 \\
+Multifatal       & 0.1625 & 0.8849 & 0.2746 \\
 \midrule
-\emph{Accuracy} & --- & --- & 0.7241 \\
-Promedio macro & 0.5639 & 0.6224 & 0.5613 \\
-Promedio ponderado & 0.8345 & 0.7241 & 0.7658 \\
+\emph{Accuracy} & --- & --- & 0.5242 \\
+Promedio macro & 0.5681 & 0.6841 & 0.4603 \\
+Promedio ponderado & 0.8912 & 0.5242 & 0.6082 \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+La \emph{accuracy} de 0.52 es una consecuencia directa y esperada del umbral orientado a \emph{recall}: el modelo prefiere alarmar de más antes que perder un evento multifatal. La precisión de la clase de letalidad simple (0.9737) muestra que cuando el modelo descarta un caso, casi siempre acierta.
 
 \subsubsection{Curvas ROC y Precision-Recall}
 \begin{figure}[H]
   \centering
   \begin{minipage}{0.49\textwidth}\centering
     \includegraphics[width=\linewidth]{figures/fig17_roc_curve.png}
-    \caption{Curva ROC (ROC-AUC = 0.6840). Menos informativa bajo desbalance.}
+    \caption{Curva ROC (ROC-AUC = 0.7474). La discriminación mejora claramente sobre la iteración anterior del proyecto (0.6840 con la fuente Sutran).}
     \label{fig:fig17}
   \end{minipage}\hfill
   \begin{minipage}{0.49\textwidth}\centering
     \includegraphics[width=\linewidth]{figures/fig18_precision_recall_curve.png}
-    \caption{Curva Precision-Recall (PR-AUC = 0.2890), la métrica principal bajo desbalance.}
+    \caption{Curva Precision-Recall (PR-AUC = 0.2038, prevalencia 0.1018): el doble de la línea base aleatoria.}
     \label{fig:fig18}
   \end{minipage}
 \end{figure}
@@ -47,31 +49,31 @@ Promedio ponderado & 0.8345 & 0.7241 & 0.7658 \\
 \subsubsection{Comparación con las líneas base}
 \begin{table}[H]
 \centering
-\caption{Comparación contra líneas base en el conjunto de prueba (\texttt{tab03}). El MLP supera a las tres líneas base en F1-mortal.}
+\caption{Comparación contra líneas base en el conjunto de prueba (\texttt{tab03}). Las líneas base usan umbral 0.5; el MLP usa su umbral calibrado en validación (0.35).}
 \label{tab:comparacion}
 \begin{tabular}{lcccccc}
 \toprule
-Modelo & F1-mortal & Recall & Precision & PR-AUC & ROC-AUC & Accuracy \\
+Modelo & F1-multifatal & Recall & Precision & PR-AUC & ROC-AUC & Accuracy \\
 \midrule
-\texttt{DummyClassifier}    & 0.0000 & 0.0000 & 0.0000 & 0.1174 & 0.5000 & 0.8826 \\
-Regresión logística   & 0.2719 & 0.5315 & 0.1827 & 0.2821 & 0.6746 & 0.6658 \\
-\emph{Random Forest}   & 0.2100 & 0.1608 & 0.3026 & 0.2273 & 0.6804 & 0.8580 \\
-\textbf{MLP}           & \textbf{0.2941} & \textbf{0.4895} & 0.2102 & \textbf{0.2890} & \textbf{0.6840} & 0.7241 \\
+\texttt{DummyClassifier}    & 0.0000 & 0.0000 & 0.0000 & 0.1018 & 0.5000 & 0.8982 \\
+Regresión logística   & \textbf{0.3081} & 0.7626 & 0.1931 & 0.2160 & \textbf{0.7512} & 0.6515 \\
+\emph{Random Forest}   & 0.1776 & 0.1367 & 0.2533 & 0.1973 & 0.7361 & 0.8712 \\
+\textbf{MLP (umbral 0.35)} & 0.2746 & \textbf{0.8849} & 0.1625 & 0.2038 & 0.7474 & 0.5242 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-El MLP supera al \texttt{DummyClassifier} (cumple el requisito mínimo académico) y, por un margen estrecho, a las dos líneas base clásicas en F1-mortal. No supera ampliamente a la regresión logística -- este margen debe leerse con honestidad. En datos tabulares pequeños, los árboles y la regresión lineal suelen competir o ganar, y el MLP cumple el requisito técnico del curso (una red neuronal entrenada) con una ventaja marginal en F1 y PR-AUC. El \emph{accuracy} del \emph{Random Forest} es mayor porque su \emph{recall}-mortal es bajo (0.1608): predice menos mortales y acierta más en la clase mayoritaria, pero pierde casos letales. Esta lectura alimenta la \autoref{sec:discusion}.
+La lectura honesta de esta tabla es triple. Primero, el MLP supera con claridad al \texttt{DummyClassifier}, cumpliendo el requisito mínimo. Segundo, \textbf{la regresión logística obtiene el mejor F1 (0.3081) y el mejor ROC-AUC (0.7512)}: en datos tabulares de este tamaño, los modelos lineales compiten de igual a igual con las redes, y este trabajo lo reporta en lugar de ocultarlo. Tercero, el MLP entrega el mayor \emph{recall}-multifatal (0.8849 vs.\ 0.7626), que es exactamente la métrica que la regla de costo asimétrico privilegia; parte de esa diferencia proviene del umbral calibrado (0.35 vs.\ 0.5). El \emph{Random Forest} alcanza la mayor \emph{accuracy} porque casi no predice la clase multifatal (recall 0.1367): es el ejemplo perfecto de por qué la \emph{accuracy} engaña bajo desbalance.
 
 \subsection{Lectura de errores en el dominio}
-Un \textbf{falso negativo} aquí significa subestimar un accidente que sí fue mortal: el modelo dice ``no mortal'' y un accidente letal queda desatendido. El modelo produjo 73 falsos negativos sobre 143 accidentes mortales del test. El umbral elegido (0.50) buscó maximizar F1 manteniendo \emph{recall}-mortal en torno a 0.49; rebajarlo a 0.10 subiría el \emph{recall} a 1.0 pero hundiría la precisión a 0.12, lo que en la práctica alarmaría constantemente e inviabilizaría la priorización. La tensión entre estos costos es exactamente el tipo de razonamiento que se discute en la \autoref{sec:discusion} y propone como trabajo futuro una política de umbral definida por costo operacional.
+Un \textbf{falso negativo} aquí significa subestimar un siniestro que dejó dos o más fallecidos. El modelo produjo 16 falsos negativos sobre 139 siniestros multifatales del test. El costo de ese \emph{recall} alto es la precisión: de cada seis alertas, aproximadamente una corresponde a un evento realmente multifatal. Para un uso de priorización (qué combinaciones de vía, zona y condiciones vigilar), ese intercambio es razonable; para cualquier uso operacional directo, no lo sería. Los cinco falsos negativos de mayor probabilidad quedan listados en \texttt{tab05\_false\_negatives\_examples.csv} para discusión cualitativa.
 
 \subsection{Interpretabilidad con SHAP}
 \begin{figure}[H]
   \centering
   \begin{minipage}{0.55\textwidth}\centering
     \includegraphics[width=\linewidth]{figures/fig19_shap_summary.png}
-    \caption{Summary plot SHAP (beeswarm) global. Las características más influyentes son \texttt{modalidad\_despiste}, \texttt{mes}, \texttt{modalidad\_atropello}, \texttt{nocturno} y \texttt{hora\_cos}.}
+    \caption{Summary plot SHAP (beeswarm) global. Las características más influyentes son la clase de siniestro y la zona rural/urbana.}
     \label{fig:fig19}
   \end{minipage}\hfill
   \begin{minipage}{0.40\textwidth}\centering
@@ -90,11 +92,11 @@ Un \textbf{falso negativo} aquí significa subestimar un accidente que sí fue m
 \toprule
 Característica & Importancia media $|\text{SHAP}|$ \\
 \midrule
-\texttt{modalidad\_despiste}  & 0.0866 \\
-\texttt{mes}                  & 0.0257 \\
-\texttt{modalidad\_atropello} & 0.0251 \\
-\texttt{nocturno}             & 0.0177 \\
-\texttt{hora\_cos}            & 0.0175 \\
+\texttt{clase\_atropello}  & 0.0819 \\
+\texttt{zona\_rural}       & 0.0521 \\
+\texttt{clase\_despiste}   & 0.0462 \\
+\texttt{clase\_choque}     & 0.0418 \\
+\texttt{zona\_urbana}      & 0.0385 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -102,10 +104,9 @@ Característica & Importancia media $|\text{SHAP}|$ \\
 \subsection{Coherencia EDA $\leftrightarrow$ SHAP}
 La coherencia entre el análisis exploratorio y SHAP es una de las lecturas más informativas para un jurado:
 \begin{itemize}
-  \item El EDA anticipaba que MODALIDAD sería una característica dominante (H5, ATROPELLO con 42.9\,\% de tasa de mortalidad). SHAP lo confirma: dos de las cinco características más influyentes son modalidades (\texttt{modalidad\_despiste} 1.\textsuperscript{a} y \texttt{modalidad\_atropello} 3.\textsuperscript{a}). La red ``aprendió'' lo que el EDA sugería.
-  \item El EDA anticipaba que la nocturnidad es una señal fuerte (H3, mayo tasa de mortalidad a las 01:00). SHAP ubica \texttt{nocturno} en el top-4 y \texttt{hora\_cos} en el top-5, validando la codificación cíclica de la hora.
-  \item \texttt{mes} en 2.\textsuperscript{a} posición concuerda con la estacionalidad observada en la figura~\ref{fig:fig02}.
-  \item Departamentos no figuran en el top-5 SHAP, a pesar de que H6 mostraba diferencias territoriales en tasa de mortalidad. Esto indica que, una vez controladas modalidad y temporalidad, la geografía no aporta mucho adicional: el modelo termina razonando por las mecánicas del accidente y el momento del día, no por el departamento.
+  \item El EDA anticipaba que la clase de siniestro sería dominante (H5, DESPISTE con 17.7\,\% de tasa multifatal). SHAP lo confirma: tres de las cinco características más influyentes son clases de siniestro. El signo de \texttt{clase\_atropello} es negativo para la alta letalidad (los atropellos suelen dejar una sola víctima), mientras que despiste empuja hacia arriba.
+  \item El EDA anticipaba que la ruralidad era la señal estructural más fuerte (H8, 15.1\,\% vs.\ 3.6\,\%). SHAP ubica \texttt{zona\_rural} en el 2.\textsuperscript{o} lugar y \texttt{zona\_urbana} en el 5.\textsuperscript{o}, validando el cambio de fuente de datos: la red aprendió exactamente la variable que la fuente anterior no tenía.
+  \item Las variables temporales, dominantes en la iteración anterior del proyecto, ceden protagonismo ante las variables de contexto. Esto sugiere que la señal temporal era, en parte, un \emph{proxy} débil del contexto que ahora se observa directamente.
 \end{itemize}
 
 \subsection{Prueba funcional con casos de la interfaz}
@@ -113,42 +114,57 @@ Los casos de demostración (\texttt{tab09}, \autoref{tab:demo-cases}) se ejecuta
 
 \begin{table}[H]
 \centering
-\caption{Predicciones del modelo sobre los casos de demostración (\texttt{tab09\_gui\_demo\_predictions.csv}). Umbral crudo 0.50.}
+\caption{Predicciones del modelo sobre los casos de demostración (\texttt{tab09\_gui\_demo\_predictions.csv}). Sigmoide cruda / score calibrado; umbral crudo 0.35.}
 \label{tab:demo-cases}
-\begin{tabular}{p{3.2cm}rlp{5.5cm}}
+\begin{tabular}{p{4.4cm}rlp{4.9cm}}
 \toprule
-Caso & Sigmoide / score & Clasificación & Observación \\
+Caso & Cruda / calibrada & Clasificación & Observación \\
 \midrule
-demo\_01\_tipico\_no\_mortal & 0.2965 / 0.0559 & NO MORTAL & Riesgo base bajo o moderado \\
-demo\_02\_atropello & 0.8019 / 0.3684 & MORTAL & Debe subir frente al caso base (modalidad de mayor letalidad, H5) \\
-demo\_03\_nocturno & 0.3287 / 0.0703 & NO MORTAL & Cambia razonablemente vs.\ el caso diurno (H3) \\
-demo\_04\_codigo\_no\_visto & 0.3034 / 0.0559 & NO MORTAL & No se rompe; mapea \texttt{via\_freq = 0} \\
-demo\_05\_puno & 0.4893 / 0.0866 & NO MORTAL & El encoding geográfico acepta PUNO \\
+demo\_01 caso base (rural, PE-3N) & 0.652 / 0.144 & ALTA LETALIDAD & Carretera nacional rural: riesgo estructural ya elevado \\
+demo\_02 nocturno & 0.659 / 0.199 & ALTA LETALIDAD & Sube frente al caso base (H3) \\
+demo\_03 curva + lluvia & 0.757 / 0.199 & ALTA LETALIDAD & El mayor incremento crudo, coherente con H8 \\
+demo\_04 código no visto & 0.657 / 0.199 & ALTA LETALIDAD & No se rompe; mapea \texttt{via\_freq = 0} \\
+demo\_05 Puno rural & 0.634 / 0.144 & ALTA LETALIDAD & El encoding geográfico acepta PUNO \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Los tres casos cualitativos críticos cumplen:
-\begin{itemize}
-  \item \textbf{demo\_02 vs.\ demo\_01}: cambiar solo \texttt{MODALIDAD} de una categoría de baja letalidad a \texttt{ATROPELLO} eleva la sigmoide cruda de 0.30 a 0.80 y el score calibrado de 0.056 a 0.368, coherente con el hallazgo H5 del EDA.
-  \item \textbf{demo\_04}: el código de vía no visto no rompe la app y mapea \texttt{via\_freq = 0}.
-  \item \textbf{demo\_05}: el \emph{encoding} geográfico acepta PUNO, verificando la generalización.
-\end{itemize}
-
+Los cinco casos comparten el contexto de carretera nacional en zona rural, el perfil de mayor riesgo estructural; por eso el umbral orientado a \emph{recall} los clasifica a todos como alta letalidad. Los movimientos relativos son los esperados: la curva con lluvia produce el mayor incremento de la sigmoide (0.652 $\rightarrow$ 0.757, H8) y el score calibrado traduce esos valores crudos a probabilidades realistas (14--20\,\%, contra una prevalencia global de 10.2\,\%).
 
 \subsection{Calibración post-hoc e incertidumbre}
 \begin{figure}[H]
   \centering
   \begin{minipage}{0.49\textwidth}\centering
     \includegraphics[width=\linewidth]{figures/fig21_calibracion.png}
-    \caption{Diagnóstico inicial de calibración de la salida sigmoide cruda. El Brier 0.2017 muestra que la sigmoide sobreestima el riesgo observado.}
+    \caption{Diagnóstico inicial de calibración de la salida sigmoide cruda. El Brier 0.2139 muestra que la sigmoide sobreestima sistemáticamente el riesgo observado.}
     \label{fig:fig21}
   \end{minipage}\hfill
   \begin{minipage}{0.49\textwidth}\centering
     \includegraphics[width=\linewidth]{figures/fig22_calibracion_posthoc.png}
-    \caption{Calibración post-hoc ajustada en validación y diagnosticada sobre el test congelado. El score calibrado reduce el Brier a 0.0970.}
+    \caption{Calibración post-hoc ajustada en validación y diagnosticada sobre el test congelado. El score calibrado reduce el Brier a 0.0872.}
     \label{fig:fig22}
   \end{minipage}
 \end{figure}
 
 \input{sections/calibration_posthoc}
+
+\begin{table}[H]
+\centering
+\caption{Intervalos de confianza bootstrap al 95\,\% (1\,000 remuestreos) sobre las predicciones congeladas del test (\texttt{tab12\_bootstrap\_ci\_test.csv}).}
+\label{tab:bootstrap}
+\begin{tabular}{lccc}
+\toprule
+Métrica & Estimación & IC 95\,\% inferior & IC 95\,\% superior \\
+\midrule
+F1-multifatal & 0.2746 & 0.2383 & 0.3130 \\
+Recall-multifatal & 0.8849 & 0.8322 & 0.9323 \\
+Precision-multifatal & 0.1625 & 0.1381 & 0.1898 \\
+PR-AUC & 0.2038 & 0.1661 & 0.2602 \\
+ROC-AUC & 0.7474 & 0.7114 & 0.7832 \\
+Brier (crudo) & 0.2139 & 0.2024 & 0.2246 \\
+Brier (calibrado) & 0.0872 & 0.0765 & 0.0986 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Con solo 139 positivos en el test, los intervalos son anchos: el trabajo los reporta para no vender los resultados como puntos exactos. Nótese que el Brier calibrado (0.0872 [0.0765, 0.0986]) es mejor que el de un predictor constante de la tasa base ($0.102 \times 0.898 = 0.0916$): las probabilidades calibradas aportan información real, no solo cosmética.

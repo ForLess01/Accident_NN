@@ -1,13 +1,13 @@
 \section{Anexos}\label{sec:anexos}
 
 \subsection{Anexo A1: Diccionario de datos completo}
-Se conserva el archivo original \texttt{Formato\_2\_Diccionario\_de\_datos.docx} en \texttt{data/raw/}. La traducción de campos del diccionario oficial al CSV real normaliza los nombres \texttt{NUM\_FALLECIDOS} $\rightarrow$ \texttt{FALLECIDOS} y \texttt{NUM\_HERIDOS} $\rightarrow$ \texttt{HERIDOS}, según lo observado en los datos.
+La base ONSV incluye sus encabezados descriptivos en la propia hoja \texttt{SINIESTROS}. El mapeo completo de columnas originales a nombres canónicos (p.\,ej.\ \texttt{FECHA SINIESTRO} $\rightarrow$ \texttt{FECHA}, \texttt{COD CARRETERA} $\rightarrow$ \texttt{CODIGO\_VIA}, \texttt{CANTIDAD DE FALLECIDOS} $\rightarrow$ \texttt{FALLECIDOS}) está declarado en \texttt{COLUMN\_MAP} dentro de \texttt{src/block\_b\_dataset\_audit.py}. Se conservan en \texttt{data/raw/} los archivos de la primera iteración (CSV Sutran y su diccionario) como evidencia histórica.
 
 \subsection{Anexo A2: Estadísticos descriptivos}
 Tabla \texttt{tab01\_descriptive\_statistics.csv} con estadísticos descriptivos de todas las variables. Se omite su reproducción completa por extensión.
 
 \subsection{Anexo A3: Figuras adicionales del EDA}
-Las 13 figuras del EDA (fig01--fig13) están en \texttt{report/figures/}. En el cuerpo del informe se incluyó una selección; las restantes quedan en este anexo como evidencia complementaria.
+Las 14 figuras del EDA (fig01--fig13 y fig23) están en \texttt{report/figures/}. En el cuerpo del informe se incluyó una selección; las restantes quedan en este anexo como evidencia complementaria.
 
 \subsection{Anexo A4: Código clave (listings)}
 El código fuente completo se mantiene en el repositorio. Se destacan aquí fragmentos centrales que prueban la corrección del pipeline.
@@ -51,8 +51,8 @@ w = compute_class_weight("balanced", classes=np.array([0,1]), y=y_train)
 class_weight = {0: w[0], 1: w[1]}
 \end{lstlisting}
 
-\subsection{Anexo A5: Capturas adicionales de la GUI}
-Las capturas de las cuatro pestañas están en \texttt{report/figures/gui01..gui04.png} y se incluyeron en la \autoref{sec:interfaz}.
+\subsection{Anexo A5: Verificación funcional de la GUI}
+La verificación funcional de la interfaz quedó registrada en \texttt{tab09\_gui\_checklist.csv} (siete checks superados) y \texttt{tab09\_gui\_demo\_predictions.csv} (predicciones de los cinco casos de demostración). La app se verificó adicionalmente de punta a punta en navegador local.
 
 \subsection{Anexo A6: Bitácora de decisiones}
 La bitácora consolida las decisiones de contingencia tomadas durante la ejecución, en cumplimiento del Plan.
@@ -75,20 +75,20 @@ Fecha - Bloque & Situación / Decisión & Contingencia & Evidencia \\
 \endlastfoot
 2026-07-08 / A & Repositorio creado por Rendo. Se continúa desde verificación de estructura, entorno y permisos & Estado confirmado & Commits iniciales \\
 2026-07-08 / A & Plan.md, dataset y diccionario ya subidos. Se verifica ubicación, fuente y reproducibilidad en README antes de procesar datos & Estado confirmado & README \\
-2026-07-08 / B & Fuente exacta confirmada: recurso \texttt{3398beff-...} & Confirmado & README + \texttt{.bib} \\
-2026-07-08 / B & N registrado: 8\,117 filas útiles & C2 & \texttt{tab00\_audit\_summary} \\
-2026-07-08 / B & \% clase mortal: 11.72\,\% & C5 & \texttt{tab00\_audit\_summary} \\
-2026-07-08 / B & Formato real de HORA: \texttt{HH:MM} & C7 & \texttt{block\_b\_dataset\_audit.py} \\
-2026-07-08 / B & Encoding funcional: \texttt{latin-1} & C10 & \texttt{block\_b\_dataset\_audit.py} \\
-2026-07-08 / B & Fichas oficial descargable y con clases 0 y 1 & C22 no aplica & \texttt{data/raw} \\
-2026-07-08 / D & Patrón de \texttt{CODIGO\_VIA}: prefijo alfabético extraíble & C11 no aplica (sí prefijo) & \texttt{block\_d\_preprocessing.py} \\
-2026-07-08 / E & Mejor corrida del grid: R5 (una capa oculta) & --- & \texttt{tab04\_nn\_grid\_validation.csv} \\
-2026-07-08 / E & Umbral seleccionado: 0.50 (F1-mortal val 0.3077) & --- & \texttt{tab\_umbral\_validacion.csv}, fig15 \\
-2026-07-08 / E & Solver de regresión logística cambiado a \texttt{liblinear} por inestabilidad de \texttt{lbfgs} & --- & \texttt{block\_e\_modeling.py} \\
-2026-07-08 / F & MLP superó baselines en F1-mortal: sí, por margen estrecho & C13 se discute & \texttt{tab03}, \autoref{sec:discusion} \\
-2026-07-08 / G & SHAP local en la GUI: explicar simplificado + SHAP en informe/anexos & C14 & \texttt{app/streamlit\_app.py} \\
-2026-07-08 / D/G & \texttt{demo\_cases.csv} desde validación y sintéticos, no de test & C23 & \texttt{demo\_cases.csv}, \texttt{tab06} \\
-2026-07-08 / H & Separador decimal del informe: punto & Guía de estilo 7 & Edición \\
+2026-07-08 / B--H & Primera iteración completa con la fuente Sutran 2020--2021 (mortal/no-mortal). Diagnóstico: techo informacional, empate con la logística & C13 & Historia de Git \\
+2026-07-09 / B & Cambio de fuente a ONSV siniestros fatales 2021--2025 y reformulación del target a alta letalidad (2+ fallecidos), decisión discutida en la \autoref{sec:dataset} & --- & \texttt{tab00\_audit\_summary} \\
+2026-07-09 / B & N registrado: 9\,104 filas útiles & C2 & \texttt{tab00\_audit\_summary} \\
+2026-07-09 / B & \% clase multifatal: 10.19\,\% & C5 & \texttt{tab00\_audit\_summary} \\
+2026-07-09 / B & Exclusión por fuga: lesionados, vehículos dañados, causas y señales & --- & \texttt{block\_b\_dataset\_audit.py} \\
+2026-07-09 / D & Patrón de \texttt{COD CARRETERA}: prefijo alfabético extraíble & C11 no aplica (sí prefijo) & \texttt{block\_d\_preprocessing.py} \\
+2026-07-09 / E & Mejor corrida del grid: R5 (una capa oculta) & --- & \texttt{tab04\_nn\_grid\_validation.csv} \\
+2026-07-09 / E & Umbral seleccionado: 0.35 (regla: máx.\ recall con F1 $\geq$ 90\,\% del mejor) & --- & \texttt{tab\_umbral\_validacion.csv}, fig15 \\
+2026-07-09 / E & Solver de regresión logística: \texttt{liblinear} por inestabilidad de \texttt{lbfgs} & --- & \texttt{block\_e\_modeling.py} \\
+2026-07-09 / F & La logística obtiene F1 nominalmente superior al MLP; el MLP gana en recall & C13 se discute & \texttt{tab03}, \autoref{sec:discusion} \\
+2026-07-09 / F & Calibración isotónica post-hoc ajustada en validación & --- & \texttt{tab11}, fig22 \\
+2026-07-09 / G & SHAP local en la GUI: explicar simplificado + SHAP en informe/anexos & C14 & \texttt{app/streamlit\_app.py} \\
+2026-07-09 / D/G & \texttt{demo\_cases.csv} desde validación, no de test & C23 & \texttt{demo\_cases.csv}, \texttt{tab06} \\
+2026-07-09 / H & Separador decimal del informe: punto & Guía de estilo 7 & Edición \\
 \end{longtable}
 
 \subsection{Anexo A7: Enlace al repositorio y reproducibilidad}
@@ -99,12 +99,15 @@ El repositorio contiene comandos exactos para reproducir el pipeline, lanzar la 
 python3.12 -m venv .venv && source .venv/bin/activate  # macOS
 pip install -r requirements.txt
 
-# Pipeline (notebooks en orden)
-jupyter notebook notebooks/00_auditoria_dataset.ipynb
-jupyter notebook notebooks/01_eda.ipynb
-jupyter notebook notebooks/02_prep_features.ipynb
-jupyter notebook notebooks/03_model.ipynb
-jupyter notebook notebooks/04_evaluacion_final.ipynb
+# Pipeline (scripts por bloque, en orden)
+python src/block_b_dataset_audit.py
+python src/block_c_eda.py
+python src/block_d_preprocessing.py
+python src/block_e_modeling.py
+python src/block_f_evaluation.py
+python src/block_f_posthoc_calibration.py
+python src/block_g_app_check.py
+python tests/test_preprocessing_contract.py
 
 # Interfaz
 streamlit run app/streamlit_app.py

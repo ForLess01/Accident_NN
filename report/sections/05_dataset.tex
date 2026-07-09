@@ -1,59 +1,69 @@
 \section{Dataset}\label{sec:dataset}
 
 \subsection{Fuente oficial}
-Se utilizó el conjunto \emph{Accidentes de tránsito en carreteras 2020--2021 -- Sutran}, publicado por la PNP y la CGM/Sutran en la Plataforma Nacional de Datos Abiertos del Perú. El recurso exacto usado por el equipo está disponible en:
+Se utilizó la base \emph{SINIESTROS DE TRANSITO FATALES 2021--2025 (PRELIMINAR)}, publicada el 2026-02-27 por el Observatorio Nacional de Seguridad Vial (ONSV) en su portal de datos abiertos:
 
 \begin{quote}
-\url{https://www.datosabiertos.gob.pe/dataset/accidentes-de-tr\%C3\%A1nsito-en-carreteras/resource/3398beff-8440-4343-a54d-0911d11dfcd5}
+\url{https://www.onsv.gob.pe/datosabiertos}
 \end{quote}
 
-\noindent El archivo original (\texttt{Accidentes de tránsito en carreteras-2020-2021-Sutran.csv}) y el diccionario de datos (\texttt{Formato\_2\_Diccionario\_de\_datos.docx}) se mantienen en \texttt{data/raw/} con sus nombres originales. La fecha de descarga y verificación local fue el 2026-07-08. Es un dato abierto bajo licencia de datos abiertos del Estado peruano, lo que permite libre reuso con atribución.
+\noindent El portal describe el recurso como: ``Detalle de siniestros de tránsito con consecuencias fatales, ocurridos a nivel nacional, 2021--2025 (preliminar)'', autor ONSV. El archivo original se mantiene en \texttt{data/raw/BBDD\_ONSV\_SINIESTROS\_FATALES\_2021-2025.xlsx} (hoja \texttt{SINIESTROS}, encabezado en la fila 5). La fecha de descarga y verificación local fue el 2026-07-09. Es un dato abierto del Estado peruano, lo que permite libre reuso con atribución. El ONSV declara la información de 2025 como preliminar.
+
+\subsection{Por qué se cambió la fuente}
+La primera iteración del proyecto usó el registro Sutran 2020--2021 de accidentes en carreteras, que permite construir el target mortal/no-mortal pero solo ofrece seis variables base (fecha, hora, departamento, vía, kilómetro y modalidad), sin ninguna condición del entorno. La evaluación crítica de esa iteración mostró un techo informacional: la red empataba con la regresión logística porque no había señal suficiente que aprender. La base ONSV aporta las variables pre-impacto que la literatura reconoce como determinantes (clima, geometría y superficie de la vía, ruralidad, red vial, coordenadas), al costo de restringir el universo a siniestros fatales. Se aceptó ese costo reformulando el problema hacia la alta letalidad, en lugar de mezclar fuentes con criterios de registro incompatibles.
 
 \subsection{Diccionario de datos base}
-Del diccionario oficial se utilizaron seis variables de entrada. La \autoref{tab:diccionario} resume su rol en el proyecto.
+La \autoref{tab:diccionario} resume las variables del registro y su rol en el proyecto.
 
 \begin{table}[H]
 \centering
-\caption{Variables base del dataset oficial y su rol en el proyecto.}
+\caption{Variables del registro ONSV y su rol en el proyecto.}
 \label{tab:diccionario}
 \begin{tabular}{lll}
 \toprule
 Columna & Rol & Justificación \\
 \midrule
-\texttt{FECHA} & Característica (derivar) & Estacionalidad, día de semana, feriados \\
-\texttt{HORA} & Característica (derivar) & Nocturnidad, fatiga, visibilidad \\
+\texttt{FECHA}, \texttt{HORA} & Característica (derivar) & Estacionalidad, nocturnidad, fatiga \\
 \texttt{DEPARTAMENTO} & Característica categórica & Geografía del riesgo \\
-\texttt{CODIGO\_VIA} & Característica (derivar) & Vías con siniestralidad concentrada \\
-\texttt{KILOMETRO} & Característica numérica & Tramos peligrosos \\
-\texttt{MODALIDAD} & Característica categórica & Atropello/choque/despiste/volcadura difieren en letalidad \\
-\texttt{FALLECIDOS} & \textbf{Solo target} & \textbf{Prohibida como entrada} \\
-\texttt{HERIDOS} & \textbf{Solo resultado posterior} & \textbf{Prohibida como entrada} \\
-\texttt{FECHA\_CORTE} & Descartar & Administrativa, sin señal \\
+\texttt{ZONA} & Característica categórica & Ruralidad: velocidades y respuesta médica \\
+\texttt{RED VIAL} & Característica categórica & Nacional/departamental/provincial/urbana \\
+\texttt{TIPO DE VÍA} & Característica categórica & Carretera, avenida, calle, vía expresa \\
+\texttt{COD CARRETERA} & Característica (derivar) & Familias de vías y frecuencia \\
+\texttt{COORDENADAS} & Característica numérica & Señal espacial continua \\
+\texttt{CONDICIÓN CLIMÁTICA} & Característica categórica & Visibilidad y adherencia \\
+\texttt{CARACTERÍSTICAS DE VÍA} & Característica categórica & Recta, curva, intersección, estructura \\
+\texttt{PERFIL LONGITUDINAL} & Característica categórica & Plana vs.\ inclinada \\
+\texttt{SUPERFICIE DE CALZADA} & Característica categórica & Pavimentada, afirmado, trocha \\
+\texttt{CLASE SINIESTRO} & Característica categórica & Mecánica del evento \\
+\texttt{CANTIDAD DE FALLECIDOS} & \textbf{Solo target} & \textbf{Prohibida como entrada} \\
+\texttt{CANTIDAD DE LESIONADOS} & \textbf{Excluida} & Resultado posterior (fuga) \\
+\texttt{CANTIDAD VEHÍCULOS DAÑADOS} & \textbf{Excluida} & Resultado posterior (fuga) \\
+\texttt{CAUSA (factor y específica)} & \textbf{Excluida} & Se determina en la investigación posterior \\
+\texttt{SEÑALES vertical/horizontal} & \textbf{Excluida} & 78\,\% de faltantes concentrados por periodo \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \subsection{Variable objetivo}
-Se construyó el target binario:
+Se construyó el target binario condicional al universo de siniestros fatales:
 \[
-y = 1 \iff \texttt{FALLECIDOS} > 0 \quad \text{(``MORTAL'')}, \qquad y = 0 \text{ en caso contrario (``NO MORTAL'')}
+y = 1 \iff \texttt{FALLECIDOS} \geq 2 \quad \text{(``ALTA LETALIDAD'')}, \qquad y = 0 \iff \texttt{FALLECIDOS} = 1
 \]
-Las filas con \texttt{FALLECIDOS} nulo (los casos ``N.I.'' del diccionario) se eliminaron: no se imputa un \emph{target}. La prohibición de \texttt{FALLECIDOS} y \texttt{HERIDOS} como entradas se declara explícitamente como decisión metodológica en la \autoref{sec:preprocesamiento} para evidenciar la guarda anti-fuga.
+La prohibición de \texttt{LESIONADOS}, \texttt{VEHICULOS\_DANADOS} y las columnas de causa como entradas se declara explícitamente como decisión metodológica en la \autoref{sec:preprocesamiento}: los conteos se levantan después del siniestro (fuga directa del resultado) y la causa se codifica al cierre de la investigación (el 49\,\% figura ``en proceso de investigación'').
 
 \subsection{Auditoría inicial}
 La auditoría (Bloque B) verificó y registró:
 \begin{itemize}
-  \item Separador real: punto y coma (\texttt{;}).
-  \item Encoding funcional: \texttt{latin-1}.
-  \item Número de filas original: 8\,155.
-  \item Duplicados exactos eliminados: 35.
-  \item Filas con target nulo eliminadas: 3.
-  \item N final útil: 8\,117.
-  \item Casos mortales: 951 (11.72\,\%).
-  \item Rango temporal: 2020 a 2021.
+  \item Formato: Excel (\texttt{.xlsx}), hoja \texttt{SINIESTROS}, encabezado en fila 5, 27 columnas.
+  \item Número de filas de datos: 9\,106.
+  \item Fechas inválidas eliminadas: 2. Duplicados por código de siniestro: 0.
+  \item N final útil: 9\,104.
+  \item Casos multifatales: 928 (10.19\,\%); letalidad simple: 8\,176.
+  \item Rango temporal: 2021-01-01 a 2025-12-30 (2025 parcial, 678 registros).
+  \item Coordenadas fuera del territorio peruano anuladas: 1 registro.
 \end{itemize}
 
-Como $3\,000 \leq N < 10\,000$ se aplicó la contingencia C2 (arquitectura A, \emph{split} 70/15/15). Como el porcentaje de clase mortal se ubica entre 5\,\% y 25\,\%, se aplicó C5: \texttt{class\_weight} sin SMOTE. El formato real de \texttt{HORA} fue texto \texttt{HH:MM}, por lo que se aplicó el parser C7. \autoref{tab:audit} resume la auditoría.
+Como $3\,000 \leq N < 10\,000$ se aplicó la contingencia C2 (arquitectura A, \emph{split} 70/15/15). Como el porcentaje de clase multifatal se ubica entre 5\,\% y 25\,\%, se aplicó C5: \texttt{class\_weight} sin SMOTE. \autoref{tab:audit} resume la auditoría.
 
 \begin{table}[H]
 \centering
@@ -63,15 +73,14 @@ Como $3\,000 \leq N < 10\,000$ se aplicó la contingencia C2 (arquitectura A, \e
 \toprule
 Indicador & Valor \\
 \midrule
-Filas originales & 8\,155 \\
-Duplicados eliminados & 35 \\
-Filas con target nulo eliminadas & 3 \\
-Filas útiles finales & 8\,117 \\
-Casos mortales & 951 \\
-Porcentaje de clase mortal & 11.72\,\% \\
-Separador real & \texttt{;} \\
-Encoding funcional & \texttt{latin-1} \\
-Formato de \texttt{HORA} & texto \texttt{HH:MM} \\
+Filas de datos originales & 9\,106 \\
+Fechas inválidas eliminadas & 2 \\
+Duplicados por código & 0 \\
+Filas útiles finales & 9\,104 \\
+Casos multifatales (2+ fallecidos) & 928 \\
+Porcentaje de clase multifatal & 10.19\,\% \\
+Rango temporal & 2021--2025 (2025 parcial) \\
+Máximo de fallecidos en un siniestro & 33 \\
 \bottomrule
 \end{tabular}
 \end{table}

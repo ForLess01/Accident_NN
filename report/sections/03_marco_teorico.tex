@@ -1,7 +1,7 @@
 \section{Marco teórico}\label{sec:marco-teorico}
 
 \subsection{Seguridad vial}
-La siniestralidad vial se modela como un fenómeno multifactorial donde interactúan el entorno (infraestructura, hora, clima), el vehículo y el conductor. Los registros policiales capturan variables posteriores al hecho (modalidad del accidente, ubicación, hora, víctimas). La literatura coincide en que la severidad de un accidente depende tanto de la mecánica del impacto (atropello, choque, despiste, volcadura) como de factores temporales (nocturnidad, fatiga) y territoriales (tramos peligrosos). Este trabajo no reemplaza esa literatura: la usa como motivación para justificar qué variables derivar~\cite{datosabiertos_sutran_accidentes_2020_2021, who_road_safety_2023}.
+La siniestralidad vial se modela como un fenómeno multifactorial donde interactúan el entorno (infraestructura, hora, clima), el vehículo y el conductor. Los registros policiales capturan variables posteriores al hecho (modalidad del accidente, ubicación, hora, víctimas). La literatura coincide en que la severidad de un accidente depende tanto de la mecánica del impacto (atropello, choque, despiste, volcadura) como de factores temporales (nocturnidad, fatiga) y territoriales (tramos peligrosos). Este trabajo no reemplaza esa literatura: la usa como motivación para justificar qué variables derivar~\cite{onsv_siniestros_fatales_2021_2025, who_road_safety_2023}.
 
 \subsection{Redes neuronales}
 \subsubsection{Neurona artificial y perceptrón multicapa}
@@ -19,7 +19,7 @@ Se utilizaron dos funciones de activación:
 \end{itemize}
 
 \subsubsection{Función de pérdida y backpropagation}
-La red se entrenó minimizando la \textbf{entropía cruzada binaria} (\emph{binary cross-entropy}), la pérdida correcta para clasificación binaria con salida sigmoide. Con pesos de clase $w_1$ para la clase mortal y $w_0$ para la clase no mortal:
+La red se entrenó minimizando la \textbf{entropía cruzada binaria} (\emph{binary cross-entropy}), la pérdida correcta para clasificación binaria con salida sigmoide. Con pesos de clase $w_1$ para la clase multifatal y $w_0$ para la clase de letalidad simple:
 \[
 \mathcal{L}(y,\hat{y}) = -\frac{1}{N}\sum_{i=1}^{N}\left[w_1\, y_i \log \hat{y}_i + w_0\,(1-y_i)\log(1-\hat{y}_i)\right]
 \]
@@ -45,13 +45,13 @@ Las redes convergen mal con características en escalas dispares, por lo que las
 \subsection{Clasificación vs. regresión}
 La consigna del curso admite ``predicción o clasificación''. En rigor técnico:
 \begin{itemize}
-  \item En \textbf{clasificación} la salida es una categoría discreta (mortal/no-mortal); la red termina en una neurona con activación sigmoide y se entrena con entropía cruzada.
+  \item En \textbf{clasificación} la salida es una categoría discreta (multifatal/letalidad simple); la red termina en una neurona con activación sigmoide y se entrena con entropía cruzada.
   \item En \textbf{regresión} la salida es un número continuo; la red termina en una neurona lineal y se entrena con MSE/MAE.
 \end{itemize}
-Se eligió clasificación binaria porque: el conteo de fallecidos tiene una distribución muy sesgada con exceso de ceros, la pregunta útil de seguridad vial es ``¿mortal o no?'', y la clasificación permite la batería completa de evaluación estándar (matriz de confusión, F1, curvas ROC/PR). Al clasificar, el modelo también produce una probabilidad de accidente mortal, cubriendo ambos términos de la consigna con precisión técnica.
+Se eligió clasificación binaria porque: el conteo de fallecidos dentro de los siniestros fatales tiene una distribución muy sesgada (89.8\,\% con exactamente un fallecido, con una cola larga que llega hasta 33), la pregunta útil de seguridad vial es ``¿alta letalidad o no?'', y la clasificación permite la batería completa de evaluación estándar (matriz de confusión, F1, curvas ROC/PR). Al clasificar, el modelo también produce una probabilidad de siniestro multifatal, cubriendo ambos términos de la consigna con precisión técnica.
 
 \subsection{Métricas bajo desbalance}
-Con la clase mortal minoritaria, la \emph{accuracy} es engañosa. Se utilizaron:
+Con la clase multifatal minoritaria, la \emph{accuracy} es engañosa. Se utilizaron:
 \begin{itemize}
   \item \textbf{Matriz de confusión}: TP/TN/FP/FN.
   \item \textbf{Precision}: $P = \frac{TP}{TP+FP}$.
@@ -62,24 +62,24 @@ Con la clase mortal minoritaria, la \emph{accuracy} es engañosa. Se utilizaron:
 \end{itemize}
 
 \subsection{Costo asimétrico y umbral de decisión}
-La sigmoide entrega una probabilidad cruda; clasificar exige un corte. No se asumió 0.5: el umbral se calibró en validación privilegiando \emph{recall}-mortal. La justificación es la asimetría de costos en este dominio:
+La sigmoide entrega una probabilidad cruda; clasificar exige un corte. No se asumió 0.5: el umbral se calibró en validación privilegiando \emph{recall}-multifatal. La justificación es la asimetría de costos en este dominio:
 
 \begin{itemize}
-  \item \textbf{Falso positivo} (el modelo dice ``mortal'' y no lo fue): se sobreestima el riesgo de un escenario; recursos de fiscalización mal asignados. \emph{Costo moderado}.
-  \item \textbf{Falso negativo} (el modelo dice ``no mortal'' y sí lo fue): se subestima un escenario letal; no se prioriza un tramo u horario peligroso. \textbf{Costo alto}.
+  \item \textbf{Falso positivo} (el modelo dice ``alta letalidad'' y el siniestro dejó una sola víctima): se sobreestima el riesgo de un escenario; recursos de fiscalización mal asignados. \emph{Costo moderado}.
+  \item \textbf{Falso negativo} (el modelo dice ``letalidad simple'' y el siniestro dejó múltiples víctimas): se subestima un escenario de alta letalidad; no se prioriza un contexto peligroso. \textbf{Costo alto}.
 \end{itemize}
 
 \subsection{Calibración del umbral vs. calibración probabilística}
 Es importante distinguir dos conceptos que se confunden con facilidad:
 \begin{itemize}
-  \item La \textbf{calibración del umbral} decide desde qué probabilidad se etiqueta como MORTAL. Se realizó en el conjunto de validación.
+  \item La \textbf{calibración del umbral} decide desde qué probabilidad se etiqueta como ALTA LETALIDAD. Se realizó en el conjunto de validación.
   \item La \textbf{calibración probabilística} diagnostica si las probabilidades predichas se parecen a frecuencias reales observadas. Primero se evaluó la sigmoide cruda con \emph{Brier score} y curva de calibración; luego se ajustó un calibrador post-hoc usando solo validación y se diagnosticó sobre el test congelado.
 \end{itemize}
 
 \subsection{Fuga de datos}
 La fuga de datos (\emph{data leakage}) ocurre cuando información del objetivo o del futuro se cuela en las entradas. En este proyecto se aplicaron dos guardias:
 \begin{enumerate}
-  \item Las columnas \texttt{FALLECIDOS} y \texttt{HERIDOS} se prohibieron como entradas porque definen el resultado posterior del accidente. Usarlas produciría un modelo trivial e indefendible.
+  \item Las columnas de resultado (\texttt{FALLECIDOS}, \texttt{LESIONADOS}, \texttt{VEHICULOS\_DANADOS}) y las de causa post-investigación se prohibieron como entradas porque describen el desenlace del siniestro, no su contexto previo. Usarlas produciría un modelo trivial e indefendible.
   \item Todo \emph{fit} de preprocesamiento (escalado, codificación, imputación, frecuencias de vía) se ajustó solo en el conjunto de entrenamiento, aplicando luego a validación y prueba.
 \end{enumerate}
 
@@ -91,7 +91,7 @@ SHAP (\emph{SHapley Additive exPlanations}) cuantifica la contribución marginal
 
 \begin{figure}[H]
   \centering
-  \fbox{\parbox{0.85\textwidth}{\centering \vspace{1.5cm} [Diagrama del MLP: capa de entrada (72 nodos) $\rightarrow$ Dense(32, ReLU) $\rightarrow$ BatchNorm $\rightarrow$ Dropout(0.4) $\rightarrow$ Dense(1, sigmoide).]\\ \vspace{1.5cm}}}
-  \caption{Arquitectura del MLP seleccionado (corrida R5, una capa oculta de 32 neuronas). La capa de salida sigmoide produce la probabilidad de accidente mortal.}
+  \fbox{\parbox{0.85\textwidth}{\centering \vspace{1.5cm} [Diagrama del MLP: capa de entrada (116 nodos) $\rightarrow$ Dense(32, ReLU) $\rightarrow$ BatchNorm $\rightarrow$ Dropout(0.4) $\rightarrow$ Dense(1, sigmoide).]\\ \vspace{1.5cm}}}
+  \caption{Arquitectura del MLP seleccionado (corrida R5, una capa oculta de 32 neuronas). La capa de salida sigmoide produce la probabilidad de siniestro multifatal.}
   \label{fig:arquitectura}
 \end{figure}
