@@ -109,38 +109,46 @@ La coherencia entre el análisis exploratorio y SHAP es una de las lecturas más
 \end{itemize}
 
 \subsection{Prueba funcional con casos de la interfaz}
-Los casos de demostración (\texttt{tab06}, \autoref{tab:demo-cases}) se ejecutaron sobre el modelo final. \textbf{No son una métrica}: solo prueban que la inferencia de la interfaz funciona y que los casos de control se comportan de forma coherente con el EDA.
+Los casos de demostración (\texttt{tab09}, \autoref{tab:demo-cases}) se ejecutaron sobre el modelo final. \textbf{No son una métrica}: solo prueban que la inferencia de la interfaz funciona y que los casos de control se comportan de forma coherente con el EDA.
 
 \begin{table}[H]
 \centering
-\caption{Predicciones del modelo sobre los casos de demostración (\texttt{tab06\_demo\_cases.csv}). Umbral 0.50.}
+\caption{Predicciones del modelo sobre los casos de demostración (\texttt{tab09\_gui\_demo\_predictions.csv}). Umbral crudo 0.50.}
 \label{tab:demo-cases}
 \begin{tabular}{p{3.2cm}rlp{5.5cm}}
 \toprule
-Caso & Probabilidad & Clasificación & Observación \\
+Caso & Sigmoide / score & Clasificación & Observación \\
 \midrule
-demo\_01\_tipico\_no\_mortal & 0.2965 & NO MORTAL & Probabilidad base baja o moderada \\
-demo\_02\_atropello & 0.8019 & MORTAL & Debe subir frente al caso base (modalidad de mayor letalidad, H5) \\
-demo\_03\_nocturno & 0.3287 & NO MORTAL & Cambia razonablemente vs.\ el caso diurno (H3) \\
-demo\_04\_codigo\_no\_visto & 0.3034 & NO MORTAL & No se rompe; mapea \texttt{via\_freq = 0} \\
-demo\_05\_puno & 0.4893 & NO MORTAL & El encoding geográfico acepta PUNO \\
+demo\_01\_tipico\_no\_mortal & 0.2965 / 0.0559 & NO MORTAL & Riesgo base bajo o moderado \\
+demo\_02\_atropello & 0.8019 / 0.3684 & MORTAL & Debe subir frente al caso base (modalidad de mayor letalidad, H5) \\
+demo\_03\_nocturno & 0.3287 / 0.0703 & NO MORTAL & Cambia razonablemente vs.\ el caso diurno (H3) \\
+demo\_04\_codigo\_no\_visto & 0.3034 / 0.0559 & NO MORTAL & No se rompe; mapea \texttt{via\_freq = 0} \\
+demo\_05\_puno & 0.4893 / 0.0866 & NO MORTAL & El encoding geográfico acepta PUNO \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 Los tres casos cualitativos críticos cumplen:
 \begin{itemize}
-  \item \textbf{demo\_02 vs.\ demo\_01}: cambiar solo \texttt{MODALIDAD} de una categoría de baja letalidad a \texttt{ATROPELLO} eleva la probabilidad de 0.30 a 0.80, coherente con el hallazgo H5 del EDA.
+  \item \textbf{demo\_02 vs.\ demo\_01}: cambiar solo \texttt{MODALIDAD} de una categoría de baja letalidad a \texttt{ATROPELLO} eleva la sigmoide cruda de 0.30 a 0.80 y el score calibrado de 0.056 a 0.368, coherente con el hallazgo H5 del EDA.
   \item \textbf{demo\_04}: el código de vía no visto no rompe la app y mapea \texttt{via\_freq = 0}.
   \item \textbf{demo\_05}: el \emph{encoding} geográfico acepta PUNO, verificando la generalización.
 \end{itemize}
 
-\subsection{Diagnóstico de calibración probabilística}
+
+\subsection{Calibración post-hoc e incertidumbre}
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.7\textwidth]{figures/fig21_calibracion.png}
-  \caption{Curva de calibración (\emph{reliability}). La probabilidad predicha se separa de la línea ideal. El \emph{Brier score} 0.2017 indica una calibración deficiente; la probabilidad mostrada en la GUI debe interpretarse como una estimación académica de factores de riesgo, no como una frecuencia operacional real.}
-  \label{fig:fig21}
+  \begin{minipage}{0.49\textwidth}\centering
+    \includegraphics[width=\linewidth]{figures/fig21_calibracion.png}
+    \caption{Diagnóstico inicial de calibración de la salida sigmoide cruda. El Brier 0.2017 muestra que la sigmoide sobreestima el riesgo observado.}
+    \label{fig:fig21}
+  \end{minipage}\hfill
+  \begin{minipage}{0.49\textwidth}\centering
+    \includegraphics[width=\linewidth]{figures/fig22_calibracion_posthoc.png}
+    \caption{Calibración post-hoc ajustada en validación y diagnosticada sobre el test congelado. El score calibrado reduce el Brier a 0.0970.}
+    \label{fig:fig22}
+  \end{minipage}
 \end{figure}
 
-El \emph{Brier score} en el conjunto de prueba fue \textbf{0.2017} (cuanto más cerca de 0, mejor; 0.25 indica una calibración de salida degenerada para un clasificador aleatorio). La curva de la figura~\ref{fig:fig21} muestra que las probabilidades predichas no coinciden con las frecuencias reales observadas. Este diagnóstico se reporta con honestidad y no se usó para re-ajustar el modelo después del test. Es una limitación declarada que justifica la nota de alcance visible en la interfaz gráfica.
+\input{sections/calibration_posthoc}

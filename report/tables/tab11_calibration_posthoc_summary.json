@@ -1,0 +1,9 @@
+{
+  "selected_calibrator": "isotonic",
+  "fit_dataset": "validation",
+  "raw_test_brier": 0.20172221958637238,
+  "calibrated_test_brier": 0.09699393808841705,
+  "raw_test_ece_10_bins": 0.31713936996626346,
+  "calibrated_test_ece_10_bins": 0.016889059270788685,
+  "bootstrap_samples": 1000
+}

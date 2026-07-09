@@ -27,7 +27,9 @@ def run_block_g_check() -> dict[str, object]:
     atropello = predictions.loc[predictions["caso_id"] == "demo_02_atropello", "probabilidad_mortal"].iloc[0]
     unseen = predictions.loc[predictions["caso_id"] == "demo_04_codigo_no_visto", "probabilidad_mortal"].iloc[0]
     puno = predictions.loc[predictions["caso_id"] == "demo_05_puno", "probabilidad_mortal"].iloc[0]
-    comparison = historical_comparison(demo_cases.iloc[0], float(base))
+    base_score = predictions.loc[predictions["caso_id"] == "demo_01_tipico_no_mortal", "score_riesgo_mortal"].iloc[0]
+    calibration_method = predictions["calibracion"].iloc[0]
+    comparison = historical_comparison(demo_cases.iloc[0], float(base_score))
     historical_count = int(comparison["tasa_mortalidad"].notna().sum())
 
     checklist = [
@@ -40,6 +42,11 @@ def run_block_g_check() -> dict[str, object]:
             "check": "historical_comparison_available",
             "passed": bool(historical_count >= 4),
             "detail": f"{historical_count} tasas disponibles",
+        },
+        {
+            "check": "posthoc_calibration_available",
+            "passed": bool(pd.notna(base_score) and calibration_method != "sin_calibrador"),
+            "detail": f"score={base_score:.4f}; calibrador={calibration_method}",
         },
     ]
     table = pd.DataFrame(checklist)

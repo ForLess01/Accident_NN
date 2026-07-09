@@ -117,7 +117,7 @@ def app_header() -> None:
           <div class="hero-kicker">SUTRAN · MLP tabular · demo local</div>
           <div class="hero-title">Clasificador de severidad de accidentes en carreteras del Perú</div>
           <div class="hero-copy">
-            Interfaz académica para estimar la probabilidad de desenlace mortal usando el mismo contrato
+            Interfaz académica para estimar un score calibrado de riesgo mortal usando el mismo contrato
             de preprocesamiento entrenado en el pipeline. No duplica features: consume <code>preparar_entrada()</code>.
           </div>
         </div>
@@ -144,7 +144,7 @@ def cached_shap_top5() -> pd.DataFrame:
 
 def comparison_chart(comparison: pd.DataFrame) -> go.Figure:
     clean = comparison.dropna(subset=["tasa_mortalidad_pct"]).copy()
-    colors = ["#B91C1C" if label == "Predicción del modelo" else "#0F766E" for label in clean["comparador"]]
+    colors = ["#B91C1C" if str(label).startswith("Score calibrado") else "#0F766E" for label in clean["comparador"]]
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(
@@ -161,7 +161,7 @@ def comparison_chart(comparison: pd.DataFrame) -> go.Figure:
     fig.update_layout(
         title="Modelo vs tasas históricas observadas",
         xaxis_title="Comparador",
-        yaxis_title="Probabilidad / tasa mortal (%)",
+        yaxis_title="Score calibrado / tasa mortal (%)",
         height=430,
         margin=dict(l=20, r=20, t=60, b=80),
     )
@@ -169,24 +169,23 @@ def comparison_chart(comparison: pd.DataFrame) -> go.Figure:
     return fig
 
 
-def probability_gauge(probability: float, threshold: float) -> go.Figure:
-    color = "#B91C1C" if probability >= threshold else "#0F766E"
+def risk_score_gauge(score: float, label: str) -> go.Figure:
+    color = "#B91C1C" if label == "MORTAL" else "#0F766E"
     fig = go.Figure(
         go.Indicator(
-            mode="gauge+number+delta",
-            value=probability * 100,
+            mode="gauge+number",
+            value=score * 100,
             number={"suffix": "%", "font": {"size": 42}},
-            delta={"reference": threshold * 100, "suffix": "% umbral"},
             gauge={
                 "axis": {"range": [0, 100]},
                 "bar": {"color": color},
                 "steps": [
-                    {"range": [0, threshold * 100], "color": "#CCFBF1"},
-                    {"range": [threshold * 100, 100], "color": "#FEE2E2"},
+                    {"range": [0, 15], "color": "#CCFBF1"},
+                    {"range": [15, 35], "color": "#FEF3C7"},
+                    {"range": [35, 100], "color": "#FEE2E2"},
                 ],
-                "threshold": {"line": {"color": "#111827", "width": 4}, "thickness": 0.75, "value": threshold * 100},
             },
-            title={"text": "Probabilidad mortal"},
+            title={"text": "Score calibrado de riesgo mortal"},
         )
     )
     fig.update_layout(height=310, margin=dict(l=20, r=20, t=50, b=10))
@@ -254,20 +253,23 @@ def prediction_tab() -> None:
         ]
     )
     prediction = predict_records(record).iloc[0]
-    probability = float(prediction["probabilidad_mortal"])
+    raw_probability = float(prediction["probabilidad_mortal"])
+    risk_score = float(prediction["score_riesgo_mortal"])
     label = str(prediction["clasificacion"])
-    comparison = historical_comparison(record.iloc[0], probability)
+    calibration_method = str(prediction["calibracion"])
+    comparison = historical_comparison(record.iloc[0], risk_score)
 
     left, right = st.columns([1.1, 0.9])
     with left:
-        st.plotly_chart(probability_gauge(probability, threshold), width="stretch")
+        st.plotly_chart(risk_score_gauge(risk_score, label), width="stretch")
     with right:
         st.markdown('<div class="metric-card"><div class="metric-label">Clasificación</div><div class="metric-value">{}</div></div>'.format(label), unsafe_allow_html=True)
         st.write("")
-        st.markdown('<div class="metric-card"><div class="metric-label">Umbral</div><div class="metric-value">{:.2f}</div></div>'.format(threshold), unsafe_allow_html=True)
+        st.markdown('<div class="metric-card"><div class="metric-label">Umbral crudo</div><div class="metric-value">{:.2f}</div></div>'.format(threshold), unsafe_allow_html=True)
+        st.caption(f"Salida sigmoide cruda: {raw_probability:.3f}. Calibrador: {calibration_method}.")
         st.write("")
         st.markdown(
-            '<div class="note">La probabilidad es una estimación académica; no reemplaza evaluación vial profesional ni decisiones operativas.</div>',
+            '<div class="note">El score calibrado mejora la lectura del riesgo, pero sigue siendo una estimación académica; no reemplaza evaluación vial profesional ni decisiones operativas.</div>',
             unsafe_allow_html=True,
         )
 
@@ -275,7 +277,7 @@ def prediction_tab() -> None:
     st.plotly_chart(comparison_chart(comparison), width="stretch")
     st.caption(
         "La línea no es una comprobación individual del caso manual. Compara la predicción del modelo "
-        "contra tasas históricas observadas en grupos reales del dataset."
+        "calibrada en validación contra tasas históricas observadas en grupos reales del dataset."
     )
     st.dataframe(
         comparison.assign(tasa_mortalidad_pct=lambda data: data["tasa_mortalidad_pct"].round(2)),
@@ -334,7 +336,46 @@ def risk_tab() -> None:
     fig.update_layout(height=520)
     st.plotly_chart(fig, width="stretch")
     st.dataframe(filtered, width="stretch", hide_index=True)
-    st.info("Mapa coroplético opcional: no se activa porque no hay GeoJSON versionado en data/geo/. El ranking de barras cumple la función obligatoria.")
+
+    geo_path = ROOT / "data" / "geo" / "peru_departamentos_simple.geojson"
+    if geo_path.exists():
+        try:
+            with open(geo_path, encoding="utf-8") as f:
+                geojson = json.load(f)
+            available = {p["NOMBDEP"] for p in (f["properties"] for f in geojson["features"])}
+            map_df = dept[dept["DEPARTAMENTO"].isin(available)].copy()
+            if not map_df.empty:
+                st.markdown("#### Mapa coroplético del Perú")
+                choropleth = px.choropleth(
+                    map_df,
+                    geojson=geojson,
+                    locations="DEPARTAMENTO",
+                    featureidkey="properties.NOMBDEP",
+                    color="mortalidad",
+                    color_continuous_scale="OrRd",
+                    labels={"mortalidad": "Mortalidad (%)", "DEPARTAMENTO": "Departamento"},
+                    hover_data={"accidentes": True, "mortalidad": ":.1f"},
+                    title="Tasa de mortalidad por departamento",
+                )
+                choropleth.update_geos(
+                    fitbounds="locations",
+                    visible=False,
+                    showcountries=False,
+                    showsubunits=False,
+                )
+                choropleth.update_layout(height=560, margin=dict(l=10, r=10, t=50, b=10))
+                st.plotly_chart(choropleth, width="stretch")
+                col_top, col_bot = st.columns(2)
+                with col_top:
+                    st.caption("Color: tasa de mortalidad (%) por departamento.")
+                with col_bot:
+                    st.caption("Fuente del GeoJSON: repositorio público `juaneladio/peru-geojson`.")
+            else:
+                st.warning("No se encontraron departamentos compatibles con el GeoJSON.")
+        except (OSError, ValueError) as exc:
+            st.warning(f"No se pudo cargar el GeoJSON: {exc}. El ranking de barras sigue disponible.")
+    else:
+        st.info("GeoJSON no presente en data/geo/. El ranking de barras cumple la función obligatoria.")
 
 
 def about_tab() -> None:

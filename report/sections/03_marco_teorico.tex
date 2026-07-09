@@ -73,7 +73,7 @@ La sigmoide entrega una probabilidad cruda; clasificar exige un corte. No se asu
 Es importante distinguir dos conceptos que se confunden con facilidad:
 \begin{itemize}
   \item La \textbf{calibración del umbral} decide desde qué probabilidad se etiqueta como MORTAL. Se realizó en el conjunto de validación.
-  \item La \textbf{calibración probabilística} diagnostica si las probabilidades predichas se parecen a frecuencias reales observadas. Se evaluó con un \emph{Brier score} y una curva de calibración (\emph{reliability curve}) como diagnóstico final; no se realizaron ajustes posteriores al modelo, porque el test se evaluó una sola vez.
+  \item La \textbf{calibración probabilística} diagnostica si las probabilidades predichas se parecen a frecuencias reales observadas. Primero se evaluó la sigmoide cruda con \emph{Brier score} y curva de calibración; luego se ajustó un calibrador post-hoc usando solo validación y se diagnosticó sobre el test congelado.
 \end{itemize}
 
 \subsection{Fuga de datos}

@@ -1,6 +1,6 @@
 {
   "passed": true,
-  "elapsed_seconds": 0.3020377090142574,
+  "elapsed_seconds": 0.1434300830005668,
   "checks": [
     {
       "check": "demo_cases_predict",
@@ -10,7 +10,7 @@
     {
       "check": "response_under_2_seconds",
       "passed": true,
-      "detail": "0.302s"
+      "detail": "0.143s"
     },
     {
       "check": "atropello_changes_probability",
@@ -31,6 +31,11 @@
       "check": "historical_comparison_available",
       "passed": true,
       "detail": "7 tasas disponibles"
+    },
+    {
+      "check": "posthoc_calibration_available",
+      "passed": true,
+      "detail": "score=0.0559; calibrador=isotonic"
     }
   ]
 }

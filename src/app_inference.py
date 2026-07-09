@@ -8,6 +8,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+import joblib
 from tensorflow import keras
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -43,19 +44,43 @@ def load_threshold() -> float:
 
 
 @lru_cache(maxsize=1)
-def load_prediction_stack() -> tuple[keras.Model, Any, dict[str, Any], float]:
+def load_calibrator() -> dict[str, Any] | None:
+    calibrator_path = MODELS_DIR / "calibrator.pkl"
+    if not calibrator_path.exists():
+        return None
+    return joblib.load(calibrator_path)
+
+
+def apply_calibration(probabilities: np.ndarray, calibrator: dict[str, Any] | None) -> np.ndarray:
+    if calibrator is None:
+        return probabilities
+    method = calibrator.get("method")
+    model = calibrator.get("model")
+    if method == "platt":
+        return model.predict_proba(probabilities.reshape(-1, 1))[:, 1]
+    if method == "isotonic":
+        return model.predict(probabilities)
+    return probabilities
+
+
+@lru_cache(maxsize=1)
+def load_prediction_stack() -> tuple[keras.Model, Any, dict[str, Any], float, dict[str, Any] | None]:
     model = keras.models.load_model(MODELS_DIR / "severidad_nn.keras")
     scaler, encoders = load_artifacts(MODELS_DIR)
     threshold = load_threshold()
-    return model, scaler, encoders, threshold
+    calibrator = load_calibrator()
+    return model, scaler, encoders, threshold, calibrator
 
 
 def predict_records(records: pd.DataFrame) -> pd.DataFrame:
-    model, scaler, encoders, threshold = load_prediction_stack()
+    model, scaler, encoders, threshold, calibrator = load_prediction_stack()
     features = preparar_entrada(records, scaler=scaler, encoders=encoders)
     probabilities = model.predict(features, verbose=0).reshape(-1)
+    calibrated = apply_calibration(probabilities, calibrator)
     output = records.copy()
     output["probabilidad_mortal"] = probabilities
+    output["score_riesgo_mortal"] = calibrated
+    output["calibracion"] = "sin_calibrador" if calibrator is None else str(calibrator.get("method", "desconocida"))
     output["clasificacion"] = np.where(probabilities >= threshold, "MORTAL", "NO_MORTAL")
     output["threshold"] = threshold
     return output
@@ -105,7 +130,7 @@ def historical_comparison(record: pd.Series | dict[str, Any], predicted_probabil
     franja = assign_time_band(hour)
 
     rows: list[dict[str, Any]] = [
-        _rate_row("Predicción del modelo", float(predicted_probability), 1, "MLP"),
+        _rate_row("Score calibrado del modelo", float(predicted_probability), 1, "MLP + calibración post-hoc"),
     ]
 
     global_rate, global_support = observed_mortality_rate(df, pd.Series(True, index=df.index))

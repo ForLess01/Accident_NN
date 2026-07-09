@@ -18,6 +18,8 @@ def run_model_audit() -> dict[str, object]:
     test = pd.read_csv(TABLES_DIR / "tab03_model_comparison_test.csv")
     threshold = pd.read_csv(TABLES_DIR / "tab_umbral_validacion.csv")
     summary = json.loads((TABLES_DIR / "tab05_test_summary.json").read_text(encoding="utf-8"))
+    calibration_summary_path = TABLES_DIR / "tab11_calibration_posthoc_summary.json"
+    calibration_summary = json.loads(calibration_summary_path.read_text(encoding="utf-8")) if calibration_summary_path.exists() else {}
 
     leakage_features = [
         feature
@@ -45,7 +47,12 @@ def run_model_audit() -> dict[str, object]:
         "max_recall_validation_threshold": float(max_recall_threshold["threshold"]),
         "max_recall_validation_recall": float(max_recall_threshold["recall_mortal"]),
         "max_recall_validation_f1": float(max_recall_threshold["f1_mortal"]),
-        "verdict": "metodologicamente_correcto_con_desempeno_limitado",
+        "selected_calibrator": calibration_summary.get("selected_calibrator"),
+        "raw_test_brier": calibration_summary.get("raw_test_brier"),
+        "calibrated_test_brier": calibration_summary.get("calibrated_test_brier"),
+        "raw_test_ece_10_bins": calibration_summary.get("raw_test_ece_10_bins"),
+        "calibrated_test_ece_10_bins": calibration_summary.get("calibrated_test_ece_10_bins"),
+        "verdict": "metodologicamente_correcto_con_desempeno_limitado_calibracion_mejorada",
     }
     (TABLES_DIR / "tab10_model_audit.json").write_text(json.dumps(audit, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -66,12 +73,15 @@ El modelo es metodológicamente correcto para la definición del proyecto: clasi
 - Recall-mortal MLP en test: {audit['mlp_test_recall_mortal']:.4f}.
 - PR-AUC MLP en test: {audit['mlp_test_pr_auc']:.4f}.
 - Evaluaciones del test registradas: {audit['test_evaluations']}.
+- Calibrador post-hoc seleccionado: {audit['selected_calibrator']}.
+- Brier crudo/calibrado en test: {audit['raw_test_brier']:.4f} / {audit['calibrated_test_brier']:.4f}.
+- ECE crudo/calibrado en test: {audit['raw_test_ece_10_bins']:.4f} / {audit['calibrated_test_ece_10_bins']:.4f}.
 
 ## ¿Necesita mejorarse?
 
 No necesita corregirse para cumplir el plan: supera al Dummy y a los baselines en F1-mortal, usa el split correcto y mantiene el test como evaluación final. Sí debe presentarse como un modelo de desempeño limitado: el recall-mortal de test es {audit['mlp_test_recall_mortal']:.4f}, por lo que todavía deja falsos negativos relevantes.
 
-El umbral de máxima sensibilidad en validación fue {audit['max_recall_validation_threshold']:.2f}, con recall {audit['max_recall_validation_recall']:.4f} pero F1 {audit['max_recall_validation_f1']:.4f}. Cambiar ahora el umbral después de haber visto el test no sería metodológicamente limpio; se debe reportar esta tensión en Discusión y proponer como trabajo futuro una política de umbral definida por costo operacional antes de evaluar un nuevo holdout.
+La mejora aplicada no cambia la red ni maquilla el F1: calibra la lectura del riesgo con validation. El umbral de máxima sensibilidad en validación fue {audit['max_recall_validation_threshold']:.2f}, con recall {audit['max_recall_validation_recall']:.4f} pero F1 {audit['max_recall_validation_f1']:.4f}. Cambiar ahora el umbral después de haber visto el test no sería metodológicamente limpio; se debe reportar esta tensión en Discusión y proponer como trabajo futuro una política de umbral definida por costo operacional antes de evaluar un nuevo holdout.
 """
     (SECTIONS_DIR / "model_audit.md").write_text(text, encoding="utf-8")
     return audit

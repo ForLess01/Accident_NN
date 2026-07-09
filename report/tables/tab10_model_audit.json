@@ -13,5 +13,10 @@
   "max_recall_validation_threshold": 0.1,
   "max_recall_validation_recall": 1.0,
   "max_recall_validation_f1": 0.2104488594554819,
-  "verdict": "metodologicamente_correcto_con_desempeno_limitado"
+  "selected_calibrator": "isotonic",
+  "raw_test_brier": 0.20172221958637238,
+  "calibrated_test_brier": 0.09699393808841705,
+  "raw_test_ece_10_bins": 0.31713936996626346,
+  "calibrated_test_ece_10_bins": 0.016889059270788685,
+  "verdict": "metodologicamente_correcto_con_desempeno_limitado_calibracion_mejorada"
 }
