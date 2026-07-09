@@ -91,7 +91,47 @@ SHAP (\emph{SHapley Additive exPlanations}) cuantifica la contribución marginal
 
 \begin{figure}[H]
   \centering
-  \fbox{\parbox{0.85\textwidth}{\centering \vspace{1.5cm} [Diagrama del MLP: capa de entrada (116 nodos) $\rightarrow$ Dense(32, ReLU) $\rightarrow$ BatchNorm $\rightarrow$ Dropout(0.4) $\rightarrow$ Dense(1, sigmoide).]\\ \vspace{1.5cm}}}
+  \setlength{\fboxsep}{4pt}
+  \footnotesize
+  \begin{tabular}{@{}c@{\hspace{0.35em}}c@{\hspace{0.35em}}c@{\hspace{0.35em}}c@{\hspace{0.35em}}c@{\hspace{0.35em}}c@{\hspace{0.35em}}c@{\hspace{0.35em}}c@{\hspace{0.35em}}c@{}}
+    \fbox{\begin{minipage}{0.115\textwidth}\centering
+      \textbf{Entrada}\\
+      116 features\\
+      pre-impacto
+    \end{minipage}}
+    &
+    $\rightarrow$
+    &
+    \fbox{\begin{minipage}{0.115\textwidth}\centering
+      \textbf{Capa oculta}\\
+      Dense(32)\\
+      ReLU
+    \end{minipage}}
+    &
+    $\rightarrow$
+    &
+    \fbox{\begin{minipage}{0.115\textwidth}\centering
+      \textbf{BatchNorm}\\
+      estabiliza\\
+      activaciones
+    \end{minipage}}
+    &
+    $\rightarrow$
+    &
+    \fbox{\begin{minipage}{0.115\textwidth}\centering
+      \textbf{Dropout}\\
+      regulariza\\
+      $p=0.4$
+    \end{minipage}}
+    &
+    $\rightarrow$
+    &
+    \fbox{\begin{minipage}{0.115\textwidth}\centering
+      \textbf{Salida}\\
+      Dense(1)\\
+      sigmoide
+    \end{minipage}}
+  \end{tabular}
   \caption{Arquitectura del MLP seleccionado (corrida R5, una capa oculta de 32 neuronas). La capa de salida sigmoide produce la probabilidad de siniestro multifatal.}
   \label{fig:arquitectura}
 \end{figure}
