@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.app_inference import load_clean_dataset, load_demo_cases, load_threshold, predict_records
+from src.app_inference import historical_comparison, load_clean_dataset, load_demo_cases, load_threshold, predict_records
 
 
 st.set_page_config(
@@ -142,6 +142,33 @@ def cached_shap_top5() -> pd.DataFrame:
     return pd.read_csv(path) if path.exists() else pd.DataFrame(columns=["feature", "mean_abs_shap"])
 
 
+def comparison_chart(comparison: pd.DataFrame) -> go.Figure:
+    clean = comparison.dropna(subset=["tasa_mortalidad_pct"]).copy()
+    colors = ["#B91C1C" if label == "Predicción del modelo" else "#0F766E" for label in clean["comparador"]]
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=clean["comparador"],
+            y=clean["tasa_mortalidad_pct"],
+            mode="lines+markers+text",
+            line={"color": "#111827", "width": 2},
+            marker={"size": 13, "color": colors, "line": {"color": "#FFFFFF", "width": 2}},
+            text=[f"{value:.1f}%" for value in clean["tasa_mortalidad_pct"]],
+            textposition="top center",
+            hovertemplate="<b>%{x}</b><br>Mortalidad: %{y:.2f}%<extra></extra>",
+        )
+    )
+    fig.update_layout(
+        title="Modelo vs tasas históricas observadas",
+        xaxis_title="Comparador",
+        yaxis_title="Probabilidad / tasa mortal (%)",
+        height=430,
+        margin=dict(l=20, r=20, t=60, b=80),
+    )
+    fig.update_xaxes(tickangle=-18)
+    return fig
+
+
 def probability_gauge(probability: float, threshold: float) -> go.Figure:
     color = "#B91C1C" if probability >= threshold else "#0F766E"
     fig = go.Figure(
@@ -229,6 +256,7 @@ def prediction_tab() -> None:
     prediction = predict_records(record).iloc[0]
     probability = float(prediction["probabilidad_mortal"])
     label = str(prediction["clasificacion"])
+    comparison = historical_comparison(record.iloc[0], probability)
 
     left, right = st.columns([1.1, 0.9])
     with left:
@@ -243,10 +271,17 @@ def prediction_tab() -> None:
             unsafe_allow_html=True,
         )
 
-    shap_top = cached_shap_top5()
-    if not shap_top.empty:
-        st.markdown("#### Factores globales más influyentes")
-        st.dataframe(shap_top, width="stretch", hide_index=True)
+    st.markdown("#### Comparación con datos reales")
+    st.plotly_chart(comparison_chart(comparison), width="stretch")
+    st.caption(
+        "La línea no es una comprobación individual del caso manual. Compara la predicción del modelo "
+        "contra tasas históricas observadas en grupos reales del dataset."
+    )
+    st.dataframe(
+        comparison.assign(tasa_mortalidad_pct=lambda data: data["tasa_mortalidad_pct"].round(2)),
+        width="stretch",
+        hide_index=True,
+    )
 
 
 def eda_tab() -> None:
@@ -330,6 +365,10 @@ def about_tab() -> None:
         - Integrantes: Rendo y Yimmy.
         """
     )
+    shap_top = cached_shap_top5()
+    if not shap_top.empty:
+        st.markdown("#### Top-5 factores globales por SHAP")
+        st.dataframe(shap_top, width="stretch", hide_index=True)
 
 
 def main() -> None:

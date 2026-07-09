@@ -16,6 +16,7 @@ if str(ROOT) not in sys.path:
 
 from src.block_b_dataset_audit import audit_and_clean
 from src.block_d_preprocessing import run_block_d
+from src.features import assign_time_band, parse_hour_value
 from src.preprocessing import load_artifacts, preparar_entrada
 
 
@@ -68,3 +69,78 @@ def load_demo_cases() -> pd.DataFrame:
 def load_clean_dataset() -> pd.DataFrame:
     ensure_runtime_processed_files()
     return pd.read_parquet(PROCESSED_DIR / "base_limpia.parquet")
+
+
+def _rate_row(label: str, rate: float | None, support: int | None, source: str) -> dict[str, Any]:
+    return {
+        "comparador": label,
+        "tasa_mortalidad": rate,
+        "soporte": support,
+        "fuente": source,
+    }
+
+
+def observed_mortality_rate(df: pd.DataFrame, mask: pd.Series) -> tuple[float | None, int]:
+    subset = df.loc[mask]
+    support = int(subset.shape[0])
+    if support == 0:
+        return None, support
+    return float(subset["target_mortal"].mean()), support
+
+
+def historical_comparison(record: pd.Series | dict[str, Any], predicted_probability: float) -> pd.DataFrame:
+    """Compare one prediction against observed historical mortality rates.
+
+    The comparison uses the clean dataset only as observational context. It is
+    not a label for the manual input and must not be presented as ground truth
+    for a hypothetical accident.
+    """
+
+    df = load_clean_dataset().copy()
+    data = dict(record)
+    modalidad = str(data.get("MODALIDAD", "")).strip().upper()
+    departamento = str(data.get("DEPARTAMENTO", "")).strip().upper()
+    codigo_via = str(data.get("CODIGO_VIA", "")).strip().upper()
+    hour = parse_hour_value(data.get("HORA"))
+    franja = assign_time_band(hour)
+
+    rows: list[dict[str, Any]] = [
+        _rate_row("Predicción del modelo", float(predicted_probability), 1, "MLP"),
+    ]
+
+    global_rate, global_support = observed_mortality_rate(df, pd.Series(True, index=df.index))
+    rows.append(_rate_row("Histórico global", global_rate, global_support, "Dataset limpio"))
+
+    modality_rate, modality_support = observed_mortality_rate(df, df["MODALIDAD"] == modalidad)
+    rows.append(_rate_row(f"Histórico modalidad: {modalidad}", modality_rate, modality_support, "Dataset limpio"))
+
+    dept_rate, dept_support = observed_mortality_rate(df, df["DEPARTAMENTO"] == departamento)
+    rows.append(_rate_row(f"Histórico departamento: {departamento}", dept_rate, dept_support, "Dataset limpio"))
+
+    if pd.notna(hour):
+        hour_rate, hour_support = observed_mortality_rate(df, df["hora_entera"] == int(hour))
+        rows.append(_rate_row(f"Histórico hora: {int(hour):02d}:00", hour_rate, hour_support, "Dataset limpio"))
+
+    if codigo_via:
+        road_rate, road_support = observed_mortality_rate(df, df["CODIGO_VIA"] == codigo_via)
+        label = f"Histórico vía: {codigo_via}" if road_support >= 30 else f"Histórico vía: {codigo_via} (muestra baja)"
+        rows.append(_rate_row(label, road_rate, road_support, "Dataset limpio"))
+
+    similar_mask = (df["MODALIDAD"] == modalidad) & (df["DEPARTAMENTO"] == departamento)
+    if pd.notna(hour):
+        if franja == "MADRUGADA":
+            similar_mask = similar_mask & df["hora_entera"].between(0, 5)
+        elif franja == "MANANA":
+            similar_mask = similar_mask & df["hora_entera"].between(6, 11)
+        elif franja == "TARDE":
+            similar_mask = similar_mask & df["hora_entera"].between(12, 17)
+        elif franja == "NOCHE":
+            similar_mask = similar_mask & df["hora_entera"].between(18, 23)
+
+    similar_rate, similar_support = observed_mortality_rate(df, similar_mask)
+    if similar_support >= 10:
+        rows.append(_rate_row("Histórico casos similares", similar_rate, similar_support, "Modalidad + departamento + franja"))
+
+    comparison = pd.DataFrame(rows)
+    comparison["tasa_mortalidad_pct"] = comparison["tasa_mortalidad"].astype(float) * 100
+    return comparison

@@ -1,0 +1,17 @@
+{
+  "binary_classification": true,
+  "leakage_features": [],
+  "feature_count": 72,
+  "mlp_validation_f1_mortal": 0.3076923076923077,
+  "best_baseline_validation_f1_mortal": 0.2867256637168142,
+  "mlp_test_f1_mortal": 0.2941176470588235,
+  "best_baseline_test_f1_mortal": 0.2719141323792486,
+  "mlp_test_recall_mortal": 0.4895104895104895,
+  "mlp_test_pr_auc": 0.2890018461925514,
+  "test_evaluations": 1,
+  "selected_threshold": 0.5,
+  "max_recall_validation_threshold": 0.1,
+  "max_recall_validation_recall": 1.0,
+  "max_recall_validation_f1": 0.2104488594554819,
+  "verdict": "metodologicamente_correcto_con_desempeno_limitado"
+}

@@ -124,6 +124,8 @@ latexmk -pdf -interaction=nonstopmode main.tex
 | 2026-07-08 | F | Falsos negativos analizados | 73 accidentes mortales quedaron bajo el umbral; se guardaron 5 ejemplos en `tab05_false_negatives_examples.csv` | Error de mayor costo: subestimación de accidente mortal |
 | 2026-07-08 | F | SHAP y calibración generados | Top-5: `modalidad_despiste`, `mes`, `modalidad_atropello`, `nocturno`, `hora_cos`; se guardó curva de calibración | SHAP con muestra de test hasta 1000 filas por C14 preventivo |
 | 2026-07-08 | C | EDA completo generado | Se crearon `fig01`–`fig13`, `tab01` y hallazgos H1–H10 | Hallazgo fuerte: DESPISTE domina volumen, ATROPELLO domina tasa de mortalidad |
-| 2026-07-08 | G | GUI Streamlit cableada al modelo real | `app/streamlit_app.py` usa `preparar_entrada()` compartido, `severidad_nn.keras`, `threshold.json` y demo cases | Checklist G automático pasó; respuesta 0.171s; código no visto y PUNO no rompen |
+| 2026-07-08 | G | GUI Streamlit cableada al modelo real | `app/streamlit_app.py` usa `preparar_entrada()` compartido, `severidad_nn.keras`, `threshold.json` y demo cases | Checklist G automático pasó; respuesta 0.302s; código no visto, PUNO y comparación histórica no rompen |
+| 2026-07-08 | G | Interpretación de predicción aterrizada a datos reales | Se reemplazó la lectura preparada por una comparación dinámica: predicción del modelo vs tasas históricas observadas | No se presenta como comprobación individual; es contexto observacional del dataset limpio |
+| 2026-07-08 | E/F | Auditoría metodológica del modelo | `src/model_audit.py` verifica definición binaria, fuga de target, métricas contra baselines y uso único del test | Veredicto: correcto para el Plan, con desempeño limitado; no se recalibra el umbral después de mirar test |
 | 2026-07-08 | G | Capturas GUI generadas | `gui01_prediccion.png` a `gui04_sobre_modelo.png` guardadas como PNG real | Cuatro pestañas verificadas en navegador local |
 
