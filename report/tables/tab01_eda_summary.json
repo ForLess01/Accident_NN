@@ -1,0 +1,23 @@
+{
+  "rows": 8117,
+  "mortal_count": 951,
+  "mortal_rate": 11.71615128742146,
+  "peak_month": "2021-08",
+  "peak_month_count": 560,
+  "peak_hour": 17,
+  "peak_hour_count": 507,
+  "highest_hour_rate": 1,
+  "highest_hour_rate_value": 18.84057971014493,
+  "top_modality": "DESPISTE",
+  "top_modality_count": 3806,
+  "highest_modality_rate": "ATROPELLO",
+  "highest_modality_rate_value": 42.93628808864266,
+  "top_department_accidents": "LIMA",
+  "top_department_accidents_count": 1553,
+  "top_department_mortality": "LA LIBERTAD",
+  "top_department_mortality_rate": 22.25609756097561,
+  "top_road": "PE-1N",
+  "top_road_count": 1485,
+  "missing_top_column": "HORA",
+  "missing_top_value": 1.0718245657262535
+}
