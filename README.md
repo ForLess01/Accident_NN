@@ -123,4 +123,7 @@ latexmk -pdf -interaction=nonstopmode main.tex
 | 2026-07-08 | F | Test final evaluado una sola vez | MLP: F1-mortal=0.2941, recall-mortal=0.4895, PR-AUC=0.2890, ROC-AUC=0.6840, accuracy=0.7241 | `test_evaluations=1`; umbral 0.5 congelado desde validación |
 | 2026-07-08 | F | Falsos negativos analizados | 73 accidentes mortales quedaron bajo el umbral; se guardaron 5 ejemplos en `tab05_false_negatives_examples.csv` | Error de mayor costo: subestimación de accidente mortal |
 | 2026-07-08 | F | SHAP y calibración generados | Top-5: `modalidad_despiste`, `mes`, `modalidad_atropello`, `nocturno`, `hora_cos`; se guardó curva de calibración | SHAP con muestra de test hasta 1000 filas por C14 preventivo |
+| 2026-07-08 | C | EDA completo generado | Se crearon `fig01`–`fig13`, `tab01` y hallazgos H1–H10 | Hallazgo fuerte: DESPISTE domina volumen, ATROPELLO domina tasa de mortalidad |
+| 2026-07-08 | G | GUI Streamlit cableada al modelo real | `app/streamlit_app.py` usa `preparar_entrada()` compartido, `severidad_nn.keras`, `threshold.json` y demo cases | Checklist G automático pasó; respuesta 0.171s; código no visto y PUNO no rompen |
+| 2026-07-08 | G | Capturas GUI generadas | `gui01_prediccion.png` a `gui04_sobre_modelo.png` guardadas como PNG real | Cuatro pestañas verificadas en navegador local |
 

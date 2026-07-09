@@ -1,0 +1,31 @@
+{
+  "passed": true,
+  "elapsed_seconds": 0.14661579200765118,
+  "checks": [
+    {
+      "check": "demo_cases_predict",
+      "passed": true,
+      "detail": "5 casos predichos"
+    },
+    {
+      "check": "response_under_2_seconds",
+      "passed": true,
+      "detail": "0.147s"
+    },
+    {
+      "check": "atropello_changes_probability",
+      "passed": true,
+      "detail": "base=0.2965; atropello=0.8019"
+    },
+    {
+      "check": "unseen_road_code_does_not_break",
+      "passed": true,
+      "detail": "probabilidad=0.3034"
+    },
+    {
+      "check": "puno_case_does_not_break",
+      "passed": true,
+      "detail": "probabilidad=0.4893"
+    }
+  ]
+}
