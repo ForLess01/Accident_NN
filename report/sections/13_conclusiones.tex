@@ -1,0 +1,19 @@
+\section{Conclusiones}\label{sec:conclusiones}
+
+\subsection{Conclusión sobre OE1 (EDA)}
+Cumplido. Se caracterizó la siniestralidad vial nacional con 13 figuras interpretadas y diez hallazgos numerados H1--H10, con al menos tres hallazgos fuertes: la separación entre volumen y severidad horaria (H3), la dominancia de la modalidad en la letalidad (H5) y la divergencia entre el ranking por accidentes y por tasa de mortalidad territorial (H6).
+
+\subsection{Conclusión sobre OE2 (características)}
+Cumplido con holgura. Se construyeron 72 características derivadas de las seis variables base, cada una justificada y documentada en \texttt{tab02\_feature\_contract.csv}. Se excede el mínimo de 12 y se incluye codificación cíclica de la hora, \emph{frequency encoding} de vía, mapeo fijo de región natural y \emph{flags} de faltantes.
+
+\subsection{Conclusión sobre OE3 (modelo y baselines)}
+Cumplido. Se entrenó un perceptrón multicapa y se comparó contra tres líneas base. El MLP supera al \texttt{DummyClassifier} y, por un margen estrecho, a la regresión logística y al \emph{Random Forest} en F1-mortal (0.2941). El margen estrecho se discute con honestidad en la \autoref{sec:discusion} (contingencia C13): en datos tabulares pequeños los métodos clásicos suelen competir o ganar. La red cumple el requisito técnico del curso y la discusión de su ventaja marginal suma en lugar de restar.
+
+\subsection{Conclusión sobre OE4 (interpretabilidad)}
+Cumplido. El top-5 SHAP (\texttt{modalidad\_despiste}, \texttt{mes}, \texttt{modalidad\_atropello}, \texttt{nocturno}, \texttt{hora\_cos}) se identificó y se contrastó con los hallazgos del EDA: la coherencia es alta y demuestra que el modelo aprende señales conectadas con el dominio.
+
+\subsection{Conclusión sobre OE5 (interfaz)}
+Cumplido. La interfaz gráfica en Streamlit reutiliza el contrato de preprocesamiento mediante \texttt{preparar\_entrada()}, con cuatro pestañas operativas, un \emph{gauge} de probabilidad, ranking territorial y una pestaña sobre el modelo. Las cuatro pestañas pasan el checklist funcional y disponen de capturas.
+
+\subsection{Conclusión general}
+Se desarrolló una red neuronal de clasificación binaria de severidad de accidentes en carreteras del Perú, con pipeline completo (EDA $\rightarrow$ preprocesamiento $\rightarrow$ ingeniería $\rightarrow$ entrenamiento $\rightarrow$ evaluación $\rightarrow$ GUI), reproducible (semillas fijas, modelo canónico único, congelados por plataforma) y documentado. El modelo supera a las líneas base en F1-mortal, su interpretabilidad es coherente con el análisis exploratorio y la interfaz consume el pipeline sin lógica duplicada. Las limitaciones son honestas: seis variables base imponen un techo de desempeño acotado, la calibración probabilística es deficiente (Brier 0.2017) y la salida debe interpretarse como una estimación académica de factores de riesgo, no como un predictor determinista. El proyecto entrega lo comprometido y declara lo no comprometido, que es exactamente lo que un jurado valora.

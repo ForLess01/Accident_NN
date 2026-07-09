@@ -1,69 +1,69 @@
 \documentclass[12pt,a4paper]{article}
 
-\usepackage[spanish]{babel}
+\usepackage[spanish,es-tabla]{babel}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage{geometry}
 \usepackage{graphicx}
 \usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{listings}
+\usepackage{float}
 \usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{caption}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{longtable}
 
 \geometry{margin=2.5cm}
 
-\title{Clasificación de severidad de accidentes de tránsito en carreteras del Perú}
-\author{Rendo \and Yimmy}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=black,
+  citecolor=black,
+  urlcolor=blue
+}
+
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  breaklines=true,
+  frame=single,
+  numbers=left,
+  numberstyle=\tiny,
+  showstringspaces=false,
+  language=Python,
+  keywordstyle=\color{blue},
+  commentstyle=\color{gray},
+  stringstyle=\color{teal}
+}
+
+\title{Clasificación de severidad de accidentes de tránsito en carreteras del Perú\\[0.3em]
+\large Red neuronal para predicción de mortalidad (Sutran 2020--2021)}
+\author{Rendo \and Yimmy \\[0.3em] \small Curso: Redes Neuronales --- Segunda Unidad}
 \date{2026}
 
 \begin{document}
 
 \maketitle
 
-\section{Introducción}
-
-Pendiente.
-
-\section{Objetivos}
-
-Pendiente.
-
-\section{Marco teórico}
-
-Pendiente.
-
-\section{Metodología}
-
-Pendiente.
-
-\section{Dataset}
-
-Pendiente.
-
-\section{Análisis exploratorio}
-
-Pendiente.
-
-\section{Preprocesamiento e ingeniería de características}
-
-Pendiente.
-
-\section{Modelo}
-
-Pendiente.
-
-\section{Resultados}
-
-Pendiente.
-
-\section{Interfaz gráfica}
-
-Pendiente.
-
-\section{Conclusiones}
-
-Pendiente.
+\input{sections/00_resumen}
+\input{sections/01_introduccion}
+\input{sections/02_objetivos}
+\input{sections/03_marco_teorico}
+\input{sections/04_metodologia}
+\input{sections/05_dataset}
+\input{sections/06_eda}
+\input{sections/07_preprocesamiento}
+\input{sections/08_ingenieria_caracteristicas}
+\input{sections/09_modelo}
+\input{sections/10_resultados}
+\input{sections/11_interfaz_grafica}
+\input{sections/12_discusion}
+\input{sections/13_conclusiones}
+\input{sections/15_anexos}
 
 \bibliographystyle{plain}
 \bibliography{bib/referencias}
 
 \end{document}
-

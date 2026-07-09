@@ -17,3 +17,18 @@ report/output/*
 .env
 .env.*
 
+# LaTeX build artifacts (regenerables via latexmk)
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
+*.snm
+*.nav
+*.bcf
+*.run.xml
+

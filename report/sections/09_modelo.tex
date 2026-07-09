@@ -1,0 +1,127 @@
+\section{Modelo}\label{sec:modelo}
+
+\subsection{Líneas base}
+Antes de entrenar la red neuronal se evaluaron tres líneas base con el conjunto de validación. Sin punto de comparación, ninguna métrica de la red significa nada.
+
+\begin{itemize}
+  \item \textbf{Baseline 0: \texttt{DummyClassifier}} (\texttt{strategy="most\_frequent"}). El modelo tonto que siempre predice la clase mayoritaria. Demuestra por qué la \emph{accuracy} engaña: alcanza \emph{accuracy} alta aunque el \emph{recall}-mortal sea 0.
+  \item \textbf{Baseline 1: Regresión logística} (\texttt{class\_weight="balanced"}, \texttt{max\_iter=1000}, \texttt{solver="liblinear"}). Se eligió \texttt{liblinear} porque el solver por defecto (\texttt{lbfgs}) producía advertencias numéricas en este entorno, sin afectar las métricas.
+  \item \textbf{Baseline 2: \emph{Random Forest}} (\texttt{n\_estimators=300}, \texttt{class\_weight="balanced"}, \texttt{random\_state=SEED}).
+\end{itemize}
+
+\subsection{Arquitectura según N}
+Como $3\,000 \leq N < 10\,000$, se aplicó la contingencia C2: Arquitectura A (dos capas ocultas). Tras la búsqueda de hiperparámetros del bloque~\ref{sec:modelo}.5, la corrida ganadora (R5) resultó en una sola capa oculta de 32 neuronas, por lo que la arquitectura final es:
+
+\begin{lstlisting}
+model = keras.Sequential([
+    layers.Input(shape=(n_features,)),
+    layers.Dense(32, activation="relu"),
+    layers.BatchNormalization(),
+    layers.Dropout(0.4),
+    layers.Dense(1, activation="sigmoid"),
+])
+\end{lstlisting}
+
+\subsection{Compilación y pesos de clase}
+\begin{lstlisting}
+model.compile(optimizer=keras.optimizers.Adam(1e-3),
+              loss="binary_crossentropy",
+              metrics=[keras.metrics.AUC(curve="PR", name="pr_auc"),
+                       keras.metrics.Recall(name="recall"),
+                       keras.metrics.Precision(name="precision")])
+
+from sklearn.utils.class_weight import compute_class_weight
+w = compute_class_weight("balanced", classes=np.array([0,1]), y=y_train)
+class_weight = {0: w[0], 1: w[1]}
+\end{lstlisting}
+La pérdida utilizada es la entropía cruzada binaria (ecuación de \autoref{sec:marco-teorico}). El peso de clase $w_1$ aumenta el peso de los casos mortales en la pérdida para compensar el desbalance.
+
+\subsection{Entrenamiento}
+\begin{lstlisting}
+callbacks = [
+    keras.callbacks.EarlyStopping(monitor="val_pr_auc", mode="max",
+                                  patience=15, restore_best_weights=True),
+    keras.callbacks.ModelCheckpoint("models/severidad_nn.keras",
+                                    monitor="val_pr_auc", mode="max",
+                                    save_best_only=True),
+    keras.callbacks.ReduceLROnPlateau(monitor="val_loss", factor=0.5,
+                                      patience=5, min_lr=1e-5),
+]
+history = model.fit(X_train, y_train, validation_data=(X_val, y_val),
+                    epochs=200, batch_size=32, class_weight=class_weight,
+                    callbacks=callbacks, verbose=2)
+\end{lstlisting}
+Se monitorea el PR-AUC en validación porque es la métrica correcta bajo desbalance. \emph{Early stopping} conserva los mejores pesos. El guardado es en formato \texttt{.keras} de Keras 3.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.8\textwidth]{figures/fig14_training_curves.png}
+  \caption{Curvas de pérdida y PR-AUC de entrenamiento vs.\ validación. El diagnóstico de sobreajuste (si las curvas divergen) se comenta en los resultados; si no divergen, también se declara.}
+  \label{fig:fig14}
+\end{figure}
+
+\subsection{Búsqueda de hiperparámetros: \emph{grid} cerrado de 6 corridas}
+El \emph{grid} se definió antes de entrenar: exactamente seis corridas, ni una más ni una menos. La selección fue por mayor F1-mortal en validación (desempate: PR-AUC). \autoref{tab:grid} resume las seis corridas.
+
+\begin{table}[H]
+\centering
+\caption{Resultado del \emph{grid} cerrado de 6 corridas en validación. Selección por F1-mortal (desempate: PR-AUC).}
+\label{tab:grid}
+\begin{tabular}{lccccc}
+\toprule
+Corrida & Ocultas & Dropout & LR / \emph{batch} & F1-mortal val & PR-AUC val \\
+\midrule
+R1 (base)             & 32--16   & 0.4--0.3 & 1e-3 / 32 & 0.2857 & 0.2386 \\
+R2 (LR 1e-4)          & 32--16   & 0.4--0.3 & 1e-4 / 32 & 0.2386 & 0.1689 \\
+R3 (+0.1 dropout)     & 32--16   & 0.5--0.4 & 1e-3 / 32 & 0.2719 & 0.2253 \\
+R4 (mitad neuronas)   & 16--8    & 0.4--0.3 & 1e-3 / 32 & 0.2649 & 0.2345 \\
+\textbf{R5 (1 capa)}  & \textbf{32} & \textbf{0.4}   & \textbf{1e-3 / 32} & \textbf{0.3077} & 0.2353 \\
+R6 (\emph{batch} 64)  & 32--16   & 0.4--0.3 & 1e-3 / 64 & 0.2708 & 0.2254 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{La mejor corrida fue R5:} una sola capa oculta de 32 neuronas, F1-mortal en validación de 0.3077. El sobreajuste se controló con \emph{batch normalization}, \emph{dropout} 0.4 y \emph{early stopping} en iteración 25.
+
+\subsection{Calibración del umbral de decisión en validación}
+Se barrió el umbral de 0.05 a 0.95 en pasos de 0.05 sobre el conjunto de validación. \autoref{tab:umbral} (extracto) y la figura~\ref{fig:fig15} muestran el intercambio entre \emph{precision}, \emph{recall} y F1.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.8\textwidth]{figures/fig15_threshold_sweep.png}
+  \caption{Barrido de umbral en validación. F1-mortal, \emph{precision}-mortal y \emph{recall}-mortal vs.\ umbral. El umbral seleccionado (0.50) ofrece el mejor equilibrio entre F1 razonable y \emph{recall}-mortal moderado bajo la regla de costo asimétrico (FN más caro).}
+  \label{fig:fig15}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\caption{Extracto del barrido de umbral en validación (tabla completa en \texttt{tab\_umbral\_validacion.csv}).}
+\label{tab:umbral}
+\begin{tabular}{cccc}
+\toprule
+Umbral & F1-mortal & Precision-mortal & Recall-mortal \\
+\midrule
+0.05 & 0.2101 & 0.1174 & 1.0000 \\
+0.10 & 0.2104 & 0.1176 & 1.0000 \\
+0.30 & 0.2241 & 0.1274 & 0.9301 \\
+0.45 & 0.2744 & 0.1754 & 0.6294 \\
+\textbf{0.50} & \textbf{0.3077} & \textbf{0.2165} & \textbf{0.5315} \\
+0.55 & 0.2609 & 0.2133 & 0.3357 \\
+0.65 & 0.2469 & 0.3000  & 0.2098 \\
+0.95 & 0.0000 & 0.0000 & 0.0000 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Decisión sobre umbral.} El umbral de máxima sensibilidad fue 0.05--0.10, con \emph{recall} 1.0 pero F1 muy bajo ($\approx 0.21$). El umbral de 0.50 entregó el mejor F1-mortal (0.3077) con un \emph{recall}-mortal considerable (0.5315). Se seleccionó 0.50 porque maximiza F1, manteniendo un \emph{recall} razonable y aceptando más falsos positivos sobre falsos negativos (regla de costo asimétrico, \autoref{sec:marco-teorico}). Cambiar el umbral después de ver el test habría sido metodológicamente incorrecto; la elección se conserva y las implicancias operacionales se discuten en la \autoref{sec:discusion} (trabajo futuro: política de umbral definida por costo operacional antes de evaluar un nuevo \emph{holdout}).
+
+\subsection{Persistencia del modelo y artefactos}
+Los artefactos canónicos versionados en Git son:
+\begin{itemize}
+  \item \texttt{models/severidad\_nn.keras}: el modelo final (corrida R5).
+  \item \texttt{models/threshold.json}: el umbral calibrado (0.50).
+  \item \texttt{models/scaler.pkl}: el escalador ajustado en \emph{train}.
+  \item \texttt{models/encoders.pkl}: codificadores y mapa de frecuencias de vía y diccionario de región.
+  \item \texttt{models/feature\_list.json}: lista ordenada de 72 características (contrato para la GUI).
+\end{itemize}
+\textbf{El modelo se entrenó una sola vez} (en macOS) y lo consume el otro integrante, sin re-entrenar, para que las cifras del informe sean únicas e indiscutibles. Al cierre del Bloque E, el conjunto de prueba final permaneció \textbf{intacto}: no se evaluó ni una sola vez todavía.

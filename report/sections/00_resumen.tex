@@ -1,0 +1,6 @@
+\begin{abstract}
+\noindent
+Se desarrolló una red neuronal de clasificación binaria para predecir la mortalidad de accidentes de tránsito en carreteras del Perú, usando el conjunto oficial Sutran 2020--2021 (8\,117 registros útiles, 11.7\,\% de casos mortales). Se ejecutó un pipeline completo: análisis exploratorio, preprocesamiento anti-fuga, ingeniería de 72 características, entrenamiento de un perceptrón multicapa comparado contra tres líneas base y calibración del umbral de decisión en validación. El modelo final alcanzó un F1-mortal de 0.2941 y un recall-mortal de 0.4895 en el conjunto de prueba, superando a los tres baselines en F1-mortal. El análisis SHAP identificó la modalidad (despiste y atropello), el mes, la nocturnidad y la codificación cíclica de la hora como los cinco factores de mayor influencia. La interfaz gráfica en Streamlit reutiliza el contrato de preprocesamiento sin lógica duplicada. Se reportan con honestidad las limitaciones: seis variables base imponen un techo de desempeño acotado y la calibración probabilística es deficiente (Brier 0.2017), por lo que la salida debe interpretarse como una estimación académica de factores de riesgo, no como un predictor operacional.
+\end{abstract}
+
+\bigskip

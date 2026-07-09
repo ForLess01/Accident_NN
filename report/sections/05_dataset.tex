@@ -1,0 +1,77 @@
+\section{Dataset}\label{sec:dataset}
+
+\subsection{Fuente oficial}
+Se utilizó el conjunto \emph{Accidentes de tránsito en carreteras 2020--2021 -- Sutran}, publicado por la PNP y la CGM/Sutran en la Plataforma Nacional de Datos Abiertos del Perú. El recurso exacto usado por el equipo está disponible en:
+
+\begin{quote}
+\url{https://www.datosabiertos.gob.pe/dataset/accidentes-de-tr\%C3\%A1nsito-en-carreteras/resource/3398beff-8440-4343-a54d-0911d11dfcd5}
+\end{quote}
+
+\noindent El archivo original (\texttt{Accidentes de tránsito en carreteras-2020-2021-Sutran.csv}) y el diccionario de datos (\texttt{Formato\_2\_Diccionario\_de\_datos.docx}) se mantienen en \texttt{data/raw/} con sus nombres originales. La fecha de descarga y verificación local fue el 2026-07-08. Es un dato abierto bajo licencia de datos abiertos del Estado peruano, lo que permite libre reuso con atribución.
+
+\subsection{Diccionario de datos base}
+Del diccionario oficial se utilizaron seis variables de entrada. La \autoref{tab:diccionario} resume su rol en el proyecto.
+
+\begin{table}[H]
+\centering
+\caption{Variables base del dataset oficial y su rol en el proyecto.}
+\label{tab:diccionario}
+\begin{tabular}{lll}
+\toprule
+Columna & Rol & Justificación \\
+\midrule
+\texttt{FECHA} & Característica (derivar) & Estacionalidad, día de semana, feriados \\
+\texttt{HORA} & Característica (derivar) & Nocturnidad, fatiga, visibilidad \\
+\texttt{DEPARTAMENTO} & Característica categórica & Geografía del riesgo \\
+\texttt{CODIGO\_VIA} & Característica (derivar) & Vías con siniestralidad concentrada \\
+\texttt{KILOMETRO} & Característica numérica & Tramos peligrosos \\
+\texttt{MODALIDAD} & Característica categórica & Atropello/choque/despiste/volcadura difieren en letalidad \\
+\texttt{FALLECIDOS} & \textbf{Solo target} & \textbf{Prohibida como entrada} \\
+\texttt{HERIDOS} & \textbf{Solo resultado posterior} & \textbf{Prohibida como entrada} \\
+\texttt{FECHA\_CORTE} & Descartar & Administrativa, sin señal \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Variable objetivo}
+Se construyó el target binario:
+\[
+y = 1 \iff \texttt{FALLECIDOS} > 0 \quad \text{(``MORTAL'')}, \qquad y = 0 \text{ en caso contrario (``NO MORTAL'')}
+\]
+Las filas con \texttt{FALLECIDOS} nulo (los casos ``N.I.'' del diccionario) se eliminaron: no se imputa un \emph{target}. La prohibición de \texttt{FALLECIDOS} y \texttt{HERIDOS} como entradas se declara explícitamente como decisión metodológica en la \autoref{sec:preprocesamiento} para evidenciar la guarda anti-fuga.
+
+\subsection{Auditoría inicial}
+La auditoría (Bloque B) verificó y registró:
+\begin{itemize}
+  \item Separador real: punto y coma (\texttt{;}).
+  \item Encoding funcional: \texttt{latin-1}.
+  \item Número de filas original: 8\,155.
+  \item Duplicados exactos eliminados: 35.
+  \item Filas con target nulo eliminadas: 3.
+  \item N final útil: 8\,117.
+  \item Casos mortales: 951 (11.72\,\%).
+  \item Rango temporal: 2020 a 2021.
+\end{itemize}
+
+Como $3\,000 \leq N < 10\,000$ se aplicó la contingencia C2 (arquitectura A, \emph{split} 70/15/15). Como el porcentaje de clase mortal se ubica entre 5\,\% y 25\,\%, se aplicó C5: \texttt{class\_weight} sin SMOTE. El formato real de \texttt{HORA} fue texto \texttt{HH:MM}, por lo que se aplicó el parser C7. \autoref{tab:audit} resume la auditoría.
+
+\begin{table}[H]
+\centering
+\caption{Resumen de la auditoría del dataset (Bloque B).}
+\label{tab:audit}
+\begin{tabular}{lr}
+\toprule
+Indicador & Valor \\
+\midrule
+Filas originales & 8\,155 \\
+Duplicados eliminados & 35 \\
+Filas con target nulo eliminadas & 3 \\
+Filas útiles finales & 8\,117 \\
+Casos mortales & 951 \\
+Porcentaje de clase mortal & 11.72\,\% \\
+Separador real & \texttt{;} \\
+Encoding funcional & \texttt{latin-1} \\
+Formato de \texttt{HORA} & texto \texttt{HH:MM} \\
+\bottomrule
+\end{tabular}
+\end{table}

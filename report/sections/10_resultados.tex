@@ -1,0 +1,146 @@
+\section{Resultados}\label{sec:resultados}
+
+\subsection{Evaluación única en el conjunto de prueba}
+La regla absoluta del Bloque F es que el test se usa exactamente una vez. Si se evalúa dos veces ``para ver'', deja de ser test. La evaluación que sigue es esa única vez.
+
+\subsubsection{Matriz de confusión y reporte de clasificación}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.7\textwidth]{figures/fig16_confusion_matrix.png}
+  \caption{Matriz de confusión en el conjunto de prueba. El modelo produce 73 falsos negativos sobre 143 accidentes mortales del test, el error de mayor costo en este dominio.}
+  \label{fig:fig16}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\caption{Reporte de clasificación en el conjunto de prueba (\texttt{tab05}).}
+\label{tab:reporte}
+\begin{tabular}{lccc}
+\toprule
+Clase / Métrica & Precision & Recall & F1-score \\
+\midrule
+No mortal & 0.9175 & 0.7553 & 0.8286 \\
+Mortal    & 0.2102 & 0.4895 & 0.2941 \\
+\midrule
+\emph{Accuracy} & --- & --- & 0.7241 \\
+Promedio macro & 0.5639 & 0.6224 & 0.5613 \\
+Promedio ponderado & 0.8345 & 0.7241 & 0.7658 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Curvas ROC y Precision-Recall}
+\begin{figure}[H]
+  \centering
+  \begin{minipage}{0.49\textwidth}\centering
+    \includegraphics[width=\linewidth]{figures/fig17_roc_curve.png}
+    \caption{Curva ROC (ROC-AUC = 0.6840). Menos informativa bajo desbalance.}
+    \label{fig:fig17}
+  \end{minipage}\hfill
+  \begin{minipage}{0.49\textwidth}\centering
+    \includegraphics[width=\linewidth]{figures/fig18_precision_recall_curve.png}
+    \caption{Curva Precision-Recall (PR-AUC = 0.2890), la métrica principal bajo desbalance.}
+    \label{fig:fig18}
+  \end{minipage}
+\end{figure}
+
+\subsubsection{Comparación con las líneas base}
+\begin{table}[H]
+\centering
+\caption{Comparación contra líneas base en el conjunto de prueba (\texttt{tab03}). El MLP supera a las tres líneas base en F1-mortal.}
+\label{tab:comparacion}
+\begin{tabular}{lcccccc}
+\toprule
+Modelo & F1-mortal & Recall & Precision & PR-AUC & ROC-AUC & Accuracy \\
+\midrule
+\texttt{DummyClassifier}    & 0.0000 & 0.0000 & 0.0000 & 0.1174 & 0.5000 & 0.8826 \\
+Regresión logística   & 0.2719 & 0.5315 & 0.1827 & 0.2821 & 0.6746 & 0.6658 \\
+\emph{Random Forest}   & 0.2100 & 0.1608 & 0.3026 & 0.2273 & 0.6804 & 0.8580 \\
+\textbf{MLP}           & \textbf{0.2941} & \textbf{0.4895} & 0.2102 & \textbf{0.2890} & \textbf{0.6840} & 0.7241 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+El MLP supera al \texttt{DummyClassifier} (cumple el requisito mínimo académico) y, por un margen estrecho, a las dos líneas base clásicas en F1-mortal. No supera ampliamente a la regresión logística -- este margen debe leerse con honestidad. En datos tabulares pequeños, los árboles y la regresión lineal suelen competir o ganar, y el MLP cumple el requisito técnico del curso (una red neuronal entrenada) con una ventaja marginal en F1 y PR-AUC. El \emph{accuracy} del \emph{Random Forest} es mayor porque su \emph{recall}-mortal es bajo (0.1608): predice menos mortales y acierta más en la clase mayoritaria, pero pierde casos letales. Esta lectura alimenta la \autoref{sec:discusion}.
+
+\subsection{Lectura de errores en el dominio}
+Un \textbf{falso negativo} aquí significa subestimar un accidente que sí fue mortal: el modelo dice ``no mortal'' y un accidente letal queda desatendido. El modelo produjo 73 falsos negativos sobre 143 accidentes mortales del test. El umbral elegido (0.50) buscó maximizar F1 manteniendo \emph{recall}-mortal en torno a 0.49; rebajarlo a 0.10 subiría el \emph{recall} a 1.0 pero hundiría la precisión a 0.12, lo que en la práctica alarmaría constantemente e inviabilizaría la priorización. La tensión entre estos costos es exactamente el tipo de razonamiento que se discute en la \autoref{sec:discusion} y propone como trabajo futuro una política de umbral definida por costo operacional.
+
+\subsection{Interpretabilidad con SHAP}
+\begin{figure}[H]
+  \centering
+  \begin{minipage}{0.55\textwidth}\centering
+    \includegraphics[width=\linewidth]{figures/fig19_shap_summary.png}
+    \caption{Summary plot SHAP (beeswarm) global. Las características más influyentes son \texttt{modalidad\_despiste}, \texttt{mes}, \texttt{modalidad\_atropello}, \texttt{nocturno} y \texttt{hora\_cos}.}
+    \label{fig:fig19}
+  \end{minipage}\hfill
+  \begin{minipage}{0.40\textwidth}\centering
+    \includegraphics[width=\linewidth]{figures/fig20_shap_bar.png}
+    \caption{Importancia media SHAP por característica. Refuerza el orden del top-5.}
+    \label{fig:fig20}
+  \end{minipage}
+\end{figure}
+
+\subsubsection{Top-5 factores de riesgo (cierra OE4)}
+\begin{table}[H]
+\centering
+\caption{Top-5 factores según la importancia media SHAP (\texttt{tab08\_shap\_top5.csv}).}
+\label{tab:shap-top5}
+\begin{tabular}{rl}
+\toprule
+Característica & Importancia media $|\text{SHAP}|$ \\
+\midrule
+\texttt{modalidad\_despiste}  & 0.0866 \\
+\texttt{mes}                  & 0.0257 \\
+\texttt{modalidad\_atropello} & 0.0251 \\
+\texttt{nocturno}             & 0.0177 \\
+\texttt{hora\_cos}            & 0.0175 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Coherencia EDA $\leftrightarrow$ SHAP}
+La coherencia entre el análisis exploratorio y SHAP es una de las lecturas más informativas para un jurado:
+\begin{itemize}
+  \item El EDA anticipaba que MODALIDAD sería una característica dominante (H5, ATROPELLO con 42.9\,\% de tasa de mortalidad). SHAP lo confirma: dos de las cinco características más influyentes son modalidades (\texttt{modalidad\_despiste} 1.\textsuperscript{a} y \texttt{modalidad\_atropello} 3.\textsuperscript{a}). La red ``aprendió'' lo que el EDA sugería.
+  \item El EDA anticipaba que la nocturnidad es una señal fuerte (H3, mayo tasa de mortalidad a las 01:00). SHAP ubica \texttt{nocturno} en el top-4 y \texttt{hora\_cos} en el top-5, validando la codificación cíclica de la hora.
+  \item \texttt{mes} en 2.\textsuperscript{a} posición concuerda con la estacionalidad observada en la figura~\ref{fig:fig02}.
+  \item Departamentos no figuran en el top-5 SHAP, a pesar de que H6 mostraba diferencias territoriales en tasa de mortalidad. Esto indica que, una vez controladas modalidad y temporalidad, la geografía no aporta mucho adicional: el modelo termina razonando por las mecánicas del accidente y el momento del día, no por el departamento.
+\end{itemize}
+
+\subsection{Prueba funcional con casos de la interfaz}
+Los casos de demostración (\texttt{tab06}, \autoref{tab:demo-cases}) se ejecutaron sobre el modelo final. \textbf{No son una métrica}: solo prueban que la inferencia de la interfaz funciona y que los casos de control se comportan de forma coherente con el EDA.
+
+\begin{table}[H]
+\centering
+\caption{Predicciones del modelo sobre los casos de demostración (\texttt{tab06\_demo\_cases.csv}). Umbral 0.50.}
+\label{tab:demo-cases}
+\begin{tabular}{p{3.2cm}rlp{5.5cm}}
+\toprule
+Caso & Probabilidad & Clasificación & Observación \\
+\midrule
+demo\_01\_tipico\_no\_mortal & 0.2965 & NO MORTAL & Probabilidad base baja o moderada \\
+demo\_02\_atropello & 0.8019 & MORTAL & Debe subir frente al caso base (modalidad de mayor letalidad, H5) \\
+demo\_03\_nocturno & 0.3287 & NO MORTAL & Cambia razonablemente vs.\ el caso diurno (H3) \\
+demo\_04\_codigo\_no\_visto & 0.3034 & NO MORTAL & No se rompe; mapea \texttt{via\_freq = 0} \\
+demo\_05\_puno & 0.4893 & NO MORTAL & El encoding geográfico acepta PUNO \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Los tres casos cualitativos críticos cumplen:
+\begin{itemize}
+  \item \textbf{demo\_02 vs.\ demo\_01}: cambiar solo \texttt{MODALIDAD} de una categoría de baja letalidad a \texttt{ATROPELLO} eleva la probabilidad de 0.30 a 0.80, coherente con el hallazgo H5 del EDA.
+  \item \textbf{demo\_04}: el código de vía no visto no rompe la app y mapea \texttt{via\_freq = 0}.
+  \item \textbf{demo\_05}: el \emph{encoding} geográfico acepta PUNO, verificando la generalización.
+\end{itemize}
+
+\subsection{Diagnóstico de calibración probabilística}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.7\textwidth]{figures/fig21_calibracion.png}
+  \caption{Curva de calibración (\emph{reliability}). La probabilidad predicha se separa de la línea ideal. El \emph{Brier score} 0.2017 indica una calibración deficiente; la probabilidad mostrada en la GUI debe interpretarse como una estimación académica de factores de riesgo, no como una frecuencia operacional real.}
+  \label{fig:fig21}
+\end{figure}
+
+El \emph{Brier score} en el conjunto de prueba fue \textbf{0.2017} (cuanto más cerca de 0, mejor; 0.25 indica una calibración de salida degenerada para un clasificador aleatorio). La curva de la figura~\ref{fig:fig21} muestra que las probabilidades predichas no coinciden con las frecuencias reales observadas. Este diagnóstico se reporta con honestidad y no se usó para re-ajustar el modelo después del test. Es una limitación declarada que justifica la nota de alcance visible en la interfaz gráfica.
