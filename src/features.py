@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import math
 import re
-from dataclasses import dataclass
 from typing import Any
 
 import holidays
@@ -42,13 +41,14 @@ REGION_NATURAL_BY_DEPARTAMENTO = {
 
 REGION_CATEGORIES = ["COSTA", "SIERRA", "SELVA", "DESCONOCIDO"]
 FRANJA_CATEGORIES = ["MADRUGADA", "MANANA", "TARDE", "NOCHE", "DESCONOCIDA"]
-MODALIDAD_CATEGORIES = ["ATROPELLO", "CHOQUE", "DESPISTE", "ESPECIAL", "VOLCADURA", "DESCONOCIDO"]
-
-
-@dataclass(frozen=True)
-class DerivedCategoricalColumns:
-    departamentos: list[str]
-    via_prefijos: list[str]
+CLASE_CATEGORIES = ["ATROPELLO", "CHOQUE", "DESPISTE", "ESPECIAL", "VOLCADURA", "DESCONOCIDO"]
+ZONA_CATEGORIES = ["RURAL", "URBANA", "DESCONOCIDO"]
+RED_VIAL_CATEGORIES = ["NACIONAL", "DEPARTAMENTAL", "PROVINCIAL", "URBANO", "DESCONOCIDO"]
+TIPO_VIA_CATEGORIES = ["CARRETERA", "AVENIDA", "CALLE", "EXPRESA", "OTRO", "DESCONOCIDO"]
+CLIMA_CATEGORIES = ["DESPEJADO", "NUBLADO", "LLUVIOSO", "NIEBLA", "OTRO", "DESCONOCIDO"]
+CARACTERISTICA_CATEGORIES = ["RECTO", "CURVA", "INTERSECCION", "ESTRUCTURA", "OTRO", "DESCONOCIDO"]
+PERFIL_CATEGORIES = ["PLANA", "INCLINADA", "DESCONOCIDO"]
+SUPERFICIE_CATEGORIES = ["PAVIMENTADA", "AFIRMADO", "TROCHA", "DESCONOCIDO"]
 
 
 def normalize_text_value(value: Any) -> str | None:
@@ -66,13 +66,98 @@ def extract_via_prefix(value: Any) -> str:
     return match.group(1) if match else "DESCONOCIDO"
 
 
-def normalize_modalidad(value: Any) -> str:
+def normalize_clase(value: Any) -> str:
     text = normalize_text_value(value)
     if text is None:
         return "DESCONOCIDO"
-    if text in {"ATROPELLO", "CHOQUE", "DESPISTE", "VOLCADURA"}:
-        return text
+    if text.startswith("ATROPELLO"):
+        return "ATROPELLO"
+    if text.startswith("CHOQUE"):
+        return "CHOQUE"
+    if text.startswith("DESPISTE"):
+        return "DESPISTE"
+    if text.startswith("VOLCADURA"):
+        return "VOLCADURA"
     return "ESPECIAL"
+
+
+def normalize_zona(value: Any) -> str:
+    text = normalize_text_value(value)
+    if text in {"RURAL", "URBANA"}:
+        return text
+    return "DESCONOCIDO"
+
+
+def normalize_red_vial(value: Any) -> str:
+    text = normalize_text_value(value)
+    if text in {"NACIONAL", "DEPARTAMENTAL", "PROVINCIAL", "URBANO"}:
+        return text
+    return "DESCONOCIDO"
+
+
+def normalize_tipo_via(value: Any) -> str:
+    text = normalize_text_value(value)
+    if text is None:
+        return "DESCONOCIDO"
+    if text == "CARRETERA":
+        return "CARRETERA"
+    if text == "AVENIDA":
+        return "AVENIDA"
+    if text in {"CALLE", "JIRÓN", "JIRON", "PASAJE", "ALAMEDA"}:
+        return "CALLE"
+    if text in {"VIA EXPRESA", "AUTOPISTA"}:
+        return "EXPRESA"
+    return "OTRO"
+
+
+def normalize_clima(value: Any) -> str:
+    text = normalize_text_value(value)
+    if text is None:
+        return "DESCONOCIDO"
+    if text in {"DESPEJADO", "SOLEADO"}:
+        return "DESPEJADO"
+    if text in {"NUBLADO", "CIELO CUBIERTO", "PARCIALMENTE NUBLADO"}:
+        return "NUBLADO"
+    if text in {"LLUVIOSO", "GRANIZADO", "NEVADO"}:
+        return "LLUVIOSO"
+    if text in {"NIEBLA", "NEBLINA"}:
+        return "NIEBLA"
+    return "OTRO"
+
+
+def normalize_caracteristica(value: Any) -> str:
+    text = normalize_text_value(value)
+    if text is None:
+        return "DESCONOCIDO"
+    if text == "TRAMO RECTO":
+        return "RECTO"
+    if text in {"CURVA", "SINUOSA"}:
+        return "CURVA"
+    if text in {"INTERSECCIÓN", "INTERSECCION", "ÓVALO", "OVALO"}:
+        return "INTERSECCION"
+    if text in {"PUENTE", "TÚNEL", "TUNEL", "PASE A DESNIVEL"}:
+        return "ESTRUCTURA"
+    return "OTRO"
+
+
+def normalize_perfil(value: Any) -> str:
+    text = normalize_text_value(value)
+    if text in {"PLANA", "INCLINADA"}:
+        return text
+    return "DESCONOCIDO"
+
+
+def normalize_superficie(value: Any) -> str:
+    text = normalize_text_value(value)
+    if text is None:
+        return "DESCONOCIDO"
+    if text in {"ASFALTADA", "CONCRETO", "ADOQUINADO", "EMPEDRADO"}:
+        return "PAVIMENTADA"
+    if text == "AFIRMADO":
+        return "AFIRMADO"
+    if text in {"TROCHA", "CASCAJO/RIPIO"}:
+        return "TROCHA"
+    return "DESCONOCIDO"
 
 
 def parse_hour_value(value: Any) -> float:
@@ -163,11 +248,18 @@ def derive_base_features(df: pd.DataFrame, via_frequency_map: dict[str, float] |
     else:
         features["via_freq"] = codigo_via.map(via_frequency_map).fillna(0.0).astype("float64")
 
-    kilometro = pd.to_numeric(df["KILOMETRO"], errors="coerce")
-    kilometro = kilometro.mask(kilometro < 0, np.nan)
-    features["km_faltante"] = kilometro.isna().astype("int8")
-    features["KILOMETRO"] = kilometro
+    latitud = pd.to_numeric(df["LATITUD"], errors="coerce")
+    longitud = pd.to_numeric(df["LONGITUD"], errors="coerce")
+    features["coord_faltante"] = (latitud.isna() | longitud.isna()).astype("int8")
+    features["LATITUD"] = latitud
+    features["LONGITUD"] = longitud
 
-    features["MODALIDAD"] = df["MODALIDAD"].apply(normalize_modalidad)
+    features["CLASE"] = df["CLASE"].apply(normalize_clase)
+    features["ZONA"] = df["ZONA"].apply(normalize_zona)
+    features["RED_VIAL"] = df["RED_VIAL"].apply(normalize_red_vial)
+    features["TIPO_VIA"] = df["TIPO_VIA"].apply(normalize_tipo_via)
+    features["CLIMA"] = df["CLIMA"].apply(normalize_clima)
+    features["CARACTERISTICA_VIA"] = df["CARACTERISTICA_VIA"].apply(normalize_caracteristica)
+    features["PERFIL_VIA"] = df["PERFIL_VIA"].apply(normalize_perfil)
+    features["SUPERFICIE"] = df["SUPERFICIE"].apply(normalize_superficie)
     return features
-

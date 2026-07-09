@@ -50,9 +50,9 @@ SEED = 42
 
 def load_splits() -> tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.Series, pd.DataFrame]:
     X_train = pd.read_parquet(PROCESSED_DIR / "X_train.parquet")
-    y_train = pd.read_parquet(PROCESSED_DIR / "y_train.parquet")["target_mortal"].astype("int8")
+    y_train = pd.read_parquet(PROCESSED_DIR / "y_train.parquet")["target_multifatal"].astype("int8")
     X_test = pd.read_parquet(PROCESSED_DIR / "X_test.parquet")
-    y_test = pd.read_parquet(PROCESSED_DIR / "y_test.parquet")["target_mortal"].astype("int8")
+    y_test = pd.read_parquet(PROCESSED_DIR / "y_test.parquet")["target_multifatal"].astype("int8")
 
     base = pd.read_parquet(PROCESSED_DIR / "base_limpia.parquet")
     raw_splits = split_dataset(base)
@@ -65,9 +65,9 @@ def metric_row(model_name: str, y_true: pd.Series, probabilities: np.ndarray, th
     return {
         "modelo": model_name,
         "threshold": threshold,
-        "f1_mortal": f1_score(y_true, predictions, pos_label=1, zero_division=0),
-        "recall_mortal": recall_score(y_true, predictions, pos_label=1, zero_division=0),
-        "precision_mortal": precision_score(y_true, predictions, pos_label=1, zero_division=0),
+        "f1_multifatal": f1_score(y_true, predictions, pos_label=1, zero_division=0),
+        "recall_multifatal": recall_score(y_true, predictions, pos_label=1, zero_division=0),
+        "precision_multifatal": precision_score(y_true, predictions, pos_label=1, zero_division=0),
         "pr_auc": average_precision_score(y_true, probabilities),
         "roc_auc": roc_auc_score(y_true, probabilities),
         "accuracy": accuracy_score(y_true, predictions),
@@ -105,9 +105,9 @@ def plot_confusion(y_true: pd.Series, predictions: np.ndarray) -> None:
     matrix_abs = confusion_matrix(y_true, predictions, labels=[0, 1])
     matrix_norm = confusion_matrix(y_true, predictions, labels=[0, 1], normalize="true")
     fig, axes = plt.subplots(1, 2, figsize=(10, 4))
-    ConfusionMatrixDisplay(matrix_abs, display_labels=["No mortal", "Mortal"]).plot(ax=axes[0], cmap="Blues", colorbar=False)
+    ConfusionMatrixDisplay(matrix_abs, display_labels=["1 fallecido", "2+ fallecidos"]).plot(ax=axes[0], cmap="Blues", colorbar=False)
     axes[0].set_title("Matriz de confusión")
-    ConfusionMatrixDisplay(matrix_norm, display_labels=["No mortal", "Mortal"]).plot(ax=axes[1], cmap="Blues", colorbar=False, values_format=".2f")
+    ConfusionMatrixDisplay(matrix_norm, display_labels=["1 fallecido", "2+ fallecidos"]).plot(ax=axes[1], cmap="Blues", colorbar=False, values_format=".2f")
     axes[1].set_title("Normalizada por clase real")
     fig.tight_layout()
     fig.savefig(FIGURES_DIR / "fig16_confusion_matrix.png", dpi=160)
@@ -135,7 +135,7 @@ def write_classification_report(y_true: pd.Series, predictions: np.ndarray) -> N
         y_true,
         predictions,
         labels=[0, 1],
-        target_names=["no_mortal", "mortal"],
+        target_names=["letalidad_simple", "multifatal"],
         output_dict=True,
         zero_division=0,
     )
@@ -151,17 +151,17 @@ def analyze_false_negatives(
 ) -> pd.DataFrame:
     false_negative_mask = (y_test.to_numpy() == 1) & (predictions == 0)
     false_negatives = X_test_raw.loc[false_negative_mask].copy()
-    false_negatives["probabilidad_mortal"] = probabilities[false_negative_mask]
-    false_negatives = false_negatives.sort_values("probabilidad_mortal", ascending=False)
+    false_negatives["probabilidad_multifatal"] = probabilities[false_negative_mask]
+    false_negatives = false_negatives.sort_values("probabilidad_multifatal", ascending=False)
     sample = false_negatives.head(5)
     sample.to_csv(TABLES_DIR / "tab05_false_negatives_examples.csv", index=False)
 
     fn_count = int(false_negative_mask.sum())
-    total_mortal = int((y_test == 1).sum())
+    total_multifatal = int((y_test == 1).sum())
     paragraph = (
         "El modelo final produjo "
-        f"{fn_count} falsos negativos sobre {total_mortal} accidentes mortales del test. "
-        "En este dominio, un falso negativo significa subestimar un accidente que sí fue mortal; "
+        f"{fn_count} falsos negativos sobre {total_multifatal} siniestros multifatales del test. "
+        "En este dominio, un falso negativo significa subestimar un siniestro que dejó dos o más fallecidos; "
         "por eso es el error de mayor costo operativo. "
         f"El umbral seleccionado ({threshold:.2f}) se mantuvo porque en validación ofrecía el mejor equilibrio bajo la regla definida: "
         "maximizar recall entre umbrales con F1 razonable. "
@@ -212,8 +212,8 @@ def evaluate_demo_cases(model: keras.Model, threshold: float) -> None:
     features = preparar_entrada(demo_cases, scaler=scaler, encoders=encoders)
     probabilities = model.predict(features, verbose=0).reshape(-1)
     output = demo_cases[["caso_id"]].copy()
-    output["probabilidad_mortal"] = probabilities
-    output["clasificacion"] = np.where(probabilities >= threshold, "MORTAL", "NO_MORTAL")
+    output["probabilidad_multifatal"] = probabilities
+    output["clasificacion"] = np.where(probabilities >= threshold, "ALTA_LETALIDAD", "LETALIDAD_SIMPLE")
     output["threshold"] = threshold
     output["observacion"] = demo_cases["esperado_cualitativo"]
     output.to_csv(TABLES_DIR / "tab06_demo_cases.csv", index=False)
@@ -245,9 +245,11 @@ def run_block_f() -> dict[str, object]:
     SECTIONS_DIR.mkdir(parents=True, exist_ok=True)
 
     X_train, y_train, X_test, y_test, X_test_raw = load_splits()
-    model = keras.models.load_model(MODELS_DIR / "severidad_nn.keras")
+    model = keras.models.load_model(MODELS_DIR / "letalidad_nn.keras")
     threshold_data = json.loads((MODELS_DIR / "threshold.json").read_text())
     threshold = float(threshold_data["threshold"])
+    selection = json.loads((TABLES_DIR / "tab04_nn_selection_summary.json").read_text())
+    best_run_name = f"MLP_{selection['best_run']}"
 
     probabilities = model.predict(X_test, verbose=0).reshape(-1)
     predictions = (probabilities >= threshold).astype(int)
@@ -257,7 +259,7 @@ def run_block_f() -> dict[str, object]:
     write_classification_report(y_test, predictions)
 
     baseline_rows = evaluate_baselines_on_test(X_train, y_train, X_test, y_test)
-    mlp_row = metric_row("MLP_R5_one_hidden_layer", y_test, probabilities, threshold=threshold)
+    mlp_row = metric_row(best_run_name, y_test, probabilities, threshold=threshold)
     pd.DataFrame([*baseline_rows, mlp_row]).to_csv(TABLES_DIR / "tab03_model_comparison_test.csv", index=False)
 
     false_negative_sample = analyze_false_negatives(X_test_raw, y_test, probabilities, predictions, threshold)
@@ -268,9 +270,9 @@ def run_block_f() -> dict[str, object]:
     summary = {
         "test_rows": int(len(y_test)),
         "threshold": threshold,
-        "f1_mortal": float(mlp_row["f1_mortal"]),
-        "recall_mortal": float(mlp_row["recall_mortal"]),
-        "precision_mortal": float(mlp_row["precision_mortal"]),
+        "f1_multifatal": float(mlp_row["f1_multifatal"]),
+        "recall_multifatal": float(mlp_row["recall_multifatal"]),
+        "precision_multifatal": float(mlp_row["precision_multifatal"]),
         "pr_auc": float(mlp_row["pr_auc"]),
         "roc_auc": float(mlp_row["roc_auc"]),
         "accuracy": float(mlp_row["accuracy"]),

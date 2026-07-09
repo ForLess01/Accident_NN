@@ -40,9 +40,9 @@ SEED = 42
 
 def load_validation_and_test() -> tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.Series]:
     X_val = pd.read_parquet(PROCESSED_DIR / "X_val.parquet")
-    y_val = pd.read_parquet(PROCESSED_DIR / "y_val.parquet")["target_mortal"].astype("int8")
+    y_val = pd.read_parquet(PROCESSED_DIR / "y_val.parquet")["target_multifatal"].astype("int8")
     X_test = pd.read_parquet(PROCESSED_DIR / "X_test.parquet")
-    y_test = pd.read_parquet(PROCESSED_DIR / "y_test.parquet")["target_mortal"].astype("int8")
+    y_test = pd.read_parquet(PROCESSED_DIR / "y_test.parquet")["target_multifatal"].astype("int8")
     return X_val, y_val, X_test, y_test
 
 
@@ -142,9 +142,9 @@ def bootstrap_confidence_intervals(
         calibrated_sample = calibrated_probabilities[index]
         pred_sample = (raw_sample >= threshold).astype(int)
         return {
-            "f1_mortal": f1_score(y_sample, pred_sample, pos_label=1, zero_division=0),
-            "recall_mortal": recall_score(y_sample, pred_sample, pos_label=1, zero_division=0),
-            "precision_mortal": precision_score(y_sample, pred_sample, pos_label=1, zero_division=0),
+            "f1_multifatal": f1_score(y_sample, pred_sample, pos_label=1, zero_division=0),
+            "recall_multifatal": recall_score(y_sample, pred_sample, pos_label=1, zero_division=0),
+            "precision_multifatal": precision_score(y_sample, pred_sample, pos_label=1, zero_division=0),
             "accuracy": accuracy_score(y_sample, pred_sample),
             "pr_auc": average_precision_score(y_sample, raw_sample),
             "roc_auc": roc_auc_score(y_sample, raw_sample),
@@ -184,8 +184,8 @@ def write_report_snippet(
 ) -> None:
     raw_test = table[(table["dataset"] == "test") & (table["calibrador"] == "raw_sigmoid")].iloc[0]
     calibrated_test = table[(table["dataset"] == "test") & (table["calibrador"] == selected_method)].iloc[0]
-    f1 = ci_table[ci_table["metric"] == "f1_mortal"].iloc[0]
-    recall = ci_table[ci_table["metric"] == "recall_mortal"].iloc[0]
+    f1 = ci_table[ci_table["metric"] == "f1_multifatal"].iloc[0]
+    recall = ci_table[ci_table["metric"] == "recall_multifatal"].iloc[0]
     pr_auc = ci_table[ci_table["metric"] == "pr_auc"].iloc[0]
 
     text = f"""Para corregir la interpretación de la salida sigmoide, se ajustó un calibrador post-hoc usando solamente el conjunto de validación. Se compararon Platt e isotónica por \\emph{{Brier score}} de validación y se seleccionó \\textbf{{{selected_method}}}. El test se mantuvo como diagnóstico congelado: no se usó para elegir el calibrador.
@@ -203,7 +203,7 @@ def run_posthoc_calibration() -> dict[str, object]:
     SECTIONS_DIR.mkdir(parents=True, exist_ok=True)
 
     X_val, y_val, X_test, y_test = load_validation_and_test()
-    model = keras.models.load_model(MODELS_DIR / "severidad_nn.keras")
+    model = keras.models.load_model(MODELS_DIR / "letalidad_nn.keras")
     threshold = float(json.loads((MODELS_DIR / "threshold.json").read_text(encoding="utf-8"))["threshold"])
 
     raw_val = model.predict(X_val, verbose=0).reshape(-1)

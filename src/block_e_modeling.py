@@ -64,8 +64,8 @@ def set_global_seed(seed: int = SEED) -> None:
 def load_train_validation() -> tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.Series]:
     X_train = pd.read_parquet(PROCESSED_DIR / "X_train.parquet")
     X_val = pd.read_parquet(PROCESSED_DIR / "X_val.parquet")
-    y_train = pd.read_parquet(PROCESSED_DIR / "y_train.parquet")["target_mortal"].astype("int8")
-    y_val = pd.read_parquet(PROCESSED_DIR / "y_val.parquet")["target_mortal"].astype("int8")
+    y_train = pd.read_parquet(PROCESSED_DIR / "y_train.parquet")["target_multifatal"].astype("int8")
+    y_val = pd.read_parquet(PROCESSED_DIR / "y_val.parquet")["target_multifatal"].astype("int8")
     return X_train, y_train, X_val, y_val
 
 
@@ -74,9 +74,9 @@ def evaluate_probabilities(name: str, y_true: pd.Series, probabilities: np.ndarr
     return {
         "modelo": name,
         "threshold": threshold,
-        "f1_mortal": f1_score(y_true, predictions, pos_label=1, zero_division=0),
-        "precision_mortal": precision_score(y_true, predictions, pos_label=1, zero_division=0),
-        "recall_mortal": recall_score(y_true, predictions, pos_label=1, zero_division=0),
+        "f1_multifatal": f1_score(y_true, predictions, pos_label=1, zero_division=0),
+        "precision_multifatal": precision_score(y_true, predictions, pos_label=1, zero_division=0),
+        "recall_multifatal": recall_score(y_true, predictions, pos_label=1, zero_division=0),
         "pr_auc": average_precision_score(y_true, probabilities),
         "roc_auc": roc_auc_score(y_true, probabilities),
     }
@@ -214,7 +214,7 @@ def train_grid(
         }
         rows.append(row)
 
-        score = (float(metrics["f1_mortal"]), float(metrics["pr_auc"]))
+        score = (float(metrics["f1_multifatal"]), float(metrics["pr_auc"]))
         if score > best_score:
             best_score = score
             best_model = model
@@ -253,15 +253,15 @@ def sweep_thresholds(y_val: pd.Series, probabilities: np.ndarray) -> tuple[pd.Da
         rows.append(
             {
                 "threshold": round(float(threshold), 2),
-                "f1_mortal": f1_score(y_val, predictions, pos_label=1, zero_division=0),
-                "precision_mortal": precision_score(y_val, predictions, pos_label=1, zero_division=0),
-                "recall_mortal": recall_score(y_val, predictions, pos_label=1, zero_division=0),
+                "f1_multifatal": f1_score(y_val, predictions, pos_label=1, zero_division=0),
+                "precision_multifatal": precision_score(y_val, predictions, pos_label=1, zero_division=0),
+                "recall_multifatal": recall_score(y_val, predictions, pos_label=1, zero_division=0),
             }
         )
     table = pd.DataFrame(rows)
-    max_f1 = float(table["f1_mortal"].max())
-    candidates = table[table["f1_mortal"] >= max_f1 * 0.90].sort_values(
-        ["recall_mortal", "f1_mortal", "precision_mortal"],
+    max_f1 = float(table["f1_multifatal"].max())
+    candidates = table[table["f1_multifatal"] >= max_f1 * 0.90].sort_values(
+        ["recall_multifatal", "f1_multifatal", "precision_multifatal"],
         ascending=[False, False, False],
     )
     selected = candidates.iloc[0].to_dict()
@@ -272,9 +272,9 @@ def sweep_thresholds(y_val: pd.Series, probabilities: np.ndarray) -> tuple[pd.Da
 def plot_threshold_sweep(table: pd.DataFrame) -> None:
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
     fig, ax = plt.subplots(figsize=(8, 5))
-    ax.plot(table["threshold"], table["f1_mortal"], marker="o", label="F1 mortal")
-    ax.plot(table["threshold"], table["precision_mortal"], marker="o", label="Precision mortal")
-    ax.plot(table["threshold"], table["recall_mortal"], marker="o", label="Recall mortal")
+    ax.plot(table["threshold"], table["f1_multifatal"], marker="o", label="F1 multifatal")
+    ax.plot(table["threshold"], table["precision_multifatal"], marker="o", label="Precision multifatal")
+    ax.plot(table["threshold"], table["recall_multifatal"], marker="o", label="Recall multifatal")
     ax.set_xlabel("Threshold")
     ax.set_ylabel("Metric")
     ax.set_title("Validation threshold sweep")
@@ -302,7 +302,7 @@ def run_block_e() -> dict[str, object]:
     tab03.to_csv(TABLES_DIR / "tab03_model_comparison_validation.csv", index=False)
     pd.DataFrame(grid_rows).to_csv(TABLES_DIR / "tab04_nn_grid_validation.csv", index=False)
 
-    best_model.save(MODELS_DIR / "severidad_nn.keras")
+    best_model.save(MODELS_DIR / "letalidad_nn.keras")
     plot_history(best_history)
 
     threshold_table, selected_threshold = sweep_thresholds(y_val, best_probabilities)
@@ -315,11 +315,11 @@ def run_block_e() -> dict[str, object]:
 
     summary = {
         "best_run": best_run.run_id,
-        "best_validation_f1_mortal_at_0_5": float(best_metrics["f1_mortal"]),
+        "best_validation_f1_multifatal_at_0_5": float(best_metrics["f1_multifatal"]),
         "best_validation_pr_auc": float(best_metrics["pr_auc"]),
         "selected_threshold": float(selected_threshold["threshold"]),
-        "selected_threshold_recall_mortal": float(selected_threshold["recall_mortal"]),
-        "selected_threshold_f1_mortal": float(selected_threshold["f1_mortal"]),
+        "selected_threshold_recall_multifatal": float(selected_threshold["recall_multifatal"]),
+        "selected_threshold_f1_multifatal": float(selected_threshold["f1_multifatal"]),
         "grid_runs": len(grid_rows),
         "test_touched": False,
     }

@@ -1,6 +1,6 @@
-caso_id,probabilidad_mortal,clasificacion,threshold,observacion
-demo_01_tipico_no_mortal,0.29649076,NO_MORTAL,0.5,Probabilidad base baja o moderada.
-demo_02_atropello,0.8018773,MORTAL,0.5,Debe subir la probabilidad frente al caso base.
-demo_03_nocturno,0.32870865,NO_MORTAL,0.5,Debe cambiar la probabilidad de forma razonable.
-demo_04_codigo_no_visto,0.30336863,NO_MORTAL,0.5,La app no debe romperse y debe mapear via_freq=0.
-demo_05_puno,0.48931924,NO_MORTAL,0.5,Debe confirmar que el encoding geográfico acepta PUNO.
+caso_id,probabilidad_multifatal,clasificacion,threshold,observacion
+demo_01_tipico_letalidad_simple,0.65173006,ALTA_LETALIDAD,0.35,Probabilidad base baja o moderada.
+demo_02_choque_nocturno_carretera,0.65858287,ALTA_LETALIDAD,0.35,Debe subir la probabilidad frente al caso base.
+demo_03_curva_lluviosa,0.7572786,ALTA_LETALIDAD,0.35,Debe cambiar la probabilidad de forma razonable.
+demo_04_codigo_no_visto,0.6566579,ALTA_LETALIDAD,0.35,La app no debe romperse y debe mapear via_freq=0.
+demo_05_puno_rural,0.6337952,ALTA_LETALIDAD,0.35,Debe confirmar que el encoding geográfico acepta PUNO.

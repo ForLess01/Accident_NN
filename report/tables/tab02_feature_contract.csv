@@ -1,73 +1,117 @@
 feature,origen,tipo,transformacion,justificacion
-KILOMETRO,KILOMETRO / CODIGO_VIA / FECHA,numérica continua,Imputación/encoding en train y StandardScaler fit solo en train,Escala compatible con MLP y sin fuga de validación/test.
-via_freq,KILOMETRO / CODIGO_VIA / FECHA,numérica continua,Imputación/encoding en train y StandardScaler fit solo en train,Escala compatible con MLP y sin fuga de validación/test.
-anio,KILOMETRO / CODIGO_VIA / FECHA,numérica continua,Imputación/encoding en train y StandardScaler fit solo en train,Escala compatible con MLP y sin fuga de validación/test.
-mes,FECHA / HORA / KILOMETRO,derivada numérica/binaria,Derivación determinística sin fit,"Aporta señal temporal, horaria o de faltantes sin fuga."
-dia_semana,FECHA / HORA / KILOMETRO,derivada numérica/binaria,Derivación determinística sin fit,"Aporta señal temporal, horaria o de faltantes sin fuga."
-fin_de_semana,FECHA / HORA / KILOMETRO,derivada numérica/binaria,Derivación determinística sin fit,"Aporta señal temporal, horaria o de faltantes sin fuga."
-feriado,FECHA / HORA / KILOMETRO,derivada numérica/binaria,Derivación determinística sin fit,"Aporta señal temporal, horaria o de faltantes sin fuga."
-quincena,FECHA / HORA / KILOMETRO,derivada numérica/binaria,Derivación determinística sin fit,"Aporta señal temporal, horaria o de faltantes sin fuga."
-hora_faltante,FECHA / HORA / KILOMETRO,derivada numérica/binaria,Derivación determinística sin fit,"Aporta señal temporal, horaria o de faltantes sin fuga."
-hora_sin,FECHA / HORA / KILOMETRO,derivada numérica/binaria,Derivación determinística sin fit,"Aporta señal temporal, horaria o de faltantes sin fuga."
-hora_cos,FECHA / HORA / KILOMETRO,derivada numérica/binaria,Derivación determinística sin fit,"Aporta señal temporal, horaria o de faltantes sin fuga."
-nocturno,FECHA / HORA / KILOMETRO,derivada numérica/binaria,Derivación determinística sin fit,"Aporta señal temporal, horaria o de faltantes sin fuga."
-km_faltante,FECHA / HORA / KILOMETRO,derivada numérica/binaria,Derivación determinística sin fit,"Aporta señal temporal, horaria o de faltantes sin fuga."
-departamento_amazonas,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,Captura señal geográfica sin ordinalidad artificial.
-departamento_ancash,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,Captura señal geográfica sin ordinalidad artificial.
-departamento_apurimac,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,Captura señal geográfica sin ordinalidad artificial.
-departamento_arequipa,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,Captura señal geográfica sin ordinalidad artificial.
-departamento_ayacucho,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,Captura señal geográfica sin ordinalidad artificial.
-departamento_cajamarca,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,Captura señal geográfica sin ordinalidad artificial.
-departamento_callao,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,Captura señal geográfica sin ordinalidad artificial.
-departamento_cusco,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,Captura señal geográfica sin ordinalidad artificial.
-departamento_desconocido,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,Captura señal geográfica sin ordinalidad artificial.
-departamento_huancavelica,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,Captura señal geográfica sin ordinalidad artificial.
-departamento_huanuco,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,Captura señal geográfica sin ordinalidad artificial.
-departamento_ica,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,Captura señal geográfica sin ordinalidad artificial.
-departamento_junin,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,Captura señal geográfica sin ordinalidad artificial.
-departamento_la_libertad,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,Captura señal geográfica sin ordinalidad artificial.
-departamento_lambayeque,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,Captura señal geográfica sin ordinalidad artificial.
-departamento_lima,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,Captura señal geográfica sin ordinalidad artificial.
-departamento_loreto,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,Captura señal geográfica sin ordinalidad artificial.
-departamento_madre_de_dios,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,Captura señal geográfica sin ordinalidad artificial.
-departamento_moquegua,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,Captura señal geográfica sin ordinalidad artificial.
-departamento_pasco,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,Captura señal geográfica sin ordinalidad artificial.
-departamento_piura,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,Captura señal geográfica sin ordinalidad artificial.
-departamento_puno,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,Captura señal geográfica sin ordinalidad artificial.
-departamento_san_martin,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,Captura señal geográfica sin ordinalidad artificial.
-departamento_tacna,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,Captura señal geográfica sin ordinalidad artificial.
-departamento_tumbes,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,Captura señal geográfica sin ordinalidad artificial.
-departamento_ucayali,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,Captura señal geográfica sin ordinalidad artificial.
-region_costa,DEPARTAMENTO,categórica derivada,Mapeo fijo departamento a región natural + One-Hot,Agrupa patrones geográficos generales para reducir dispersión.
-region_sierra,DEPARTAMENTO,categórica derivada,Mapeo fijo departamento a región natural + One-Hot,Agrupa patrones geográficos generales para reducir dispersión.
-region_selva,DEPARTAMENTO,categórica derivada,Mapeo fijo departamento a región natural + One-Hot,Agrupa patrones geográficos generales para reducir dispersión.
-region_desconocido,DEPARTAMENTO,categórica derivada,Mapeo fijo departamento a región natural + One-Hot,Agrupa patrones geográficos generales para reducir dispersión.
-via_prefijo_am,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,Representa familias de vías sin depender del código completo.
-via_prefijo_an,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,Representa familias de vías sin depender del código completo.
-via_prefijo_ar,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,Representa familias de vías sin depender del código completo.
-via_prefijo_ay,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,Representa familias de vías sin depender del código completo.
-via_prefijo_cu,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,Representa familias de vías sin depender del código completo.
-via_prefijo_desconocido,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,Representa familias de vías sin depender del código completo.
-via_prefijo_hu,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,Representa familias de vías sin depender del código completo.
-via_prefijo_hv,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,Representa familias de vías sin depender del código completo.
-via_prefijo_ic,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,Representa familias de vías sin depender del código completo.
-via_prefijo_li,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,Representa familias de vías sin depender del código completo.
-via_prefijo_lm,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,Representa familias de vías sin depender del código completo.
-via_prefijo_lo,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,Representa familias de vías sin depender del código completo.
-via_prefijo_mo,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,Representa familias de vías sin depender del código completo.
-via_prefijo_pa,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,Representa familias de vías sin depender del código completo.
-via_prefijo_pe,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,Representa familias de vías sin depender del código completo.
-via_prefijo_pi,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,Representa familias de vías sin depender del código completo.
-via_prefijo_pu,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,Representa familias de vías sin depender del código completo.
-via_prefijo_tu,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,Representa familias de vías sin depender del código completo.
-franja_madrugada,HORA,categórica temporal,Agrupación en franja horaria + One-Hot,Modela periodos del día interpretables.
-franja_manana,HORA,categórica temporal,Agrupación en franja horaria + One-Hot,Modela periodos del día interpretables.
-franja_tarde,HORA,categórica temporal,Agrupación en franja horaria + One-Hot,Modela periodos del día interpretables.
-franja_noche,HORA,categórica temporal,Agrupación en franja horaria + One-Hot,Modela periodos del día interpretables.
-franja_desconocida,HORA,categórica temporal,Agrupación en franja horaria + One-Hot,Modela periodos del día interpretables.
-modalidad_atropello,MODALIDAD,categórica one-hot,Normalización a categorías cerradas + One-Hot,La mecánica del accidente impacta directamente la severidad.
-modalidad_choque,MODALIDAD,categórica one-hot,Normalización a categorías cerradas + One-Hot,La mecánica del accidente impacta directamente la severidad.
-modalidad_despiste,MODALIDAD,categórica one-hot,Normalización a categorías cerradas + One-Hot,La mecánica del accidente impacta directamente la severidad.
-modalidad_especial,MODALIDAD,categórica one-hot,Normalización a categorías cerradas + One-Hot,La mecánica del accidente impacta directamente la severidad.
-modalidad_volcadura,MODALIDAD,categórica one-hot,Normalización a categorías cerradas + One-Hot,La mecánica del accidente impacta directamente la severidad.
-modalidad_desconocido,MODALIDAD,categórica one-hot,Normalización a categorías cerradas + One-Hot,La mecánica del accidente impacta directamente la severidad.
+LATITUD,COORDENADAS,numérica continua,Imputación por mediana de train + StandardScaler fit solo en train,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+LONGITUD,COORDENADAS,numérica continua,Imputación por mediana de train + StandardScaler fit solo en train,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+via_freq,CODIGO_VIA,numérica continua,Frecuencia relativa aprendida solo en train,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+anio,FECHA,numérica continua,StandardScaler fit solo en train,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+mes,FECHA / HORA / COORDENADAS,derivada numérica/binaria,Derivación determinística sin fit,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+dia_semana,FECHA / HORA / COORDENADAS,derivada numérica/binaria,Derivación determinística sin fit,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+fin_de_semana,FECHA / HORA / COORDENADAS,derivada numérica/binaria,Derivación determinística sin fit,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+feriado,FECHA / HORA / COORDENADAS,derivada numérica/binaria,Derivación determinística sin fit,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+quincena,FECHA / HORA / COORDENADAS,derivada numérica/binaria,Derivación determinística sin fit,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+hora_faltante,FECHA / HORA / COORDENADAS,derivada numérica/binaria,Derivación determinística sin fit,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+hora_sin,FECHA / HORA / COORDENADAS,derivada numérica/binaria,Derivación determinística sin fit,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+hora_cos,FECHA / HORA / COORDENADAS,derivada numérica/binaria,Derivación determinística sin fit,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+nocturno,FECHA / HORA / COORDENADAS,derivada numérica/binaria,Derivación determinística sin fit,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+coord_faltante,FECHA / HORA / COORDENADAS,derivada numérica/binaria,Derivación determinística sin fit,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+departamento_amazonas,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+departamento_ancash,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+departamento_apurimac,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+departamento_arequipa,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+departamento_ayacucho,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+departamento_cajamarca,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+departamento_callao,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+departamento_cusco,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+departamento_huancavelica,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+departamento_huanuco,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+departamento_ica,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+departamento_junin,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+departamento_la_libertad,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+departamento_lambayeque,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+departamento_lima,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+departamento_loreto,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+departamento_madre_de_dios,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+departamento_moquegua,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+departamento_pasco,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+departamento_piura,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+departamento_puno,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+departamento_san_martin,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+departamento_tacna,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+departamento_tumbes,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+departamento_ucayali,DEPARTAMENTO,categórica one-hot,One-Hot con categorías observadas en train,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+region_costa,DEPARTAMENTO,categórica derivada,Mapeo fijo departamento a región natural + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+region_sierra,DEPARTAMENTO,categórica derivada,Mapeo fijo departamento a región natural + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+region_selva,DEPARTAMENTO,categórica derivada,Mapeo fijo departamento a región natural + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+region_desconocido,DEPARTAMENTO,categórica derivada,Mapeo fijo departamento a región natural + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+via_prefijo_am,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+via_prefijo_an,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+via_prefijo_ap,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+via_prefijo_ar,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+via_prefijo_ay,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+via_prefijo_ca,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+via_prefijo_carretera,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+via_prefijo_cl,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+via_prefijo_cu,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+via_prefijo_desconocido,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+via_prefijo_hu,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+via_prefijo_hv,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+via_prefijo_ic,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+via_prefijo_ju,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+via_prefijo_la,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+via_prefijo_li,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+via_prefijo_lm,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+via_prefijo_lo,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+via_prefijo_md,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+via_prefijo_mo,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+via_prefijo_no,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+via_prefijo_pa,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+via_prefijo_pe,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+via_prefijo_pi,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+via_prefijo_pu,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+via_prefijo_sm,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+via_prefijo_ta,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+via_prefijo_tu,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+via_prefijo_uc,CODIGO_VIA,categórica derivada,Extracción de prefijo alfabético + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+franja_madrugada,HORA,categórica temporal,Agrupación en franja horaria + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+franja_manana,HORA,categórica temporal,Agrupación en franja horaria + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+franja_tarde,HORA,categórica temporal,Agrupación en franja horaria + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+franja_noche,HORA,categórica temporal,Agrupación en franja horaria + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+franja_desconocida,HORA,categórica temporal,Agrupación en franja horaria + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+clase_atropello,CLASE SINIESTRO,categórica one-hot,Normalización a categorías cerradas + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+clase_choque,CLASE SINIESTRO,categórica one-hot,Normalización a categorías cerradas + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+clase_despiste,CLASE SINIESTRO,categórica one-hot,Normalización a categorías cerradas + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+clase_especial,CLASE SINIESTRO,categórica one-hot,Normalización a categorías cerradas + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+clase_volcadura,CLASE SINIESTRO,categórica one-hot,Normalización a categorías cerradas + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+clase_desconocido,CLASE SINIESTRO,categórica one-hot,Normalización a categorías cerradas + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+zona_rural,ZONA,categórica one-hot,Normalización rural/urbana + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+zona_urbana,ZONA,categórica one-hot,Normalización rural/urbana + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+zona_desconocido,ZONA,categórica one-hot,Normalización rural/urbana + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+red_vial_nacional,RED VIAL,categórica one-hot,Normalización a categorías cerradas + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+red_vial_departamental,RED VIAL,categórica one-hot,Normalización a categorías cerradas + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+red_vial_provincial,RED VIAL,categórica one-hot,Normalización a categorías cerradas + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+red_vial_urbano,RED VIAL,categórica one-hot,Normalización a categorías cerradas + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+red_vial_desconocido,RED VIAL,categórica one-hot,Normalización a categorías cerradas + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+tipo_via_carretera,TIPO DE VÍA,categórica one-hot,Agrupación de tipos de vía + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+tipo_via_avenida,TIPO DE VÍA,categórica one-hot,Agrupación de tipos de vía + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+tipo_via_calle,TIPO DE VÍA,categórica one-hot,Agrupación de tipos de vía + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+tipo_via_expresa,TIPO DE VÍA,categórica one-hot,Agrupación de tipos de vía + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+tipo_via_otro,TIPO DE VÍA,categórica one-hot,Agrupación de tipos de vía + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+tipo_via_desconocido,TIPO DE VÍA,categórica one-hot,Agrupación de tipos de vía + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+clima_despejado,CONDICIÓN CLIMÁTICA,categórica one-hot,Agrupación de condiciones climáticas + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+clima_nublado,CONDICIÓN CLIMÁTICA,categórica one-hot,Agrupación de condiciones climáticas + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+clima_lluvioso,CONDICIÓN CLIMÁTICA,categórica one-hot,Agrupación de condiciones climáticas + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+clima_niebla,CONDICIÓN CLIMÁTICA,categórica one-hot,Agrupación de condiciones climáticas + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+clima_otro,CONDICIÓN CLIMÁTICA,categórica one-hot,Agrupación de condiciones climáticas + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+clima_desconocido,CONDICIÓN CLIMÁTICA,categórica one-hot,Agrupación de condiciones climáticas + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+caracteristica_recto,CARACTERÍSTICAS DE VÍA,categórica one-hot,Agrupación recto/curva/intersección/estructura + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+caracteristica_curva,CARACTERÍSTICAS DE VÍA,categórica one-hot,Agrupación recto/curva/intersección/estructura + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+caracteristica_interseccion,CARACTERÍSTICAS DE VÍA,categórica one-hot,Agrupación recto/curva/intersección/estructura + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+caracteristica_estructura,CARACTERÍSTICAS DE VÍA,categórica one-hot,Agrupación recto/curva/intersección/estructura + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+caracteristica_otro,CARACTERÍSTICAS DE VÍA,categórica one-hot,Agrupación recto/curva/intersección/estructura + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+caracteristica_desconocido,CARACTERÍSTICAS DE VÍA,categórica one-hot,Agrupación recto/curva/intersección/estructura + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+perfil_plana,PERFIL LONGITUDINAL,categórica one-hot,Normalización plana/inclinada + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+perfil_inclinada,PERFIL LONGITUDINAL,categórica one-hot,Normalización plana/inclinada + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+perfil_desconocido,PERFIL LONGITUDINAL,categórica one-hot,Normalización plana/inclinada + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+superficie_pavimentada,SUPERFICIE DE CALZADA,categórica one-hot,Agrupación pavimentada/afirmado/trocha + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+superficie_afirmado,SUPERFICIE DE CALZADA,categórica one-hot,Agrupación pavimentada/afirmado/trocha + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+superficie_trocha,SUPERFICIE DE CALZADA,categórica one-hot,Agrupación pavimentada/afirmado/trocha + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."
+superficie_desconocido,SUPERFICIE DE CALZADA,categórica one-hot,Agrupación pavimentada/afirmado/trocha + One-Hot,"Variable pre-impacto disponible al momento del siniestro, sin fuga de resultado."

@@ -1,20 +1,20 @@
 {
-  "test_rows": 1218,
-  "threshold": 0.5,
-  "f1_mortal": 0.29411764705882354,
-  "recall_mortal": 0.48951048951048953,
-  "precision_mortal": 0.21021021021021022,
-  "pr_auc": 0.2890018461925514,
-  "roc_auc": 0.6840006505122784,
-  "accuracy": 0.7241379310344828,
-  "false_negatives": 73,
+  "test_rows": 1366,
+  "threshold": 0.35,
+  "f1_multifatal": 0.27455357142857145,
+  "recall_multifatal": 0.8848920863309353,
+  "precision_multifatal": 0.16248348745046234,
+  "pr_auc": 0.20375911151516257,
+  "roc_auc": 0.7474274858841534,
+  "accuracy": 0.5241581259150805,
+  "false_negatives": 16,
   "false_negative_examples_written": 5,
   "top5_shap": [
-    "modalidad_despiste",
-    "mes",
-    "modalidad_atropello",
-    "nocturno",
-    "hora_cos"
+    "clase_atropello",
+    "zona_rural",
+    "clase_despiste",
+    "clase_choque",
+    "zona_urbana"
   ],
   "test_evaluations": 1
 }

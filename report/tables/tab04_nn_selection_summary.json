@@ -1,10 +1,10 @@
 {
   "best_run": "R5_one_hidden_layer",
-  "best_validation_f1_mortal_at_0_5": 0.3076923076923077,
-  "best_validation_pr_auc": 0.23779377136816038,
-  "selected_threshold": 0.5,
-  "selected_threshold_recall_mortal": 0.5314685314685315,
-  "selected_threshold_f1_mortal": 0.3076923076923077,
+  "best_validation_f1_multifatal_at_0_5": 0.2929427430093209,
+  "best_validation_pr_auc": 0.22470853738436758,
+  "selected_threshold": 0.35,
+  "selected_threshold_recall_multifatal": 0.920863309352518,
+  "selected_threshold_f1_multifatal": 0.27438370846730975,
   "grid_runs": 6,
   "test_touched": false
 }

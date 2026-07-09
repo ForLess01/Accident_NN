@@ -21,12 +21,20 @@ def test_preparar_entrada_contract() -> None:
     sample = pd.DataFrame(
         [
             {
-                "FECHA": "2021-08-15",
+                "FECHA": "2022-08-15",
                 "HORA": "23:30",
                 "DEPARTAMENTO": "PUNO",
+                "ZONA": "RURAL",
+                "RED_VIAL": "NACIONAL",
+                "TIPO_VIA": "CARRETERA",
                 "CODIGO_VIA": "PE-999X",
-                "KILOMETRO": -5,
-                "MODALIDAD": "ATROPELLO",
+                "CLASE": "ATROPELLO FUGA",
+                "CLIMA": "LLUVIOSO",
+                "CARACTERISTICA_VIA": "CURVA",
+                "PERFIL_VIA": "INCLINADA",
+                "SUPERFICIE": "TROCHA",
+                "LATITUD": None,
+                "LONGITUD": None,
                 "hora_entera": 23,
             }
         ]
@@ -39,9 +47,13 @@ def test_preparar_entrada_contract() -> None:
     assert transformed.columns.tolist() == feature_list
     assert transformed.isna().sum().sum() == 0
     assert "via_freq" in transformed.columns
-    assert "km_faltante" in transformed.columns
+    assert "coord_faltante" in transformed.columns
     assert derived["via_freq"].iloc[0] == 0
-    assert transformed["km_faltante"].iloc[0] == 1
+    assert transformed["coord_faltante"].iloc[0] == 1
+    assert transformed["clase_atropello"].iloc[0] == 1
+    assert transformed["clima_lluvioso"].iloc[0] == 1
+    assert transformed["superficie_trocha"].iloc[0] == 1
+    assert transformed["zona_rural"].iloc[0] == 1
 
 
 if __name__ == "__main__":

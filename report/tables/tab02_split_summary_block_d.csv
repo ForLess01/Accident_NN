@@ -1,2 +1,2 @@
-train_rows,val_rows,test_rows,feature_count,train_mortal_percentage,val_mortal_percentage,test_mortal_percentage,demo_cases
-5681,1218,1218,72,11.705685618729097,11.74055829228243,11.74055829228243,5
+train_rows,val_rows,test_rows,feature_count,train_multifatal_percentage,val_multifatal_percentage,test_multifatal_percentage,demo_cases
+6372,1366,1366,116,10.200878844946642,10.175695461200586,10.175695461200586,5

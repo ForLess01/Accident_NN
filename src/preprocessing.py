@@ -8,21 +8,29 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
 from src.features import (
+    CARACTERISTICA_CATEGORIES,
+    CLASE_CATEGORIES,
+    CLIMA_CATEGORIES,
     FRANJA_CATEGORIES,
-    MODALIDAD_CATEGORIES,
+    PERFIL_CATEGORIES,
+    RED_VIAL_CATEGORIES,
     REGION_CATEGORIES,
+    SUPERFICIE_CATEGORIES,
+    TIPO_VIA_CATEGORIES,
+    ZONA_CATEGORIES,
     add_one_hot,
     derive_base_features,
 )
 
 
-CONTINUOUS_COLUMNS = ["KILOMETRO", "via_freq", "anio"]
+CONTINUOUS_COLUMNS = ["LATITUD", "LONGITUD", "via_freq", "anio"]
 
 
 def fit_preprocessing_artifacts(train_df: pd.DataFrame) -> tuple[StandardScaler, dict[str, Any]]:
     train_base = derive_base_features(train_df)
 
-    km_median = float(train_base["KILOMETRO"].median())
+    lat_median = float(train_base["LATITUD"].median())
+    lon_median = float(train_base["LONGITUD"].median())
     via_frequency_map = (
         train_base["CODIGO_VIA"]
         .value_counts(normalize=True, dropna=False)
@@ -31,19 +39,28 @@ def fit_preprocessing_artifacts(train_df: pd.DataFrame) -> tuple[StandardScaler,
     )
 
     train_base = derive_base_features(train_df, via_frequency_map=via_frequency_map)
-    train_base["KILOMETRO"] = train_base["KILOMETRO"].fillna(km_median)
+    train_base["LATITUD"] = train_base["LATITUD"].fillna(lat_median)
+    train_base["LONGITUD"] = train_base["LONGITUD"].fillna(lon_median)
 
     scaler = StandardScaler()
     scaler.fit(train_base[CONTINUOUS_COLUMNS])
 
     encoders: dict[str, Any] = {
-        "km_median": km_median,
+        "lat_median": lat_median,
+        "lon_median": lon_median,
         "via_frequency_map": via_frequency_map,
         "departamento_categories": sorted(train_base["DEPARTAMENTO"].dropna().unique().tolist()),
         "via_prefijo_categories": sorted(train_base["via_prefijo"].dropna().unique().tolist()),
         "region_categories": REGION_CATEGORIES,
         "franja_categories": FRANJA_CATEGORIES,
-        "modalidad_categories": MODALIDAD_CATEGORIES,
+        "clase_categories": CLASE_CATEGORIES,
+        "zona_categories": ZONA_CATEGORIES,
+        "red_vial_categories": RED_VIAL_CATEGORIES,
+        "tipo_via_categories": TIPO_VIA_CATEGORIES,
+        "clima_categories": CLIMA_CATEGORIES,
+        "caracteristica_categories": CARACTERISTICA_CATEGORIES,
+        "perfil_categories": PERFIL_CATEGORIES,
+        "superficie_categories": SUPERFICIE_CATEGORIES,
         "continuous_columns": CONTINUOUS_COLUMNS,
     }
 
@@ -54,7 +71,8 @@ def fit_preprocessing_artifacts(train_df: pd.DataFrame) -> tuple[StandardScaler,
 
 def preparar_entrada(df: pd.DataFrame, scaler: StandardScaler, encoders: dict[str, Any]) -> pd.DataFrame:
     base = derive_base_features(df, via_frequency_map=encoders["via_frequency_map"])
-    base["KILOMETRO"] = base["KILOMETRO"].fillna(float(encoders["km_median"]))
+    base["LATITUD"] = base["LATITUD"].fillna(float(encoders["lat_median"]))
+    base["LONGITUD"] = base["LONGITUD"].fillna(float(encoders["lon_median"]))
 
     output = pd.DataFrame(index=base.index)
     continuous_columns = list(encoders["continuous_columns"])
@@ -72,7 +90,7 @@ def preparar_entrada(df: pd.DataFrame, scaler: StandardScaler, encoders: dict[st
         "hora_sin",
         "hora_cos",
         "nocturno",
-        "km_faltante",
+        "coord_faltante",
     ]
     for column in passthrough_columns:
         output[column] = base[column].fillna(0)
@@ -82,7 +100,14 @@ def preparar_entrada(df: pd.DataFrame, scaler: StandardScaler, encoders: dict[st
         add_one_hot(base, "region_natural", encoders["region_categories"], "region"),
         add_one_hot(base, "via_prefijo", encoders["via_prefijo_categories"], "via_prefijo"),
         add_one_hot(base, "franja", encoders["franja_categories"], "franja"),
-        add_one_hot(base, "MODALIDAD", encoders["modalidad_categories"], "modalidad"),
+        add_one_hot(base, "CLASE", encoders["clase_categories"], "clase"),
+        add_one_hot(base, "ZONA", encoders["zona_categories"], "zona"),
+        add_one_hot(base, "RED_VIAL", encoders["red_vial_categories"], "red_vial"),
+        add_one_hot(base, "TIPO_VIA", encoders["tipo_via_categories"], "tipo_via"),
+        add_one_hot(base, "CLIMA", encoders["clima_categories"], "clima"),
+        add_one_hot(base, "CARACTERISTICA_VIA", encoders["caracteristica_categories"], "caracteristica"),
+        add_one_hot(base, "PERFIL_VIA", encoders["perfil_categories"], "perfil"),
+        add_one_hot(base, "SUPERFICIE", encoders["superficie_categories"], "superficie"),
     ]
     output = pd.concat([output, *one_hot_parts], axis=1)
 
@@ -106,4 +131,3 @@ def load_artifacts(models_dir: Path) -> tuple[StandardScaler, dict[str, Any]]:
     scaler = joblib.load(models_dir / "scaler.pkl")
     encoders = joblib.load(models_dir / "encoders.pkl")
     return scaler, encoders
-
