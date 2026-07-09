@@ -10,6 +10,7 @@ data/processed/*
 !data/processed/.gitkeep
 data/geo/*
 !data/geo/.gitkeep
+!data/geo/peru_departamentos_simple.geojson
 report/output/*
 !report/output/.gitkeep
 
