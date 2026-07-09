@@ -23,19 +23,19 @@ def run_block_g_check() -> dict[str, object]:
     predictions = predict_records(demo_cases)
     elapsed = time.perf_counter() - start
 
-    base = predictions.loc[predictions["caso_id"] == "demo_01_tipico_no_mortal", "probabilidad_mortal"].iloc[0]
-    atropello = predictions.loc[predictions["caso_id"] == "demo_02_atropello", "probabilidad_mortal"].iloc[0]
-    unseen = predictions.loc[predictions["caso_id"] == "demo_04_codigo_no_visto", "probabilidad_mortal"].iloc[0]
-    puno = predictions.loc[predictions["caso_id"] == "demo_05_puno", "probabilidad_mortal"].iloc[0]
-    base_score = predictions.loc[predictions["caso_id"] == "demo_01_tipico_no_mortal", "score_riesgo_mortal"].iloc[0]
+    base = predictions.loc[predictions["caso_id"] == "demo_01_tipico_letalidad_simple", "probabilidad_multifatal"].iloc[0]
+    nocturno = predictions.loc[predictions["caso_id"] == "demo_02_choque_nocturno_carretera", "probabilidad_multifatal"].iloc[0]
+    unseen = predictions.loc[predictions["caso_id"] == "demo_04_codigo_no_visto", "probabilidad_multifatal"].iloc[0]
+    puno = predictions.loc[predictions["caso_id"] == "demo_05_puno_rural", "probabilidad_multifatal"].iloc[0]
+    base_score = predictions.loc[predictions["caso_id"] == "demo_01_tipico_letalidad_simple", "score_riesgo_multifatal"].iloc[0]
     calibration_method = predictions["calibracion"].iloc[0]
     comparison = historical_comparison(demo_cases.iloc[0], float(base_score))
-    historical_count = int(comparison["tasa_mortalidad"].notna().sum())
+    historical_count = int(comparison["tasa_multifatal"].notna().sum())
 
     checklist = [
         {"check": "demo_cases_predict", "passed": True, "detail": f"{len(predictions)} casos predichos"},
         {"check": "response_under_2_seconds", "passed": bool(elapsed < 2.0), "detail": f"{elapsed:.3f}s"},
-        {"check": "atropello_changes_probability", "passed": bool(float(atropello) != float(base)), "detail": f"base={base:.4f}; atropello={atropello:.4f}"},
+        {"check": "nocturno_changes_probability", "passed": bool(float(nocturno) != float(base)), "detail": f"base={base:.4f}; nocturno={nocturno:.4f}"},
         {"check": "unseen_road_code_does_not_break", "passed": bool(pd.notna(unseen)), "detail": f"probabilidad={unseen:.4f}"},
         {"check": "puno_case_does_not_break", "passed": bool(pd.notna(puno)), "detail": f"probabilidad={puno:.4f}"},
         {

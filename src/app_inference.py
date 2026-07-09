@@ -17,7 +17,7 @@ if str(ROOT) not in sys.path:
 
 from src.block_b_dataset_audit import audit_and_clean
 from src.block_d_preprocessing import run_block_d
-from src.features import assign_time_band, parse_hour_value
+from src.features import assign_time_band, normalize_clase, normalize_clima, normalize_zona, parse_hour_value
 from src.preprocessing import load_artifacts, preparar_entrada
 
 
@@ -65,7 +65,7 @@ def apply_calibration(probabilities: np.ndarray, calibrator: dict[str, Any] | No
 
 @lru_cache(maxsize=1)
 def load_prediction_stack() -> tuple[keras.Model, Any, dict[str, Any], float, dict[str, Any] | None]:
-    model = keras.models.load_model(MODELS_DIR / "severidad_nn.keras")
+    model = keras.models.load_model(MODELS_DIR / "letalidad_nn.keras")
     scaler, encoders = load_artifacts(MODELS_DIR)
     threshold = load_threshold()
     calibrator = load_calibrator()
@@ -78,10 +78,10 @@ def predict_records(records: pd.DataFrame) -> pd.DataFrame:
     probabilities = model.predict(features, verbose=0).reshape(-1)
     calibrated = apply_calibration(probabilities, calibrator)
     output = records.copy()
-    output["probabilidad_mortal"] = probabilities
-    output["score_riesgo_mortal"] = calibrated
+    output["probabilidad_multifatal"] = probabilities
+    output["score_riesgo_multifatal"] = calibrated
     output["calibracion"] = "sin_calibrador" if calibrator is None else str(calibrator.get("method", "desconocida"))
-    output["clasificacion"] = np.where(probabilities >= threshold, "MORTAL", "NO_MORTAL")
+    output["clasificacion"] = np.where(probabilities >= threshold, "ALTA_LETALIDAD", "LETALIDAD_SIMPLE")
     output["threshold"] = threshold
     return output
 
@@ -99,33 +99,38 @@ def load_clean_dataset() -> pd.DataFrame:
 def _rate_row(label: str, rate: float | None, support: int | None, source: str) -> dict[str, Any]:
     return {
         "comparador": label,
-        "tasa_mortalidad": rate,
+        "tasa_multifatal": rate,
         "soporte": support,
         "fuente": source,
     }
 
 
-def observed_mortality_rate(df: pd.DataFrame, mask: pd.Series) -> tuple[float | None, int]:
+def observed_multifatal_rate(df: pd.DataFrame, mask: pd.Series) -> tuple[float | None, int]:
     subset = df.loc[mask]
     support = int(subset.shape[0])
     if support == 0:
         return None, support
-    return float(subset["target_mortal"].mean()), support
+    return float(subset["target_multifatal"].mean()), support
 
 
 def historical_comparison(record: pd.Series | dict[str, Any], predicted_probability: float) -> pd.DataFrame:
-    """Compare one prediction against observed historical mortality rates.
+    """Compare one prediction against observed historical multifatal rates.
 
     The comparison uses the clean dataset only as observational context. It is
     not a label for the manual input and must not be presented as ground truth
-    for a hypothetical accident.
+    for a hypothetical crash.
     """
 
     df = load_clean_dataset().copy()
+    df["clase_norm"] = df["CLASE"].apply(normalize_clase)
+    df["zona_norm"] = df["ZONA"].apply(normalize_zona)
+    df["clima_norm"] = df["CLIMA"].apply(normalize_clima)
+
     data = dict(record)
-    modalidad = str(data.get("MODALIDAD", "")).strip().upper()
+    clase = normalize_clase(data.get("CLASE"))
+    zona = normalize_zona(data.get("ZONA"))
+    clima = normalize_clima(data.get("CLIMA"))
     departamento = str(data.get("DEPARTAMENTO", "")).strip().upper()
-    codigo_via = str(data.get("CODIGO_VIA", "")).strip().upper()
     hour = parse_hour_value(data.get("HORA"))
     franja = assign_time_band(hour)
 
@@ -133,25 +138,26 @@ def historical_comparison(record: pd.Series | dict[str, Any], predicted_probabil
         _rate_row("Score calibrado del modelo", float(predicted_probability), 1, "MLP + calibración post-hoc"),
     ]
 
-    global_rate, global_support = observed_mortality_rate(df, pd.Series(True, index=df.index))
+    global_rate, global_support = observed_multifatal_rate(df, pd.Series(True, index=df.index))
     rows.append(_rate_row("Histórico global", global_rate, global_support, "Dataset limpio"))
 
-    modality_rate, modality_support = observed_mortality_rate(df, df["MODALIDAD"] == modalidad)
-    rows.append(_rate_row(f"Histórico modalidad: {modalidad}", modality_rate, modality_support, "Dataset limpio"))
+    clase_rate, clase_support = observed_multifatal_rate(df, df["clase_norm"] == clase)
+    rows.append(_rate_row(f"Histórico clase: {clase}", clase_rate, clase_support, "Dataset limpio"))
 
-    dept_rate, dept_support = observed_mortality_rate(df, df["DEPARTAMENTO"] == departamento)
+    zona_rate, zona_support = observed_multifatal_rate(df, df["zona_norm"] == zona)
+    rows.append(_rate_row(f"Histórico zona: {zona}", zona_rate, zona_support, "Dataset limpio"))
+
+    clima_rate, clima_support = observed_multifatal_rate(df, df["clima_norm"] == clima)
+    rows.append(_rate_row(f"Histórico clima: {clima}", clima_rate, clima_support, "Dataset limpio"))
+
+    dept_rate, dept_support = observed_multifatal_rate(df, df["DEPARTAMENTO"] == departamento)
     rows.append(_rate_row(f"Histórico departamento: {departamento}", dept_rate, dept_support, "Dataset limpio"))
 
     if pd.notna(hour):
-        hour_rate, hour_support = observed_mortality_rate(df, df["hora_entera"] == int(hour))
+        hour_rate, hour_support = observed_multifatal_rate(df, df["hora_entera"] == int(hour))
         rows.append(_rate_row(f"Histórico hora: {int(hour):02d}:00", hour_rate, hour_support, "Dataset limpio"))
 
-    if codigo_via:
-        road_rate, road_support = observed_mortality_rate(df, df["CODIGO_VIA"] == codigo_via)
-        label = f"Histórico vía: {codigo_via}" if road_support >= 30 else f"Histórico vía: {codigo_via} (muestra baja)"
-        rows.append(_rate_row(label, road_rate, road_support, "Dataset limpio"))
-
-    similar_mask = (df["MODALIDAD"] == modalidad) & (df["DEPARTAMENTO"] == departamento)
+    similar_mask = (df["clase_norm"] == clase) & (df["zona_norm"] == zona) & (df["DEPARTAMENTO"] == departamento)
     if pd.notna(hour):
         if franja == "MADRUGADA":
             similar_mask = similar_mask & df["hora_entera"].between(0, 5)
@@ -162,10 +168,10 @@ def historical_comparison(record: pd.Series | dict[str, Any], predicted_probabil
         elif franja == "NOCHE":
             similar_mask = similar_mask & df["hora_entera"].between(18, 23)
 
-    similar_rate, similar_support = observed_mortality_rate(df, similar_mask)
+    similar_rate, similar_support = observed_multifatal_rate(df, similar_mask)
     if similar_support >= 10:
-        rows.append(_rate_row("Histórico casos similares", similar_rate, similar_support, "Modalidad + departamento + franja"))
+        rows.append(_rate_row("Histórico casos similares", similar_rate, similar_support, "Clase + zona + departamento + franja"))
 
     comparison = pd.DataFrame(rows)
-    comparison["tasa_mortalidad_pct"] = comparison["tasa_mortalidad"].astype(float) * 100
+    comparison["tasa_multifatal_pct"] = comparison["tasa_multifatal"].astype(float) * 100
     return comparison
