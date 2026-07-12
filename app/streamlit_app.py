@@ -464,6 +464,86 @@ def comparison_chart(comparison: pd.DataFrame) -> go.Figure:
     return _plot_layout(fig, height=390)
 
 
+PERU_BOUNDS = [[-18.6, -81.6], [0.3, -68.4]]
+
+
+def _location_picker() -> None:
+    """Optional OpenStreetMap picker: a click fills the latitude/longitude inputs.
+
+    The numeric fields remain the canonical input (and what the tests and the
+    geographic validation consume); the map is an additive convenience that
+    degrades gracefully without the package or without tile connectivity.
+    """
+    try:
+        import folium
+        from streamlit_folium import st_folium
+    except (ImportError, ModuleNotFoundError):
+        st.info(
+            "Para elegir la ubicación con un clic en el mapa, instalá las dependencias opcionales "
+            "`folium` y `streamlit-folium` (incluidas en requirements). Mientras tanto podés escribir "
+            "las coordenadas en el formulario."
+        )
+        return
+
+    with st.expander("Elegir la ubicación en el mapa (OpenStreetMap)", expanded=False):
+        st.caption(
+            "Hacé clic sobre el punto del siniestro: la latitud y la longitud se completan solas en el "
+            "formulario. El mapa muestra únicamente el Perú, con carreteras y calles de OpenStreetMap; "
+            "requiere conexión a internet para cargar el fondo."
+        )
+        picked_latitude = st.session_state.get("input_latitude")
+        picked_longitude = st.session_state.get("input_longitude")
+        has_pick = picked_latitude is not None and picked_longitude is not None
+        center = [picked_latitude, picked_longitude] if has_pick else [-9.19, -75.0]
+        base_map = folium.Map(
+            location=center,
+            zoom_start=9 if has_pick else 5,
+            min_zoom=5,
+            max_bounds=True,
+            tiles="OpenStreetMap",
+            attr="© OpenStreetMap contributors",
+        )
+        if not has_pick:
+            base_map.fit_bounds(PERU_BOUNDS)
+        base_map.options["maxBounds"] = PERU_BOUNDS
+        geo_path = ROOT / "data" / "geo" / "peru_departamentos_simple.geojson"
+        if geo_path.exists():
+            folium.GeoJson(
+                json.loads(geo_path.read_text(encoding="utf-8")),
+                name="Departamentos",
+                style_function=lambda _: {"color": INK, "weight": 1, "fillOpacity": 0.02},
+                tooltip=folium.GeoJsonTooltip(fields=["NOMBDEP"], aliases=["Departamento:"]),
+            ).add_to(base_map)
+        if has_pick:
+            folium.Marker(
+                [picked_latitude, picked_longitude],
+                tooltip="Ubicación seleccionada",
+                icon=folium.Icon(color="orange", icon="screenshot"),
+            ).add_to(base_map)
+        map_state = st_folium(
+            base_map,
+            key="location_picker_map",
+            height=430,
+            use_container_width=True,
+            returned_objects=["last_clicked"],
+        )
+        clicked = (map_state or {}).get("last_clicked")
+        if clicked:
+            clicked_latitude = round(float(clicked["lat"]), 6)
+            clicked_longitude = round(float(clicked["lng"]), 6)
+            if (clicked_latitude, clicked_longitude) != (picked_latitude, picked_longitude):
+                st.session_state["input_latitude"] = clicked_latitude
+                st.session_state["input_longitude"] = clicked_longitude
+                st.session_state.pop("canonical_result", None)
+                st.rerun()
+        if has_pick:
+            st.caption(
+                f"Seleccionado: {format_number_es(picked_latitude, digits=6)}, "
+                f"{format_number_es(picked_longitude, digits=6)}. Podés ajustar los valores a mano en el formulario; "
+                "la validación Perú–departamento se aplica al enviar."
+            )
+
+
 def estimate_page() -> None:
     st.header("Estimar prioridad")
     st.caption("Completá los campos requeridos o cargá el caso de demostración y enviá el formulario.")
@@ -503,6 +583,8 @@ def estimate_page() -> None:
             st.session_state.update(widget_values)
             st.session_state.pop("canonical_result", None)
             st.toast("Caso de demostración cargado.")
+
+    _location_picker()
 
     with st.form("canonical_estimate_form", clear_on_submit=False):
         st.subheader("Registro notificado")

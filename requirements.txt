@@ -13,3 +13,5 @@ plotly>=5.24
 streamlit>=1.40
 holidays
 joblib
+folium>=0.20
+streamlit-folium>=0.27
