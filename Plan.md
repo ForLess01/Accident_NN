@@ -21,7 +21,7 @@ El universo ya está restringido a siniestros fatales registrados por el ONSV. P
 | Artefacto | Función |
 |---|---|
 | `data/raw/BBDD_ONSV_SINIESTROS_FATALES_2021-2025.xlsx` | extracción oficial original |
-| `data/raw/Formato_2_Diccionario_de_datos.docx` | diccionario oficial |
+| `data/raw/Formato_2_Diccionario_de_datos.docx` | diccionario de la fuente Sutran usada en la primera iteración; se conserva como evidencia histórica. El diccionario vigente de la fuente ONSV son los encabezados de la hoja `SINIESTROS` y el mapeo `COLUMN_MAP` de `src/block_b_dataset_audit.py` |
 | `data/processed/base_limpia.parquet` | base canónica de 9 104 registros |
 | `models/final/manifest.json` | procedencia, hashes, particiones y métricas |
 | `models/final/model_selection.json` | decisión de arquitectura, semilla y umbral crudo |

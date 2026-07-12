@@ -70,6 +70,8 @@
     "report/tables/final_explainability_group_importance.csv",
     "report/tables/final_explainability_provenance.json",
     "report/tables/final_model_protocol.md",
+    "report/tables/final_paired_bootstrap_2024_2025.csv",
+    "report/tables/final_paired_bootstrap_2024_2025.json",
     "report/tables/final_reference_baseline_comparison_2024_2025.csv",
     "report/tables/final_reference_bootstrap_ci_2024_2025.csv",
     "report/tables/final_reference_classification_report_2024_2025.csv",
@@ -100,6 +102,7 @@
     "src/final_evaluation_figures.py",
     "src/final_explainability.py",
     "src/final_model_bundle.py",
+    "src/final_paired_comparison.py",
     "src/model_protocol.py",
     "tests/test_app_inference.py",
     "tests/test_final_explainability.py",
@@ -108,4 +111,3 @@
     "tests/test_release_check.py"
   ]
 }
-

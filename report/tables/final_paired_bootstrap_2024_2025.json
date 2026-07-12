@@ -1,0 +1,42 @@
+{
+  "comparison": "MLP_definitiva (raw, t=0.65) vs LogisticRegression_balanced (raw, t=0.60)",
+  "period": "2024-2025 historical reference (already observed; diagnostic only)",
+  "method": "paired bootstrap over records, percentile CI",
+  "seed": 42,
+  "iterations": 2000,
+  "results": {
+    "pr_auc": {
+      "metric": "pr_auc",
+      "mlp": 0.22488456244372435,
+      "logistic": 0.2054387779788931,
+      "delta_mlp_minus_logistic": 0.01944578446483125,
+      "delta_ci95_low": -0.003211625582351407,
+      "delta_ci95_high": 0.04332840348954411,
+      "prob_mlp_better": 0.9575,
+      "significant_at_5pct": false,
+      "bootstrap_samples": 2000
+    },
+    "roc_auc": {
+      "metric": "roc_auc",
+      "mlp": 0.7481914750571468,
+      "logistic": 0.7395365514768499,
+      "delta_mlp_minus_logistic": 0.008654923580296847,
+      "delta_ci95_low": -0.0030040250984153527,
+      "delta_ci95_high": 0.020863435216377568,
+      "prob_mlp_better": 0.925,
+      "significant_at_5pct": false,
+      "bootstrap_samples": 2000
+    },
+    "f1_multifatal": {
+      "metric": "f1_multifatal",
+      "mlp": 0.30303030303030304,
+      "logistic": 0.3182897862232779,
+      "delta_mlp_minus_logistic": -0.015259483192974876,
+      "delta_ci95_low": -0.050413358058969175,
+      "delta_ci95_high": 0.017267258015580475,
+      "prob_mlp_better": 0.1845,
+      "significant_at_5pct": false,
+      "bootstrap_samples": 2000
+    }
+  }
+}

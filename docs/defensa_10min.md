@@ -57,7 +57,7 @@
 | Logística balanceada | **0.3183** | 0.2161 | **0.6036** | 0.2054 | 0.7395 |
 | Random Forest | 0.2545 | **0.2569** | 0.2523 | 0.2179 | 0.7439 |
 
-> “Lectura honesta: la MLP tiene mejores métricas de ranking nominales en esta muestra, pero la logística mantiene mayor F1 y recall. No hicimos una prueba pareada que demuestre superioridad estadística. Por lo tanto, **no afirmamos que la red sea universalmente mejor**.”
+> “Lectura honesta, ahora cuantificada con un **bootstrap pareado** de 2,000 remuestreos sobre las predicciones congeladas: ΔPR-AUC = +0.019 con IC 95% [−0.003, +0.043] y el 95.8% de los remuestreos favorece a la MLP en ranking; ΔF1 = −0.015 con IC [−0.050, +0.017] a favor nominal de la logística. **Ninguna diferencia es significativa al 5%**: es un empate estadístico con tendencia de ranking favorable a la red. No afirmamos que la red sea universalmente mejor — y los datos tampoco permiten afirmar lo contrario.”
 >
 > “Con la decisión calibrada tenemos 88 verdaderos positivos, 134 falsos negativos y 285 falsos positivos. Identificamos 39.6% de los multifatales y solo 23.6% de las alertas son verdaderas. Esto impide cualquier automatización operativa.”
 
@@ -95,7 +95,7 @@ No para priorización posterior a la notificación: la clase puede registrarse a
 
 ### 3. ¿Por qué una red si la logística tiene mejor F1?
 
-La consigna exige una red neuronal correctamente construida. La MLP muestra ranking nominalmente mejor, pero no domina todos los umbrales. Reportar la logística como competidor fuerte demuestra rigor; ocultarla sería metodológicamente indefendible.
+La consigna exige una red neuronal correctamente construida. El bootstrap pareado cuantifica la comparación: en F1 la ventaja de la logística NO es significativa (Δ = −0.015, IC [−0.050, +0.017]), y en ranking la tendencia favorece a la MLP (ΔPR-AUC +0.019, 95.8% de remuestreos a favor, tampoco significativa). Es un empate estadístico documentado en la tabla de bootstrap pareado del informe. Reportar la logística como competidor fuerte demuestra rigor; ocultarla sería metodológicamente indefendible.
 
 ### 4. ¿Por qué no siguieron aumentando capas?
 
