@@ -140,11 +140,14 @@ def _plot_layout(fig: go.Figure, *, height: int = 430, legend: bool = False) -> 
         paper_bgcolor="#FFFFFF",
         plot_bgcolor="#FFFFFF",
         font=dict(family="Avenir Next, Source Sans 3, sans-serif", color=INK, size=13),
-        title_font=dict(size=18, color=INK),
         showlegend=legend,
         hoverlabel=dict(bgcolor="#FFFFFF", font_color=INK),
         separators=",.",
     )
+    # Styling the title of a figure that has none makes Plotly render the
+    # literal string "undefined" as its gtitle.
+    if fig.layout.title.text:
+        fig.update_layout(title_font=dict(size=18, color=INK))
     fig.update_xaxes(gridcolor=GRID, zeroline=False, automargin=True)
     fig.update_yaxes(gridcolor=GRID, zeroline=False, automargin=True)
     return fig
@@ -234,68 +237,178 @@ def app_header(manifest: dict[str, Any]) -> None:
     st.markdown('<div class="eyebrow">Observatorio académico · Seguridad vial · Perú</div>', unsafe_allow_html=True)
     st.title("Multifatalidad en siniestros viales ya fatales")
     st.markdown(
-        '<div class="scope-strip"><strong>Proyecto académico:</strong> red neuronal MLP que estima la probabilidad '
-        'de multifatalidad entre siniestros viales fatales notificados, con evidencia cronológica, calibración y '
-        'trazabilidad reproducible.</div>',
+        '<div class="scope-strip"><strong>¿Qué hace este sistema?</strong> Cuando se notifica un siniestro vial fatal en el Perú, '
+        'una red neuronal estima la probabilidad de que haya dejado <strong>dos o más fallecidos</strong>, usando solo la '
+        'información disponible al registrar el evento. Fuente: ONSV 2021–2025.</div>',
         unsafe_allow_html=True,
     )
-    columns = st.columns(4)
-    cards = [
-        ("Versión", manifest["model_version"], "Bundle canónico con hashes verificados"),
-        ("Fuente", "ONSV 2021–2025", "Publicación preliminar del 27/02/2026"),
-        ("Target", "2+ fallecidos", "Condicionado a un siniestro ya fatal"),
-        ("Protocolo", "Temporal", "Train 2021–22 · validación 2023 · referencia 2024–25"),
-    ]
-    for column, card in zip(columns, cards):
-        with column:
-            _card(*card)
+
+
+def _monthly_tracking_chart(probabilities: pd.DataFrame) -> tuple[go.Figure, pd.DataFrame]:
+    frame = probabilities.copy()
+    frame["mes"] = pd.to_datetime(frame["fecha"]).dt.to_period("M").dt.to_timestamp()
+    monthly = (
+        frame.groupby("mes")
+        .agg(
+            observada=("actual_multifatal", "mean"),
+            predicha=("calibrated_probability", "mean"),
+            n=("actual_multifatal", "size"),
+            multifatales=("actual_multifatal", "sum"),
+        )
+        .reset_index()
+    )
+    # Same support policy as the rest of the app: months below the minimum
+    # would display noise as if it were signal.
+    monthly = monthly[monthly["n"] >= MINIMUM_REGIONAL_SUPPORT].copy()
+    monthly["observada_pct"] = monthly["observada"] * 100
+    monthly["predicha_pct"] = monthly["predicha"] * 100
+    intervals = [wilson_interval(int(positives), int(n)) for positives, n in zip(monthly["multifatales"], monthly["n"])]
+    monthly["ci_inf_pct"] = [low * 100 for low, _ in intervals]
+    monthly["ci_sup_pct"] = [high * 100 for _, high in intervals]
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=monthly["mes"], y=monthly["observada_pct"], mode="lines+markers", name="Tasa multifatal observada",
+        line=dict(color=INK, width=2.2), marker=dict(size=7, color=INK),
+        error_y=dict(
+            type="data",
+            array=monthly["ci_sup_pct"] - monthly["observada_pct"],
+            arrayminus=monthly["observada_pct"] - monthly["ci_inf_pct"],
+            color="rgba(32,37,34,.35)",
+            thickness=1.2,
+        ),
+        customdata=monthly[["n", "multifatales", "ci_inf_pct", "ci_sup_pct"]],
+        hovertemplate="%{x|%b %Y}<br>Observada: %{y:.1f}%<br>Multifatales: %{customdata[1]:,} de %{customdata[0]:,}<br>IC 95%%: %{customdata[2]:.1f}–%{customdata[3]:.1f}%<extra></extra>",
+    ))
+    fig.add_trace(go.Scatter(
+        x=monthly["mes"], y=monthly["predicha_pct"], mode="lines+markers", name="Probabilidad media del modelo",
+        line=dict(color=ORANGE, width=2.2, dash="dot"), marker=dict(size=7, color=ORANGE, symbol="diamond"),
+        hovertemplate="%{x|%b %Y}<br>Predicha media: %{y:.1f}%<extra></extra>",
+    ))
+    fig.update_layout(title="Mes a mes en 2024–2025: lo que el modelo estimó vs. lo que ocurrió")
+    fig.update_xaxes(title="Mes")
+    fig.update_yaxes(title="Multifatalidad (%)", rangemode="tozero")
+    table = monthly.assign(mes=monthly["mes"].dt.strftime("%Y-%m"))[
+        ["mes", "n", "multifatales", "observada_pct", "predicha_pct", "ci_inf_pct", "ci_sup_pct"]
+    ].round(2)
+    return _plot_layout(fig, height=430, legend=True), table
+
+
+def _risk_ordering_chart(probabilities: pd.DataFrame) -> tuple[go.Figure, pd.DataFrame]:
+    frame = probabilities.copy()
+    frame["quintil"] = pd.qcut(
+        frame["calibrated_probability"].rank(method="first"), 5,
+        labels=["Q1 · score más bajo", "Q2", "Q3", "Q4", "Q5 · score más alto"],
+    )
+    grouped = (
+        frame.groupby("quintil", observed=True)
+        .agg(
+            observada=("actual_multifatal", "mean"),
+            predicha=("calibrated_probability", "mean"),
+            n=("actual_multifatal", "size"),
+            multifatales=("actual_multifatal", "sum"),
+        )
+        .reset_index()
+    )
+    grouped["observada_pct"] = grouped["observada"] * 100
+    grouped["predicha_pct"] = grouped["predicha"] * 100
+    intervals = [wilson_interval(int(positives), int(n)) for positives, n in zip(grouped["multifatales"], grouped["n"])]
+    grouped["ci_inf_pct"] = [low * 100 for low, _ in intervals]
+    grouped["ci_sup_pct"] = [high * 100 for _, high in intervals]
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=grouped["quintil"].astype(str), y=grouped["observada_pct"], name="Tasa multifatal observada",
+        marker_color=[BLUE_LIGHT, BLUE_LIGHT, BLUE, BLUE, ORANGE],
+        error_y=dict(type="data", array=grouped["ci_sup_pct"] - grouped["observada_pct"], arrayminus=grouped["observada_pct"] - grouped["ci_inf_pct"], color=MUTED),
+        customdata=grouped[["n", "multifatales", "predicha_pct"]],
+        hovertemplate="<b>%{x}</b><br>Observada: %{y:.1f}%<br>Predicha media: %{customdata[2]:.1f}%<br>Multifatales: %{customdata[1]:,} de %{customdata[0]:,}<extra></extra>",
+    ))
+    fig.add_trace(go.Scatter(
+        x=grouped["quintil"].astype(str), y=grouped["predicha_pct"], mode="markers", name="Probabilidad media del modelo",
+        marker=dict(color=INK, symbol="diamond", size=12, line=dict(color="#FFFFFF", width=1.5)),
+        hovertemplate="<b>%{x}</b><br>Predicha media: %{y:.1f}%<extra></extra>",
+    ))
+    fig.update_layout(title="Cinco grupos según el score del modelo: la multifatalidad real crece con el score")
+    fig.update_xaxes(title="Registros de 2024–2025 ordenados por el modelo, en quintiles")
+    fig.update_yaxes(title="Multifatalidad (%)", rangemode="tozero")
+    table = grouped[["quintil", "n", "multifatales", "observada_pct", "predicha_pct", "ci_inf_pct", "ci_sup_pct"]].round(2)
+    return _plot_layout(fig, height=430, legend=True), table
 
 
 def overview_page(manifest: dict[str, Any]) -> None:
     st.header("Panorama")
-    st.write(
-        "Esta interfaz presenta el fenómeno observado, la probabilidad calibrada y la clasificación académica "
-        "en superficies separadas para facilitar su lectura y evaluación."
-    )
     metrics = manifest["reference_evaluation"]["metrics"]["calibrated"]
-    columns = st.columns(4)
+    columns = st.columns(3)
     overview_cards = [
-        ("Registros", format_number_es(manifest["dataset"]["row_count"]), "Siniestros fatales limpiados"),
-        ("Features", str(manifest["feature_count"]), "Sin variables de resultado ni investigación posterior"),
-        ("Prevalencia ref.", _percent(metrics["class_rate"]), "222 multifatales de 2,232 registros"),
-        ("Umbral calibrado", _percent(metrics["threshold"], 0), "Seleccionado solo con OOF de validación 2023"),
+        ("Siniestros fatales estudiados", format_number_es(manifest["dataset"]["row_count"]), "Registro oficial ONSV, 2021–2025"),
+        ("¿Cuántos son multifatales?", "1 de cada 10", f'{_percent(metrics["class_rate"])} de los siniestros fatales deja 2+ fallecidos'),
+        ("¿El modelo ordena bien el riesgo?", "ROC-AUC 0,75", "Verificado en 2024–2025, un periodo que la red nunca vio al entrenar"),
     ]
     for column, card in zip(columns, overview_cards):
         with column:
             _card(*card)
 
-    left, right = st.columns([1.15, .85])
-    with left:
-        st.subheader("Qué responde")
-        st.markdown(
-            """
-            - **Entrada:** condiciones disponibles al notificar o caracterizar inicialmente un siniestro fatal.
-            - **Salida:** probabilidad calibrada de que el registro pertenezca a la clase multifatal.
-            - **Decisión:** priorizar revisión cuando la probabilidad calibrada alcanza el umbral canónico.
-            - **Contexto:** tasas históricas con soporte e intervalo de Wilson para comparar patrones observados.
-            """
-        )
-    with right:
-        st.subheader("Lectura académica")
-        st.info(
-            "La referencia 2024–2025 se conserva como evaluación descriptiva congelada. El target corresponde a "
-            "multifatalidad dentro del universo ONSV de siniestros fatales notificados."
-        )
+    st.subheader("Cómo funciona, en tres pasos")
+    steps = st.columns(3)
+    step_cards = [
+        ("① Se notifica un siniestro fatal", "El registro trae fecha, hora, lugar, tipo de siniestro, vía y clima: nada del desenlace posterior."),
+        ("② La red neuronal lo evalúa", "Una MLP entrenada con los siniestros de 2021–2022 convierte ese contexto en 162 señales y produce un score."),
+        ("③ Se obtiene una probabilidad honesta", "El score se calibra para que 20 % signifique realmente 20 %. Si supera el umbral, el caso se prioriza para revisión."),
+    ]
+    for column, (title, copy) in zip(steps, step_cards):
+        with column:
+            st.markdown(
+                f'<div class="evidence-card"><div class="evidence-value" style="font-size:1.05rem">{title}</div>'
+                f'<div class="evidence-detail">{copy}</div></div>',
+                unsafe_allow_html=True,
+            )
 
-    st.subheader("Diseño experimental")
-    protocol = pd.DataFrame(
-        [
-            {"Etapa": "Entrenamiento", "Periodo": "2021–2022", "n": manifest["splits"]["train"]["count"], "Uso": "Ajuste de pesos y preprocesamiento"},
-            {"Etapa": "Selección", "Periodo": "2023", "n": manifest["splits"]["validation"]["count"], "Uso": "Arquitectura, calibración y umbrales"},
-            {"Etapa": "Referencia histórica", "Periodo": "2024–2025", "n": manifest["splits"]["reference"]["count"], "Uso": "Evaluación descriptiva; sin ajustes"},
-        ]
+    st.subheader("La demostración")
+    st.write(
+        "Estas dos lecturas usan los 2 232 siniestros de 2024–2025, un periodo posterior a todo el entrenamiento. "
+        "Si el modelo no sirviera, la línea punteada ignoraría a la línea sólida y los cinco grupos tendrían la misma tasa."
     )
-    st.dataframe(protocol, width="stretch", hide_index=True)
+    try:
+        probabilities = load_reference_artifacts()["probabilities"]
+        tracking_fig, tracking_table = _monthly_tracking_chart(probabilities)
+        st.plotly_chart(tracking_fig, width="stretch", config={"displayModeBar": False})
+        st.caption(
+            "Cada punto de la línea sólida es la tasa multifatal realmente observada ese mes; la línea punteada es la "
+            "probabilidad media que el modelo asignó a esos mismos registros. Que se muevan juntas es la calibración funcionando. "
+            f"Las barras verticales son intervalos de Wilson al 95 %: los meses con pocos registros oscilan dentro de ese margen. "
+            f"Se muestran los meses con al menos {MINIMUM_REGIONAL_SUPPORT} registros; el cierre de 2025 es preliminar."
+        )
+        _table_fallback("seguimiento mensual predicho vs. observado", tracking_table, key="seguimiento_mensual")
+
+        ordering_fig, ordering_table = _risk_ordering_chart(probabilities)
+        st.plotly_chart(ordering_fig, width="stretch", config={"displayModeBar": False})
+        top = ordering_table.iloc[-1]
+        bottom = ordering_table.iloc[0]
+        st.caption(
+            f"El quintil de mayor score concentra una tasa multifatal de {format_number_es(top['observada_pct'], digits=1, suffix=' %')} "
+            f"frente a {format_number_es(bottom['observada_pct'], digits=1, suffix=' %')} en el de menor score: el modelo separa el riesgo en datos que nunca vio. "
+            "Las barras incluyen intervalos de Wilson al 95 %."
+        )
+        _table_fallback("multifatalidad observada por quintil de score", ordering_table, key="quintiles_score")
+    except RuntimeArtifactError as exc:
+        st.warning(f"No se pudo cargar la evidencia congelada para la demostración: {exc}")
+
+    with st.expander("Diseño experimental y garantías metodológicas"):
+        protocol = pd.DataFrame(
+            [
+                {"Etapa": "Entrenamiento", "Periodo": "2021–2022", "n": manifest["splits"]["train"]["count"], "Uso": "Ajuste de pesos y preprocesamiento"},
+                {"Etapa": "Selección", "Periodo": "2023", "n": manifest["splits"]["validation"]["count"], "Uso": "Arquitectura, calibración y umbrales"},
+                {"Etapa": "Referencia histórica", "Periodo": "2024–2025", "n": manifest["splits"]["reference"]["count"], "Uso": "Evaluación descriptiva; sin ajustes"},
+            ]
+        )
+        st.dataframe(protocol, width="stretch", hide_index=True)
+        st.markdown(
+            f"""
+            - **Sin fuga de resultado:** el modelo nunca ve fallecidos, lesionados, vehículos dañados ni causas de la investigación posterior.
+            - **Orden cronológico real:** se entrena con el pasado y se evalúa con el futuro, como operaría de verdad.
+            - **Trazabilidad:** versión `{manifest["model_version"]}` con hashes verificados; la interfaz es de solo lectura y no reentrena nada.
+            - **Alcance:** estimación académica dentro del universo ONSV de siniestros fatales notificados; la sección Evidencia documenta métricas, incertidumbre y comparación con modelos clásicos.
+            """
+        )
 
 
 def probability_gauge(probability: float, threshold: float) -> go.Figure:
