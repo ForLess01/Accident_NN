@@ -1,42 +1,45 @@
 \section{Interfaz gráfica}\label{sec:interfaz}
 
-\subsection{Arquitectura de la app}
-La interfaz se construyó en \textbf{Streamlit} (web local con \texttt{streamlit run}), confirmada como aceptable por el docente. Se organizó en cuatro pestañas con \texttt{st.tabs}, todas operativas en macOS y Windows. El código vive en \texttt{app/streamlit\_app.py}.
+\subsection{Arquitectura de información}
+La interfaz Streamlit es un consumidor de solo lectura. No entrena, calibra, reescribe tablas ni modifica artefactos. Al iniciar, carga \path{models/final/manifest.json}, verifica hashes y comprueba que modelo, esquema y lista coincidan en 162 entradas.
 
-\subsection{Contrato de preprocesamiento compartido}
-La regla metodológica más importante del Bloque G es que \textbf{la interfaz nunca recodifica a mano}. Toda transformación de entrada pasa por la función compartida \texttt{preparar\_entrada()} en \texttt{src/preprocessing.py}, importada tanto por el pipeline de entrenamiento como por la app. Misma función = imposible divergir. La función consume \texttt{models/feature\_list.json}, \texttt{models/scaler.pkl} y \texttt{models/encoders.pkl}, lo que garantiza que el vector de entrada tenga exactamente las 116 columnas en el orden correcto.
+\begin{table}[H]
+\centering
+\caption{Flujo de información de la interfaz canónica.}
+\label{tab:flujo-interfaz}
+\small
+\begin{tabularx}{\textwidth}{p{3cm}p{0.9cm}X}
+\toprule
+Componente & Flujo & Responsabilidad \\
+\midrule
+Formulario validado & $\rightarrow$ & Campos requeridos vacíos, opcionales como \texttt{NO INFORMADO} y caso demo explícito \\
+\texttt{app\_inference} & $\rightarrow$ & Valida periodo 2021--2025, código vial, par geográfico Perú--departamento y contrato de entrada \\
+Bundle canónico & $\rightarrow$ & Verifica hashes; calcula score crudo y probabilidad Platt sin escribir archivos \\
+Umbrales separados & $\rightarrow$ & 0.20 para decisión visible calibrada; 0.65 solo para diagnóstico crudo \\
+Presentación & $\rightarrow$ & Prioridad, contexto histórico, evidencia e incertidumbre con trazabilidad \\
+\bottomrule
+\end{tabularx}
+\end{table}
 
-\subsection{Pestañas}
-\subsubsection{Pestaña 1: Predicción de alta letalidad}
-Formulario con \emph{selectbox} para departamento, zona, red vial, tipo de vía, clase de siniestro, clima, característica de vía, perfil y superficie; \emph{date\_input} para fecha, \emph{text\_input} para hora y para el código de carretera (opcional). La inferencia muestra:
-\begin{itemize}
-  \item Un medidor tipo \emph{gauge} (Plotly) con la \textbf{probabilidad calibrada de 2+ fallecidos} (0--100\,\%). Gracias a la calibración isotónica (Brier 0.0872 en test), esta lectura sí es una probabilidad real y no solo un score.
-  \item Una etiqueta grande ALTA LETALIDAD / LETALIDAD SIMPLE según el umbral crudo de \texttt{threshold.json}; la clasificación y la probabilidad calibrada se muestran separadas para no mezclar decisión con comunicación de riesgo, y la nota al pie indica el valor crudo usado para clasificar.
-  \item Una gráfica comparativa entre la probabilidad calibrada del modelo y tasas multifatales históricas observadas (global, clase, zona, clima, departamento, hora y casos similares). Esa gráfica no pretende ser comprobación individual del caso manual: solo da contexto empírico.
-  \item Una nota de alcance: ``Es una estimación académica; no reemplaza evaluación vial profesional.''
-\end{itemize}
+\subsection{Cinco páginas funcionales y enlazables}
+La navegación se sincroniza con el parámetro \texttt{?section=}; por ello cada página posee una URL compartible y el estado de navegación no queda oculto en pestañas internas.
+\begin{enumerate}
+  \item \textbf{Panorama}: target académico, 162 features, prevalencia y particiones temporales.
+  \item \textbf{Estimar}: inicia sin valores plausibles precargados, ofrece \emph{Cargar caso de demostración}, exige fecha, hora, clase, departamento y coordenadas, y muestra un gauge Platt.
+  \item \textbf{Explorar datos}: gráficos Plotly responsivos del target, serie mensual, tasas por clase y condiciones, mapa de puntos y matriz mes$\times$hora. No reutiliza capturas EDA estáticas.
+  \item \textbf{Patrones regionales}: mapa, ranking y tabla departamental con intervalos de Wilson. Las tasas con soporte menor de 30 se enmascaran en lugar de presentarse como estimaciones estables.
+  \item \textbf{Evidencia del modelo}: comparación MLP/logística/Random Forest, confiabilidad, matriz de confusión, curvas PR/ROC y Gradient SHAP canónico. La matriz y las curvas incluyen tablas descargables como alternativa accesible.
+\end{enumerate}
 
-\subsubsection{Pestaña 2: Análisis exploratorio}
-Muestra las figuras clave del Bloque C: distribución del target, serie mensual, tasa multifatal por clase, tasas por condiciones pre-impacto (zona, clima, característica, superficie), mapa mes $\times$ hora y el scatter geográfico de siniestros. Incluye el expander con los hallazgos H1--H11.
+\subsection{Validación de entradas}
+La fecha se restringe al periodo cubierto por la evidencia, del 1 de enero de 2021 al 31 de diciembre de 2025. Un algoritmo geométrico puro sobre el GeoJSON versionado admite polígonos, multipolígonos y puntos de frontera; exige que las coordenadas pertenezcan al Perú y al departamento seleccionado. El código vial se busca entre los códigos persistidos y admite un código nuevo con formato oficial, mostrando que su frecuencia canónica será cero. Los campos de escena opcionales comienzan en \texttt{NO INFORMADO}. El subgrupo histórico coincidente se presenta únicamente con $n\geq30$.
 
-\subsubsection{Pestaña 3: Letalidad por departamento}
-Ranking interactivo por departamento (barras y tabla ordenable) con número de siniestros fatales y tasa multifatal, filtrado a departamentos con al menos 30 casos. Además, con el GeoJSON departamental versionado en \texttt{data/geo/}, se activa el mapa coroplético del Perú coloreado por tasa multifatal.
+\subsection{Decisión y contexto en escalas distintas}
+La decisión pública se calcula únicamente con la probabilidad Platt y el umbral 0.20. El score sigmoide y el umbral 0.65 aparecen en un panel separado para auditoría. Las tasas históricas incluyen soporte e intervalo de Wilson; son comparadores descriptivos y no se superponen conceptualmente con una probabilidad individual.
 
-\subsubsection{Pestaña 4: Sobre el modelo}
-Métricas del test (F1, recall, PR-AUC, ROC-AUC), definición del problema condicional, umbral, método de calibración, contrato de preprocesamiento, fuente de datos y top-5 SHAP. Cierra con créditos del equipo.
+\subsection{Validación funcional}
+\path{src/block_g_app_check.py} ejecuta comprobaciones de manifiesto, alineación de 162 variables, finitud, separación de escalas, ausencia de escrituras y latencia en caliente. Además, \texttt{streamlit.testing.AppTest} recorre las cinco URLs, verifica campos vacíos, carga demo explícita, resultado válido, coherencia geográfica, limpieza de estado obsoleto y alternativas tabulares. Las pruebas unitarias cubren fechas fuera de dominio, coordenadas interiores, exteriores, fronterizas y departamentalmente incoherentes, códigos viales conocidos y nuevos, separación de umbrales y soporte $n=29/30$.
 
-\subsection{Pruebas funcionales}
-El checklist del Bloque G (\texttt{tab09\_gui\_checklist.csv}) verificó siete condiciones, todas superadas:
-\begin{itemize}
-  \item Los cinco casos de demostración predicen sin error.
-  \item El caso típico responde en menos de 2 segundos (0.16\,s).
-  \item Cambiar solo la hora a nocturna modifica la probabilidad de forma coherente (demo\_02: sigmoide 0.652 $\rightarrow$ 0.659; score calibrado 0.144 $\rightarrow$ 0.199).
-  \item Un código de carretera no visto no rompe la app y mapea \texttt{via\_freq = 0} (demo\_04).
-  \item El caso de Puno rural confirma el encoding geográfico (demo\_05).
-  \item La comparación histórica entrega al menos cuatro tasas de contexto (entregó 8).
-  \item El calibrador post-hoc está disponible y activo (isotónico).
-\end{itemize}
-Adicionalmente, la app completa se verificó de punta a punta en un navegador local: las cuatro pestañas cargan sin excepciones y el mapa coroplético renderiza los 25 departamentos.
+El gate \texttt{check\_release.py} unifica pruebas directas, AppTest, hashes, paridad de 2232 inferencias, lectura segura de explicabilidad, escaneo de notebooks e imports, referencias obsoletas, vigencia del PDF y estado de Git. El modo local informa artefactos aún no versionados; el modo estricto los convierte en fallo de entrega.
 
-\subsection{Naturaleza de solo lectura}
-La GUI es de solo lectura: consume los artefactos versionados (\texttt{letalidad\_nn.keras}, \texttt{calibrator.pkl}, \texttt{scaler.pkl}, \texttt{encoders.pkl}, \texttt{threshold.json}) y no reentrena nada. Esta separación entrenamiento/inferencia garantiza que lo que se defiende ante el jurado es exactamente lo que corre la aplicación, y permite ejecutarla cualquier cantidad de veces sin alterar los resultados del informe.
+No se incluyen capturas de pantalla de una sesión no verificable. La tabla de flujo y el código probado constituyen evidencia reproducible de la arquitectura; la apariencia interactiva se inspecciona ejecutando la aplicación localmente.

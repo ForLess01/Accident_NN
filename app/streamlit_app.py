@@ -1,469 +1,981 @@
+"""Professional, evidence-first Streamlit interface for Accident_NN."""
 from __future__ import annotations
 
 import json
 import sys
+from datetime import date
 from pathlib import Path
+from typing import Any
 
+import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+from plotly.subplots import make_subplots
+from sklearn.metrics import precision_recall_curve, roc_curve
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.app_inference import historical_comparison, load_clean_dataset, load_demo_cases, load_threshold, predict_records
+from src.app_inference import (
+    InputContractError,
+    RuntimeArtifactError,
+    historical_comparison,
+    load_clean_dataset,
+    load_demo_cases,
+    load_explainability_artifacts,
+    load_input_options,
+    load_known_road_codes,
+    load_manifest,
+    load_thresholds,
+    mask_unsupported_regional_rates,
+    predict_records,
+    regional_summary,
+    normalize_road_code,
+    wilson_interval,
+)
+from src.final_model_bundle import sha256_file
 
 
 st.set_page_config(
-    page_title="Letalidad de siniestros fatales — Perú",
-    page_icon="🛣️",
+    page_title="Observatorio de multifatalidad vial — Perú",
+    page_icon="◉",
     layout="wide",
+    initial_sidebar_state="collapsed",
 )
 
+ORANGE = "#C94F16"
+INK = "#202522"
+MUTED = "#5F6965"
+BLUE = "#496B7C"
+BLUE_LIGHT = "#B9CDD4"
+SURFACE = "#F7F3EB"
+GRID = "#E1E5E2"
+UNSUPPORTED = "#C8CDCA"
+MINIMUM_REGIONAL_SUPPORT = 30
+INFERENCE_DATE_MIN = date(2021, 1, 1)
+INFERENCE_DATE_MAX = date(2025, 12, 31)
+SECTION_SLUGS = {
+    "Panorama": "panorama",
+    "Estimar": "estimar",
+    "Explorar datos": "explorar",
+    "Patrones regionales": "regiones",
+    "Evidencia del modelo": "evidencia",
+}
 
-THEME_CSS = """
+APP_CSS = """
 <style>
 :root {
-  --road-ink: #111827;
-  --road-muted: #6B7280;
-  --road-panel: #FFF7ED;
-  --road-accent: #EA580C;
-  --road-danger: #B91C1C;
-  --road-safe: #0F766E;
+  --ink: #202522;
+  --muted: #5F6965;
+  --surface: #F7F3EB;
+  --accent: #C94F16;
+  --rule: #D9DED9;
 }
-
-html, body, [class*="css"] {
-  font-family: 'Avenir Next', 'Gill Sans', 'Trebuchet MS', sans-serif;
+html { scroll-behavior: smooth; }
+body, .stApp { color: var(--ink); }
+.stApp { background: #FCFBF7; }
+.skip-link {
+  position: fixed; left: 1rem; top: -5rem; z-index: 10000; background: var(--ink); color: #FFFFFF !important;
+  padding: .7rem 1rem; text-decoration: none; border-radius: .2rem;
 }
-
-.main .block-container {
-  padding-top: 2rem;
-  max-width: 1180px;
+.skip-link:focus-visible { top: 1rem; }
+.main .block-container { max-width: 1240px; padding-top: 1.25rem; padding-bottom: 3rem; }
+h1, h2, h3 { color: var(--ink); letter-spacing: -0.018em; text-wrap: balance; scroll-margin-top: 5rem; }
+h1 { max-width: 900px; }
+p, li { text-wrap: pretty; }
+code { color: #7D3213; background: #F4E9DE; border-radius: .25rem; }
+.eyebrow {
+  color: var(--accent); font-size: .76rem; font-weight: 800; letter-spacing: .12em;
+  text-transform: uppercase; margin-bottom: .5rem;
 }
-
-.hero {
-  border: 1px solid rgba(17, 24, 39, .12);
-  background:
-    radial-gradient(circle at 12% 15%, rgba(234, 88, 12, .18), transparent 28%),
-    linear-gradient(135deg, #FFF7ED 0%, #FFFFFF 48%, #F8FAFC 100%);
-  border-radius: 28px;
-  padding: 28px 32px;
-  margin-bottom: 20px;
-  box-shadow: 0 24px 60px rgba(17, 24, 39, .08);
+.scope-strip {
+  border: 1px solid var(--rule); border-left: 5px solid var(--accent);
+  background: var(--surface); padding: .9rem 1rem; margin: .6rem 0 1.25rem;
 }
-
-.hero-kicker {
-  font-family: 'Menlo', 'Consolas', monospace;
-  color: var(--road-accent);
-  letter-spacing: .08em;
-  font-size: .78rem;
-  font-weight: 700;
-  text-transform: uppercase;
+.scope-strip strong { color: var(--ink); }
+.evidence-card {
+  border-top: 3px solid var(--ink); background: #FFFFFF; padding: .85rem 1rem 1rem;
+  min-height: 6.8rem; box-shadow: 0 1px 0 rgba(32,37,34,.08);
 }
-
-.hero-title {
-  color: var(--road-ink);
-  font-size: 2.3rem;
-  line-height: 1.05;
-  font-weight: 800;
-  margin: 8px 0;
+.evidence-label { color: var(--muted); font-size: .75rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.evidence-value { color: var(--ink); font-size: 1.45rem; font-weight: 750; line-height: 1.15; margin-top: .28rem; font-variant-numeric: tabular-nums; }
+.evidence-detail { color: var(--muted); font-size: .8rem; margin-top: .32rem; }
+.decision-panel {
+  border: 1px solid var(--rule); border-top: 5px solid var(--accent); background: #FFFFFF;
+  padding: 1rem 1.15rem; min-height: 9rem;
 }
-
-.hero-copy {
-  color: var(--road-muted);
-  font-size: 1.05rem;
-  max-width: 780px;
+.decision-title { color: var(--ink); font-size: 1.35rem; font-weight: 800; margin: .3rem 0; }
+.decision-copy { color: var(--muted); font-size: .92rem; }
+.mono-value { font-variant-numeric: tabular-nums; }
+[data-testid="stMetricValue"] { font-variant-numeric: tabular-nums; }
+[data-testid="stForm"] { border: 1px solid var(--rule); background: #FFFFFF; padding: 1rem; }
+[data-testid="stRadio"] [role="radiogroup"] { gap: .35rem; border-bottom: 1px solid var(--rule); padding-bottom: .45rem; }
+[data-testid="stRadio"] label { min-height: 44px; padding: .35rem .65rem; }
+button:focus-visible, a:focus-visible, input:focus-visible, [role="radio"]:focus-visible {
+  outline: 3px solid rgba(201,79,22,.42) !important; outline-offset: 2px;
 }
-
-.metric-card {
-  border: 1px solid rgba(17, 24, 39, .10);
-  border-radius: 20px;
-  padding: 18px 20px;
-  background: #FFFFFF;
-  box-shadow: 0 14px 36px rgba(15, 23, 42, .06);
+.stButton button, [data-testid="stFormSubmitButton"] button { min-height: 44px; }
+.stDownloadButton button { min-height: 44px; }
+@media (max-width: 720px) {
+  .main .block-container { padding-left: 1rem; padding-right: 1rem; }
+  .evidence-card { min-height: auto; margin-bottom: .5rem; }
+  .scope-strip { padding: .8rem; }
 }
-
-.metric-label {
-  color: var(--road-muted);
-  font-family: 'Menlo', 'Consolas', monospace;
-  font-size: .75rem;
-  text-transform: uppercase;
-}
-
-.metric-value {
-  color: var(--road-ink);
-  font-size: 1.8rem;
-  font-weight: 800;
-}
-
-.note {
-  border-left: 4px solid var(--road-accent);
-  background: #FFF7ED;
-  padding: 14px 16px;
-  border-radius: 14px;
-  color: #7C2D12;
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
 </style>
 """
 
-DEPARTAMENTO_OPTIONS = [
-    "LIMA", "AREQUIPA", "LA LIBERTAD", "PUNO", "CUSCO", "JUNIN", "PIURA",
-    "ANCASH", "CAJAMARCA", "AYACUCHO", "HUANCAVELICA", "ICA", "LAMBAYEQUE",
-    "SAN MARTIN", "HUANUCO", "APURIMAC", "AMAZONAS", "LORETO", "PASCO",
-    "TACNA", "MOQUEGUA", "TUMBES", "UCAYALI", "MADRE DE DIOS", "CALLAO",
-]
-ZONA_OPTIONS = ["RURAL", "URBANA"]
-RED_VIAL_OPTIONS = ["NACIONAL", "DEPARTAMENTAL", "PROVINCIAL", "URBANO"]
-TIPO_VIA_OPTIONS = ["CARRETERA", "AVENIDA", "CALLE", "VIA EXPRESA", "OTRO"]
-CLASE_OPTIONS = ["CHOQUE", "DESPISTE", "ATROPELLO", "VOLCADURA", "ESPECIAL"]
-CLIMA_OPTIONS = ["DESPEJADO", "NUBLADO", "LLUVIOSO", "NIEBLA", "OTRO"]
-CARACTERISTICA_OPTIONS = ["TRAMO RECTO", "CURVA", "INTERSECCIÓN", "PUENTE", "OTRO"]
-PERFIL_OPTIONS = ["PLANA", "INCLINADA"]
-SUPERFICIE_OPTIONS = ["ASFALTADA", "AFIRMADO", "TROCHA", "CONCRETO"]
+
+def _plot_layout(fig: go.Figure, *, height: int = 430, legend: bool = False) -> go.Figure:
+    fig.update_layout(
+        template="plotly_white",
+        height=height,
+        margin=dict(l=22, r=18, t=60, b=42),
+        paper_bgcolor="#FFFFFF",
+        plot_bgcolor="#FFFFFF",
+        font=dict(family="Avenir Next, Source Sans 3, sans-serif", color=INK, size=13),
+        title_font=dict(size=18, color=INK),
+        showlegend=legend,
+        hoverlabel=dict(bgcolor="#FFFFFF", font_color=INK),
+        separators=",.",
+    )
+    fig.update_xaxes(gridcolor=GRID, zeroline=False, automargin=True)
+    fig.update_yaxes(gridcolor=GRID, zeroline=False, automargin=True)
+    return fig
 
 
-def app_header() -> None:
-    st.markdown(THEME_CSS, unsafe_allow_html=True)
+def _percent(value: float, digits: int = 1) -> str:
+    return format_number_es(value * 100, digits=digits, suffix=" %")
+
+
+def format_number_es(value: float | int, *, digits: int = 0, suffix: str = "") -> str:
+    """Format visible numbers consistently for Spanish (Peru)."""
+    rendered = f"{float(value):,.{digits}f}"
+    rendered = rendered.replace(",", "\u0000").replace(".", ",").replace("\u0000", ".")
+    return f"{rendered}{suffix}"
+
+
+def format_date_es(value: date | pd.Timestamp) -> str:
+    timestamp = pd.Timestamp(value)
+    return f"{timestamp.day:02d}/{timestamp.month:02d}/{timestamp.year:04d}"
+
+
+def _card(label: str, value: str, detail: str) -> None:
     st.markdown(
-        """
-        <div class="hero">
-          <div class="hero-kicker">ONSV · MLP tabular · demo local</div>
-          <div class="hero-title">Clasificador de alta letalidad en siniestros viales fatales del Perú</div>
-          <div class="hero-copy">
-            Interfaz académica para estimar la probabilidad de que un siniestro fatal deje dos o más
-            fallecidos, usando el mismo contrato de preprocesamiento del pipeline. No duplica features:
-            consume <code>preparar_entrada()</code>.
-          </div>
-        </div>
-        """,
+        f'<div class="evidence-card"><div class="evidence-label">{label}</div>'
+        f'<div class="evidence-value">{value}</div><div class="evidence-detail">{detail}</div></div>',
         unsafe_allow_html=True,
     )
 
 
+def _table_fallback(label: str, frame: pd.DataFrame, *, key: str | None = None) -> None:
+    with st.expander(f"Ver tabla: {label}"):
+        st.dataframe(frame, width="stretch", hide_index=True)
+        st.download_button(
+            "Descargar CSV",
+            frame.to_csv(index=False).encode("utf-8"),
+            file_name=f"{(key or label).lower().replace(' ', '_')}.csv",
+            mime="text/csv",
+            key=f"download_{key or label}",
+        )
+
+
 @st.cache_data(show_spinner=False)
 def cached_clean_dataset() -> pd.DataFrame:
-    return load_clean_dataset()
+    return load_clean_dataset().copy()
 
 
 @st.cache_data(show_spinner=False)
-def cached_demo_cases() -> pd.DataFrame:
-    return load_demo_cases()
+def cached_regional_summary() -> pd.DataFrame:
+    return regional_summary(MINIMUM_REGIONAL_SUPPORT)
 
 
 @st.cache_data(show_spinner=False)
-def cached_shap_top5() -> pd.DataFrame:
-    path = ROOT / "report" / "tables" / "tab08_shap_top5.csv"
-    return pd.read_csv(path) if path.exists() else pd.DataFrame(columns=["feature", "mean_abs_shap"])
+def load_reference_artifacts() -> dict[str, Any]:
+    tables = ROOT / "report" / "tables"
+    required = {
+        "metrics": tables / "final_reference_metrics_2024_2025.json",
+        "baseline": tables / "final_reference_baseline_comparison_2024_2025.csv",
+        "ci": tables / "final_reference_bootstrap_ci_2024_2025.csv",
+        "confusion": tables / "final_reference_confusion_matrix_2024_2025.csv",
+        "probabilities": tables / "final_reference_probabilities_2024_2025.csv",
+    }
+    missing = [str(path) for path in required.values() if not path.exists()]
+    if missing:
+        raise RuntimeArtifactError(f"Faltan evidencias canónicas: {', '.join(missing)}")
+    expected_hashes = load_manifest().get("reference_artifact_hashes", {})
+    for path in required.values():
+        expected = expected_hashes.get(path.name)
+        if not expected or sha256_file(path) != expected:
+            raise RuntimeArtifactError(
+                f"La evidencia {path.name} no coincide con el manifiesto canónico. Restaurá el artefacto antes de abrirla."
+            )
+    try:
+        return {
+            "metrics": json.loads(required["metrics"].read_text(encoding="utf-8")),
+            "baseline": pd.read_csv(required["baseline"]),
+            "ci": pd.read_csv(required["ci"]),
+            "confusion": pd.read_csv(required["confusion"]),
+            "probabilities": pd.read_csv(required["probabilities"]),
+        }
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        raise RuntimeArtifactError(f"No se pudieron leer las evidencias canónicas: {exc}") from exc
 
 
-def comparison_chart(comparison: pd.DataFrame) -> go.Figure:
-    clean = comparison.dropna(subset=["tasa_multifatal_pct"]).copy()
-    colors = ["#B91C1C" if label == "Score calibrado del modelo" else "#0F766E" for label in clean["comparador"]]
-    fig = go.Figure()
-    fig.add_trace(
-        go.Scatter(
-            x=clean["comparador"],
-            y=clean["tasa_multifatal_pct"],
-            mode="lines+markers+text",
-            line={"color": "#111827", "width": 2},
-            marker={"size": 13, "color": colors, "line": {"color": "#FFFFFF", "width": 2}},
-            text=[f"{value:.1f}%" for value in clean["tasa_multifatal_pct"]],
-            textposition="top center",
-            hovertemplate="<b>%{x}</b><br>Tasa multifatal: %{y:.2f}%<extra></extra>",
+def app_header(manifest: dict[str, Any]) -> None:
+    st.markdown(APP_CSS, unsafe_allow_html=True)
+    st.markdown('<a class="skip-link" href="#main-content">Saltar al contenido principal</a><div id="main-content"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="eyebrow">Observatorio académico · Seguridad vial · Perú</div>', unsafe_allow_html=True)
+    st.title("Multifatalidad en siniestros viales ya fatales")
+    st.markdown(
+        '<div class="scope-strip"><strong>Proyecto académico:</strong> red neuronal MLP que estima la probabilidad '
+        'de multifatalidad entre siniestros viales fatales notificados, con evidencia cronológica, calibración y '
+        'trazabilidad reproducible.</div>',
+        unsafe_allow_html=True,
+    )
+    columns = st.columns(4)
+    cards = [
+        ("Versión", manifest["model_version"], "Bundle canónico con hashes verificados"),
+        ("Fuente", "ONSV 2021–2025", "Publicación preliminar del 27/02/2026"),
+        ("Target", "2+ fallecidos", "Condicionado a un siniestro ya fatal"),
+        ("Protocolo", "Temporal", "Train 2021–22 · validación 2023 · referencia 2024–25"),
+    ]
+    for column, card in zip(columns, cards):
+        with column:
+            _card(*card)
+
+
+def overview_page(manifest: dict[str, Any]) -> None:
+    st.header("Panorama")
+    st.write(
+        "Esta interfaz presenta el fenómeno observado, la probabilidad calibrada y la clasificación académica "
+        "en superficies separadas para facilitar su lectura y evaluación."
+    )
+    metrics = manifest["reference_evaluation"]["metrics"]["calibrated"]
+    columns = st.columns(4)
+    overview_cards = [
+        ("Registros", format_number_es(manifest["dataset"]["row_count"]), "Siniestros fatales limpiados"),
+        ("Features", str(manifest["feature_count"]), "Sin variables de resultado ni investigación posterior"),
+        ("Prevalencia ref.", _percent(metrics["class_rate"]), "222 multifatales de 2,232 registros"),
+        ("Umbral calibrado", _percent(metrics["threshold"], 0), "Seleccionado solo con OOF de validación 2023"),
+    ]
+    for column, card in zip(columns, overview_cards):
+        with column:
+            _card(*card)
+
+    left, right = st.columns([1.15, .85])
+    with left:
+        st.subheader("Qué responde")
+        st.markdown(
+            """
+            - **Entrada:** condiciones disponibles al notificar o caracterizar inicialmente un siniestro fatal.
+            - **Salida:** probabilidad calibrada de que el registro pertenezca a la clase multifatal.
+            - **Decisión:** priorizar revisión cuando la probabilidad calibrada alcanza el umbral canónico.
+            - **Contexto:** tasas históricas con soporte e intervalo de Wilson para comparar patrones observados.
+            """
         )
+    with right:
+        st.subheader("Lectura académica")
+        st.info(
+            "La referencia 2024–2025 se conserva como evaluación descriptiva congelada. El target corresponde a "
+            "multifatalidad dentro del universo ONSV de siniestros fatales notificados."
+        )
+
+    st.subheader("Diseño experimental")
+    protocol = pd.DataFrame(
+        [
+            {"Etapa": "Entrenamiento", "Periodo": "2021–2022", "n": manifest["splits"]["train"]["count"], "Uso": "Ajuste de pesos y preprocesamiento"},
+            {"Etapa": "Selección", "Periodo": "2023", "n": manifest["splits"]["validation"]["count"], "Uso": "Arquitectura, calibración y umbrales"},
+            {"Etapa": "Referencia histórica", "Periodo": "2024–2025", "n": manifest["splits"]["reference"]["count"], "Uso": "Evaluación descriptiva; sin ajustes"},
+        ]
     )
-    fig.update_layout(
-        title="Modelo vs tasas históricas observadas",
-        xaxis_title="Comparador",
-        yaxis_title="Probabilidad / tasa multifatal (%)",
-        height=430,
-        margin=dict(l=20, r=20, t=60, b=80),
-    )
-    fig.update_xaxes(tickangle=-18)
-    return fig
+    st.dataframe(protocol, width="stretch", hide_index=True)
 
 
 def probability_gauge(probability: float, threshold: float) -> go.Figure:
-    color = "#B91C1C" if probability >= threshold else "#0F766E"
+    priority = probability >= threshold
     fig = go.Figure(
         go.Indicator(
-            mode="gauge+number+delta",
+            mode="gauge+number",
             value=probability * 100,
-            number={"suffix": "%", "font": {"size": 42}},
-            delta={"reference": threshold * 100, "suffix": "% umbral"},
+            number={"suffix": "%", "font": {"size": 44, "color": INK}},
+            title={"text": "Probabilidad multifatal calibrada", "font": {"size": 16}},
             gauge={
-                "axis": {"range": [0, 100]},
-                "bar": {"color": color},
+                "axis": {"range": [0, 100], "ticksuffix": "%", "tickwidth": 1, "tickcolor": MUTED},
+                "bar": {"color": ORANGE if priority else BLUE, "thickness": .42},
+                "bgcolor": "#EEF0ED",
+                "borderwidth": 0,
                 "steps": [
-                    {"range": [0, threshold * 100], "color": "#CCFBF1"},
-                    {"range": [threshold * 100, 100], "color": "#FEE2E2"},
+                    {"range": [0, threshold * 100], "color": "#E7EFEE"},
+                    {"range": [threshold * 100, 100], "color": "#F4E8DF"},
                 ],
-                "threshold": {"line": {"color": "#111827", "width": 4}, "thickness": 0.75, "value": threshold * 100},
+                "threshold": {"line": {"color": INK, "width": 4}, "thickness": .8, "value": threshold * 100},
             },
-            title={"text": "Probabilidad de 2+ fallecidos"},
         )
     )
-    fig.update_layout(height=310, margin=dict(l=20, r=20, t=50, b=10))
-    return fig
+    return _plot_layout(fig, height=320)
 
 
-def _default_index(options: list[str], value: str) -> int:
-    return options.index(value) if value in options else 0
-
-
-def prediction_tab() -> None:
-    st.subheader("Predicción de alta letalidad")
-    threshold = load_threshold()
-    demo_cases = cached_demo_cases()
-
-    selected_case = st.selectbox(
-        "Cargar caso de prueba",
-        ["Entrada manual", *demo_cases["caso_id"].tolist()],
+def comparison_chart(comparison: pd.DataFrame) -> go.Figure:
+    data = comparison.dropna(subset=["tasa_multifatal_pct"]).copy()
+    data["error_plus"] = data["ci_95_sup_pct"] - data["tasa_multifatal_pct"]
+    data["error_minus"] = data["tasa_multifatal_pct"] - data["ci_95_inf_pct"]
+    data.loc[data["comparador"] == "Probabilidad calibrada del modelo", ["error_plus", "error_minus"]] = 0
+    colors = [ORANGE if value == "Probabilidad calibrada del modelo" else BLUE for value in data["comparador"]]
+    symbols = ["diamond" if value == "Probabilidad calibrada del modelo" else "circle" for value in data["comparador"]]
+    fig = go.Figure(
+        go.Scatter(
+            x=data["tasa_multifatal_pct"],
+            y=data["comparador"],
+            mode="markers",
+            marker=dict(color=colors, symbol=symbols, size=13, line=dict(color="#FFFFFF", width=1.5)),
+            error_x=dict(type="data", array=data["error_plus"], arrayminus=data["error_minus"], color=MUTED, thickness=1.4),
+            customdata=np.column_stack([
+                data["soporte"].fillna("—").astype(str), data["dimensiones"], data["fuente"]
+            ]),
+            hovertemplate=(
+                "<b>%{y}</b><br>Valor: %{x:.2f}%<br>n: %{customdata[0]}"
+                "<br>%{customdata[1]}<br>Fuente: %{customdata[2]}<extra></extra>"
+            ),
+        )
     )
-    if selected_case == "Entrada manual":
-        defaults = {
-            "FECHA": pd.Timestamp("2023-08-15").date(),
-            "HORA": "17:30",
-            "DEPARTAMENTO": "LIMA",
-            "ZONA": "RURAL",
-            "RED_VIAL": "NACIONAL",
-            "TIPO_VIA": "CARRETERA",
-            "CODIGO_VIA": "PE-1N",
-            "CLASE": "CHOQUE",
-            "CLIMA": "DESPEJADO",
-            "CARACTERISTICA_VIA": "TRAMO RECTO",
-            "PERFIL_VIA": "PLANA",
-            "SUPERFICIE": "ASFALTADA",
-        }
-    else:
-        row = demo_cases.loc[demo_cases["caso_id"] == selected_case].iloc[0]
-        defaults = {
-            "FECHA": pd.to_datetime(row["FECHA"]).date(),
-            "HORA": str(row["HORA"]),
-            "DEPARTAMENTO": str(row["DEPARTAMENTO"]),
-            "ZONA": str(row["ZONA"]),
-            "RED_VIAL": str(row["RED_VIAL"]),
-            "TIPO_VIA": str(row["TIPO_VIA"]),
-            "CODIGO_VIA": str(row["CODIGO_VIA"]),
-            "CLASE": str(row["CLASE"]),
-            "CLIMA": str(row["CLIMA"]),
-            "CARACTERISTICA_VIA": str(row["CARACTERISTICA_VIA"]),
-            "PERFIL_VIA": str(row["PERFIL_VIA"]),
-            "SUPERFICIE": str(row["SUPERFICIE"]),
-        }
+    fig.update_layout(title="Estimación y referencias observacionales")
+    fig.update_xaxes(title="Probabilidad o tasa multifatal (%)", rangemode="tozero")
+    fig.update_yaxes(title=None)
+    return _plot_layout(fig, height=390)
 
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        fecha = st.date_input("Fecha", value=defaults["FECHA"])
-        hora = st.text_input("Hora (HH:MM)", value=defaults["HORA"])
-        departamento = st.selectbox("Departamento", DEPARTAMENTO_OPTIONS, index=_default_index(DEPARTAMENTO_OPTIONS, defaults["DEPARTAMENTO"]))
-        codigo_via = st.text_input("Código de carretera (opcional)", value=defaults["CODIGO_VIA"])
-    with col2:
-        zona = st.selectbox("Zona", ZONA_OPTIONS, index=_default_index(ZONA_OPTIONS, defaults["ZONA"]))
-        red_vial = st.selectbox("Red vial", RED_VIAL_OPTIONS, index=_default_index(RED_VIAL_OPTIONS, defaults["RED_VIAL"]))
-        tipo_via = st.selectbox("Tipo de vía", TIPO_VIA_OPTIONS, index=_default_index(TIPO_VIA_OPTIONS, defaults["TIPO_VIA"]))
-        clase = st.selectbox("Clase de siniestro", CLASE_OPTIONS, index=_default_index(CLASE_OPTIONS, defaults["CLASE"]))
-    with col3:
-        clima = st.selectbox("Clima", CLIMA_OPTIONS, index=_default_index(CLIMA_OPTIONS, defaults["CLIMA"]))
-        caracteristica = st.selectbox("Característica de vía", CARACTERISTICA_OPTIONS, index=_default_index(CARACTERISTICA_OPTIONS, defaults["CARACTERISTICA_VIA"]))
-        perfil = st.selectbox("Perfil longitudinal", PERFIL_OPTIONS, index=_default_index(PERFIL_OPTIONS, defaults["PERFIL_VIA"]))
-        superficie = st.selectbox("Superficie de calzada", SUPERFICIE_OPTIONS, index=_default_index(SUPERFICIE_OPTIONS, defaults["SUPERFICIE"]))
 
-    record = pd.DataFrame(
-        [
-            {
-                "FECHA": str(fecha),
-                "HORA": hora,
-                "DEPARTAMENTO": departamento,
-                "ZONA": zona,
-                "RED_VIAL": red_vial,
-                "TIPO_VIA": tipo_via,
-                "CODIGO_VIA": codigo_via.strip().upper() or "DESCONOCIDO",
-                "CLASE": clase,
-                "CLIMA": clima,
-                "CARACTERISTICA_VIA": caracteristica,
-                "PERFIL_VIA": perfil,
-                "SUPERFICIE": superficie,
-                "LATITUD": None,
-                "LONGITUD": None,
+def estimate_page() -> None:
+    st.header("Estimar prioridad")
+    st.caption("Completá los campos requeridos o cargá el caso de demostración y enviá el formulario.")
+    options = load_input_options()
+    thresholds = load_thresholds()
+    known_road_codes = load_known_road_codes()
+
+    def option_label(value: str | None) -> str:
+        return "NO INFORMADO" if value is None else value
+
+    def optional_values(field: str) -> list[str | None]:
+        return [None, *[value for value in options[field] if value is not None]]
+
+    demo_clicked = st.button("Cargar caso de demostración", key="load_demo_case")
+    if demo_clicked:
+        demos = load_demo_cases()
+        if demos.empty:
+            st.error("No se encontró el caso de demostración canónico.")
+        else:
+            demo = demos.iloc[0]
+            widget_values = {
+                "input_date": pd.Timestamp(demo["FECHA"]).date(),
+                "input_time": pd.Timestamp(str(demo["HORA"])).time(),
+                "input_department": demo["DEPARTAMENTO"],
+                "input_road_code": demo["CODIGO_VIA"],
+                "input_class": demo["CLASE"],
+                "input_zone": demo["ZONA"],
+                "input_network": demo["RED_VIAL"],
+                "input_road_type": demo["TIPO_VIA"],
+                "input_weather": demo["CLIMA"],
+                "input_characteristic": demo["CARACTERISTICA_VIA"],
+                "input_profile": demo["PERFIL_VIA"],
+                "input_surface": demo["SUPERFICIE"],
+                "input_latitude": float(demo["LATITUD"]),
+                "input_longitude": float(demo["LONGITUD"]),
             }
-        ]
-    )
-    prediction = predict_records(record).iloc[0]
-    score = float(prediction["score_riesgo_multifatal"])
-    raw_probability = float(prediction["probabilidad_multifatal"])
-    label = str(prediction["clasificacion"])
-    comparison = historical_comparison(record.iloc[0], score)
+            st.session_state.update(widget_values)
+            st.session_state.pop("canonical_result", None)
+            st.toast("Caso de demostración cargado.")
 
-    left, right = st.columns([1.1, 0.9])
+    with st.form("canonical_estimate_form", clear_on_submit=False):
+        st.subheader("Registro notificado")
+        top = st.columns(4)
+        with top[0]:
+            incident_date = st.date_input(
+                "Fecha del siniestro",
+                value=None,
+                min_value=INFERENCE_DATE_MIN,
+                max_value=INFERENCE_DATE_MAX,
+                format="DD/MM/YYYY",
+                key="input_date",
+                help=f"Periodo académico: {format_date_es(INFERENCE_DATE_MIN)}–{format_date_es(INFERENCE_DATE_MAX)}.",
+            )
+        with top[1]:
+            incident_time = st.time_input("Hora del siniestro", value=None, step=300, key="input_time")
+        with top[2]:
+            department = st.selectbox(
+                "Departamento",
+                options["DEPARTAMENTO"],
+                index=None,
+                placeholder="Seleccioná un departamento…",
+                format_func=option_label,
+                key="input_department",
+            )
+        with top[3]:
+            road_code = st.selectbox(
+                "Código de vía (opcional)",
+                [None, *known_road_codes],
+                index=0,
+                placeholder="Buscá o escribí un código…",
+                format_func=option_label,
+                accept_new_options=True,
+                key="input_road_code",
+                help="Acepta códigos del entrenamiento y nuevos códigos con formato oficial, por ejemplo PE-1N.",
+            )
+            normalized_road_code = normalize_road_code(road_code)
+            if normalized_road_code != "DESCONOCIDO" and normalized_road_code not in set(known_road_codes):
+                st.warning("Código no observado en entrenamiento: el modelo conservará el mapeo canónico con frecuencia 0.")
+
+        middle = st.columns(4)
+        with middle[0]:
+            crash_class = st.selectbox("Clase de siniestro", options["CLASE"], index=None, placeholder="Seleccioná una clase…", format_func=option_label, key="input_class")
+        with middle[1]:
+            zone = st.selectbox("Zona", optional_values("ZONA"), index=0, format_func=option_label, key="input_zone")
+        with middle[2]:
+            road_network = st.selectbox("Red vial", optional_values("RED_VIAL"), index=0, format_func=option_label, key="input_network")
+        with middle[3]:
+            road_type = st.selectbox("Tipo de vía", optional_values("TIPO_VIA"), index=0, format_func=option_label, key="input_road_type")
+
+        bottom = st.columns(4)
+        with bottom[0]:
+            weather = st.selectbox("Clima", optional_values("CLIMA"), index=0, format_func=option_label, key="input_weather")
+        with bottom[1]:
+            characteristic = st.selectbox("Característica vial", optional_values("CARACTERISTICA_VIA"), index=0, format_func=option_label, key="input_characteristic")
+        with bottom[2]:
+            profile = st.selectbox("Perfil longitudinal", optional_values("PERFIL_VIA"), index=0, format_func=option_label, key="input_profile")
+        with bottom[3]:
+            surface = st.selectbox("Superficie", optional_values("SUPERFICIE"), index=0, format_func=option_label, key="input_surface")
+
+        st.markdown("#### Ubicación precisa (requerida)")
+        coordinate_columns = st.columns(2)
+        with coordinate_columns[0]:
+            latitude = st.number_input("Latitud", min_value=-90.0, max_value=90.0, value=None, format="%.6f", placeholder="Ej.: -12.046374…", key="input_latitude")
+        with coordinate_columns[1]:
+            longitude = st.number_input("Longitud", min_value=-180.0, max_value=180.0, value=None, format="%.6f", placeholder="Ej.: -77.042793…", key="input_longitude")
+        st.caption("Ingresá ambas coordenadas. El esquema canónico exige ubicación para la inferencia final; la app no imputa una localización silenciosamente.")
+        submitted = st.form_submit_button("Estimar prioridad", type="primary")
+
+    if submitted:
+        st.session_state.pop("canonical_result", None)
+        st.session_state.pop("prediction_result", None)
+        record = pd.DataFrame(
+            [{
+                "FECHA": incident_date.isoformat() if incident_date is not None else None,
+                "HORA": incident_time.strftime("%H:%M") if incident_time is not None else None,
+                "DEPARTAMENTO": department,
+                "CODIGO_VIA": normalize_road_code(road_code),
+                "LATITUD": latitude,
+                "LONGITUD": longitude,
+                "CLASE": crash_class,
+                "ZONA": zone,
+                "RED_VIAL": road_network,
+                "TIPO_VIA": road_type,
+                "CLIMA": weather,
+                "CARACTERISTICA_VIA": characteristic,
+                "PERFIL_VIA": profile,
+                "SUPERFICIE": surface,
+            }]
+        )
+        try:
+            with st.spinner("Verificando contrato y ejecutando el modelo…"):
+                prediction = predict_records(record).iloc[0]
+                comparison = historical_comparison(record.iloc[0], float(prediction["calibrated_probability"]))
+            st.session_state["canonical_result"] = {"prediction": prediction.to_dict(), "comparison": comparison}
+        except InputContractError as exc:
+            st.error(f"Revisá el formulario: {exc}")
+        except RuntimeArtifactError as exc:
+            st.error(str(exc))
+
+    result = st.session_state.get("canonical_result")
+    if not result:
+        st.info("Todavía no hay una estimación. Enviá el formulario para ver un resultado estable y trazable.")
+        return
+
+    prediction = result["prediction"]
+    comparison = result["comparison"]
+    calibrated_probability = float(prediction["calibrated_probability"])
+    calibrated_threshold = float(prediction["calibrated_threshold"])
+    priority = calibrated_probability >= calibrated_threshold
+
+    st.subheader("Resultado")
+    left, right = st.columns([1.15, .85])
     with left:
-        st.plotly_chart(probability_gauge(score, threshold), width="stretch")
+        st.plotly_chart(probability_gauge(calibrated_probability, calibrated_threshold), width="stretch", config={"displayModeBar": False})
+        st.caption(f"La línea marca el umbral calibrado de {_percent(calibrated_threshold, 0)}. Esta escala es la única usada para la decisión visible.")
     with right:
-        st.markdown('<div class="metric-card"><div class="metric-label">Clasificación</div><div class="metric-value">{}</div></div>'.format(label), unsafe_allow_html=True)
-        st.write("")
-        st.markdown('<div class="metric-card"><div class="metric-label">Umbral (score crudo)</div><div class="metric-value">{:.2f}</div></div>'.format(threshold), unsafe_allow_html=True)
-        st.write("")
+        symbol = "▲" if priority else "●"
         st.markdown(
-            '<div class="note">El gauge muestra la probabilidad calibrada (isotónica sobre validación). '
-            'La clasificación usa el score crudo {:.3f} contra el umbral. '
-            'Es una estimación académica; no reemplaza evaluación vial profesional.</div>'.format(raw_probability),
+            f'<div class="decision-panel"><div class="evidence-label">Decisión de apoyo</div>'
+            f'<div class="decision-title">{symbol} {prediction["priority_decision"]}</div>'
+            '<div class="decision-copy">Clasificación académica obtenida con la probabilidad Platt y el umbral '
+            'seleccionado en validación 2023.</div></div>',
             unsafe_allow_html=True,
         )
+    st.subheader("Contexto histórico")
+    st.plotly_chart(comparison_chart(comparison), width="stretch", config={"displayModeBar": False})
+    st.caption("Los intervalos son Wilson 95%. El subgrupo coincidente se informa cuando alcanza soporte n ≥ 30.")
+    display = comparison[["comparador", "tasa_multifatal_pct", "soporte", "ci_95_inf_pct", "ci_95_sup_pct", "dimensiones", "fuente"]].copy()
+    display.columns = ["Comparador", "Valor (%)", "n", "IC 95% inf. (%)", "IC 95% sup. (%)", "Dimensiones", "Fuente"]
+    _table_fallback("contexto de la estimación", display.round(2), key="contexto_estimacion")
 
-    st.markdown("#### Comparación con datos reales")
-    st.plotly_chart(comparison_chart(comparison), width="stretch")
-    st.caption(
-        "La línea no es una comprobación individual del caso manual. Compara la probabilidad calibrada "
-        "contra tasas multifatales observadas en grupos reales del dataset ONSV."
-    )
-    st.dataframe(
-        comparison.assign(tasa_multifatal_pct=lambda data: data["tasa_multifatal_pct"].round(2)),
-        width="stretch",
-        hide_index=True,
-    )
-
-
-def eda_tab() -> None:
-    st.subheader("Análisis exploratorio")
-    st.markdown("Las figuras se generaron en el Bloque C y se usan aquí como tablero de lectura rápida.")
-    figures = [
-        ("fig01_target_distribution.png", "Distribución del target"),
-        ("fig02_monthly_accidents.png", "Serie mensual"),
-        ("fig07_mortality_by_modality.png", "Tasa multifatal por clase"),
-        ("fig11_condition_rates.png", "Tasas por condiciones pre-impacto"),
-        ("fig12_month_hour_heatmap.png", "Mapa mes × hora"),
-        ("fig23_geo_scatter.png", "Ubicación de siniestros"),
-    ]
-    for i in range(0, len(figures), 2):
-        cols = st.columns(2)
-        for col, (filename, caption) in zip(cols, figures[i : i + 2]):
-            path = ROOT / "report" / "figures" / filename
-            with col:
-                if path.exists():
-                    st.image(str(path), caption=caption, width="stretch")
-
-    findings_path = ROOT / "report" / "sections" / "eda_hallazgos.md"
-    if findings_path.exists():
-        with st.expander("Ver H1–H11"):
-            st.markdown(findings_path.read_text(encoding="utf-8"))
+    with st.expander("Diagnóstico técnico: escala cruda separada"):
+        st.write(
+            "La salida sigmoide cruda y su umbral pertenecen a otra escala. Se muestran solo para auditoría técnica; "
+            "no se comparan ni se superponen con la probabilidad calibrada."
+        )
+        diagnostics = pd.DataFrame(
+            [
+                {"Escala": "Calibrada (decisión pública)", "Score": calibrated_probability, "Umbral": calibrated_threshold, "Clase": int(calibrated_probability >= calibrated_threshold)},
+                {"Escala": "Cruda (diagnóstico)", "Score": float(prediction["raw_probability"]), "Umbral": float(prediction["raw_threshold"]), "Clase": int(prediction["raw_prediction"])},
+            ]
+        )
+        st.dataframe(diagnostics.style.format({"Score": "{:.4f}", "Umbral": "{:.2f}"}), width="stretch", hide_index=True)
+        st.caption(f'Método de calibración persistido: {prediction["calibration_method"]}. Fuente de umbrales: models/final/thresholds.json.')
 
 
-def risk_tab() -> None:
-    st.subheader("Letalidad por departamento")
+def _aggregate_rate(df: pd.DataFrame, column: str, dimension: str) -> pd.DataFrame:
+    rows = []
+    for label, subset in df.groupby(column, dropna=False):
+        n = int(len(subset))
+        positives = int(subset["target_multifatal"].sum())
+        lower, upper = wilson_interval(positives, n)
+        rows.append({"dimension": dimension, "categoria": str(label), "n": n, "multifatales": positives, "tasa": positives / n, "ci_inf": lower, "ci_sup": upper})
+    return pd.DataFrame(rows)
+
+
+def explore_page() -> None:
+    st.header("Explorar datos")
+    st.caption("Gráficos responsivos calculados desde el parquet canónico; no se usan capturas EDA estáticas.")
     df = cached_clean_dataset()
-    dept = (
-        df.groupby("DEPARTAMENTO")
-        .agg(siniestros=("target_multifatal", "size"), multifatal=("target_multifatal", "mean"))
-        .reset_index()
-    )
-    dept["multifatal"] = dept["multifatal"] * 100
-    dept = dept.sort_values("multifatal", ascending=False)
+    df["FECHA"] = pd.to_datetime(df["FECHA"])
 
-    filtered = dept[dept["siniestros"] >= 30].copy()
-    fig = px.bar(
-        filtered.head(15).sort_values("multifatal"),
-        x="multifatal",
-        y="DEPARTAMENTO",
-        orientation="h",
-        color="siniestros",
-        color_continuous_scale="OrRd",
-        labels={"multifatal": "Tasa multifatal (%)", "DEPARTAMENTO": "Departamento", "siniestros": "Siniestros fatales"},
-        title="Ranking departamental por tasa de siniestros multifatales",
+    st.subheader("1. Balance del target")
+    target = (
+        df["target_multifatal"].value_counts().rename_axis("target").reset_index(name="n").sort_values("target")
     )
-    fig.update_layout(height=520)
-    st.plotly_chart(fig, width="stretch")
-    st.dataframe(filtered, width="stretch", hide_index=True)
+    target["clase"] = target["target"].map({0: "1 fallecido", 1: "2+ fallecidos"})
+    target["porcentaje"] = target["n"] / len(df) * 100
+    target_fig = go.Figure(go.Bar(
+        x=target["clase"], y=target["n"], marker_color=[BLUE_LIGHT, ORANGE],
+        text=[f'{format_number_es(n)}<br>{format_number_es(p, digits=1, suffix=" %")}' for n, p in zip(target["n"], target["porcentaje"])], textposition="outside",
+        hovertemplate="%{x}<br>n=%{y:,}<extra></extra>",
+    ))
+    target_fig.update_layout(title="Distribución de siniestros fatales por clase")
+    target_fig.update_xaxes(title=None)
+    target_fig.update_yaxes(title="Siniestros fatales", rangemode="tozero")
+    st.plotly_chart(_plot_layout(target_fig, height=390), width="stretch", config={"displayModeBar": False})
+    _table_fallback("distribución del target", target[["clase", "n", "porcentaje"]].round(2), key="target")
 
+    st.subheader("2. Volumen mensual")
+    monthly = df.set_index("FECHA").resample("MS").size().rename("siniestros_fatales").reset_index()
+    monthly_fig = go.Figure(go.Scatter(
+        x=monthly["FECHA"], y=monthly["siniestros_fatales"], mode="lines+markers",
+        line=dict(color=BLUE, width=2), marker=dict(size=5, color=BLUE),
+        hovertemplate="%{x|%b %Y}<br>Siniestros: %{y:,}<extra></extra>",
+    ))
+    monthly_fig.add_vrect(x0="2025-01-01", x1="2025-12-31", fillcolor=ORANGE, opacity=.08, line_width=0,
+                          annotation_text="2025 preliminar", annotation_position="top left")
+    monthly_fig.update_layout(title="Siniestros fatales registrados por mes")
+    monthly_fig.update_xaxes(title="Mes")
+    monthly_fig.update_yaxes(title="Siniestros fatales", rangemode="tozero")
+    st.plotly_chart(_plot_layout(monthly_fig), width="stretch", config={"displayModeBar": False})
+    _table_fallback("volumen mensual", monthly.assign(FECHA=monthly["FECHA"].dt.strftime("%Y-%m")), key="volumen_mensual")
+
+    st.subheader("3. Tasa por clase de siniestro")
+    class_rate = _aggregate_rate(df, "CLASE", "Clase").sort_values("tasa")
+    class_rate["tasa_pct"] = class_rate["tasa"] * 100
+    class_rate["ci_inf_pct"] = class_rate["ci_inf"] * 100
+    class_rate["ci_sup_pct"] = class_rate["ci_sup"] * 100
+    class_fig = go.Figure(go.Scatter(
+        x=class_rate["tasa_pct"], y=class_rate["categoria"], mode="markers+text",
+        marker=dict(color=ORANGE, size=12, symbol="diamond"),
+        text=[f"n={format_number_es(n)}" for n in class_rate["n"]], textposition="middle right",
+        error_x=dict(type="data", array=class_rate["ci_sup_pct"] - class_rate["tasa_pct"], arrayminus=class_rate["tasa_pct"] - class_rate["ci_inf_pct"], color=MUTED),
+        customdata=class_rate[["n", "multifatales", "ci_inf_pct", "ci_sup_pct"]],
+        hovertemplate="<b>%{y}</b><br>Tasa: %{x:.2f}%<br>n=%{customdata[0]:,}<br>Multifatales=%{customdata[1]:,}<br>IC 95%%: %{customdata[2]:.2f}–%{customdata[3]:.2f}%<extra></extra>",
+    ))
+    class_fig.update_layout(title="Tasa multifatal por clase, con IC Wilson 95%")
+    class_fig.update_xaxes(title="Tasa multifatal (%)", rangemode="tozero")
+    class_fig.update_yaxes(title=None)
+    st.plotly_chart(_plot_layout(class_fig), width="stretch", config={"displayModeBar": False})
+    _table_fallback("tasa por clase", class_rate[["categoria", "n", "multifatales", "tasa_pct", "ci_inf_pct", "ci_sup_pct"]].round(2), key="tasa_clase")
+
+    st.subheader("4. Condiciones registradas")
+    condition_specs = [("ZONA", "Zona"), ("CLIMA", "Clima"), ("CARACTERISTICA_VIA", "Geometría"), ("SUPERFICIE", "Superficie")]
+    conditions = pd.concat([_aggregate_rate(df, column, label) for column, label in condition_specs], ignore_index=True)
+    conditions["tasa_pct"] = conditions["tasa"] * 100
+    conditions["ci_inf_pct"] = conditions["ci_inf"] * 100
+    conditions["ci_sup_pct"] = conditions["ci_sup"] * 100
+    max_rate = max(1.0, float(conditions["ci_sup_pct"].max()) * 1.12)
+    facets = make_subplots(rows=2, cols=2, subplot_titles=[label for _, label in condition_specs], horizontal_spacing=.12, vertical_spacing=.2)
+    for position, (_, label) in enumerate(condition_specs):
+        subset = conditions[conditions["dimension"] == label].sort_values("tasa_pct")
+        row, column = divmod(position, 2)
+        facets.add_trace(go.Scatter(
+            x=subset["tasa_pct"], y=subset["categoria"], mode="markers",
+            marker=dict(color=BLUE, size=9),
+            error_x=dict(type="data", array=subset["ci_sup_pct"] - subset["tasa_pct"], arrayminus=subset["tasa_pct"] - subset["ci_inf_pct"], color=MUTED),
+            customdata=subset[["n", "ci_inf_pct", "ci_sup_pct"]],
+            hovertemplate="<b>%{y}</b><br>Tasa: %{x:.2f}%<br>n=%{customdata[0]:,}<br>IC 95%%: %{customdata[1]:.2f}–%{customdata[2]:.2f}%<extra></extra>",
+            showlegend=False,
+        ), row=row + 1, col=column + 1)
+        facets.update_xaxes(range=[0, max_rate], title_text="Tasa multifatal (%)", row=row + 1, col=column + 1)
+    facets.update_layout(title="Tasas descriptivas por condiciones; misma escala en todos los paneles")
+    st.plotly_chart(_plot_layout(facets, height=700), width="stretch", config={"displayModeBar": False})
+    _table_fallback("tasas por condiciones", conditions[["dimension", "categoria", "n", "multifatales", "tasa_pct", "ci_inf_pct", "ci_sup_pct"]].round(2), key="condiciones")
+
+    st.subheader("5. Mes × hora")
+    temporal = df.dropna(subset=["hora_entera"]).copy()
+    temporal["mes"] = temporal["FECHA"].dt.month
+    heat = temporal.pivot_table(index="hora_entera", columns="mes", values="target_multifatal", aggfunc="size", fill_value=0)
+    heat = heat.reindex(index=range(24), columns=range(1, 13), fill_value=0)
+    heat_fig = go.Figure(go.Heatmap(
+        z=heat.to_numpy(), x=["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"],
+        y=[f"{hour:02d}:00" for hour in heat.index], colorscale=[[0, "#EEF2F1"], [1, BLUE]],
+        colorbar=dict(title="n"), hovertemplate="Mes: %{x}<br>Hora: %{y}<br>Siniestros: %{z:,}<extra></extra>",
+    ))
+    heat_fig.update_layout(title="Volumen observado de siniestros fatales por mes y hora")
+    heat_fig.update_xaxes(title="Mes")
+    heat_fig.update_yaxes(title="Hora")
+    st.plotly_chart(_plot_layout(heat_fig, height=610), width="stretch", config={"displayModeBar": False})
+    month_names = {month: name for month, name in enumerate(["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"], start=1)}
+    heat_table = heat.rename(columns=month_names).reset_index().rename(columns={"hora_entera": "hora"})
+    _table_fallback("matriz mes por hora", heat_table, key="mes_hora")
+
+    st.subheader("6. Cobertura geográfica")
+    geo = df.dropna(subset=["LATITUD", "LONGITUD"]).copy()
+    geo["clase_target"] = geo["target_multifatal"].map({0: "1 fallecido", 1: "2+ fallecidos"})
+    geo_fig = go.Figure()
+    for target_class, color, symbol in [("1 fallecido", BLUE, "circle"), ("2+ fallecidos", ORANGE, "diamond")]:
+        subset = geo[geo["clase_target"] == target_class]
+        geo_fig.add_trace(go.Scattergeo(
+            lon=subset["LONGITUD"], lat=subset["LATITUD"], mode="markers", name=target_class,
+            marker=dict(size=5 if target_class == "1 fallecido" else 7, color=color, symbol=symbol, opacity=.48 if target_class == "1 fallecido" else .78),
+            customdata=subset[["DEPARTAMENTO", "FECHA"]].astype(str),
+            hovertemplate="%{customdata[0]}<br>%{customdata[1]}<br>Clase: " + target_class + "<extra></extra>",
+        ))
+    geo_fig.update_geos(fitbounds="locations", visible=False, projection_type="mercator")
+    geo_fig.update_layout(title="Registros con coordenadas válidas", legend_title_text="Clase observada")
+    st.plotly_chart(_plot_layout(geo_fig, height=590, legend=True), width="stretch")
+    st.caption(f"Se muestran {format_number_es(len(geo))} de {format_number_es(len(df))} registros con ambas coordenadas. El símbolo, además del color, distingue la clase.")
+    _table_fallback("cobertura geográfica por departamento", geo.groupby(["DEPARTAMENTO", "clase_target"]).size().reset_index(name="n"), key="cobertura_geo")
+
+
+def regional_map(regional: pd.DataFrame, geojson: dict[str, Any]) -> go.Figure:
+    supported = regional[regional["soporte_suficiente"]].copy()
+    unsupported = regional[~regional["soporte_suficiente"]].copy()
+    fig = go.Figure()
+    if not unsupported.empty:
+        fig.add_trace(go.Choropleth(
+            geojson=geojson, locations=unsupported["DEPARTAMENTO"], featureidkey="properties.NOMBDEP",
+            z=np.zeros(len(unsupported)), colorscale=[[0, UNSUPPORTED], [1, UNSUPPORTED]], showscale=False,
+            customdata=unsupported[["siniestros_fatales"]],
+            hovertemplate="<b>%{location}</b><br>n=%{customdata[0]:,}<br>Sin tasa: soporte < 30<extra></extra>",
+            name="Soporte insuficiente", marker_line_color="#FFFFFF", marker_line_width=.7,
+        ))
+    if not supported.empty:
+        custom = np.column_stack([
+            supported["siniestros_fatales"], supported["multifatales"],
+            supported["ci_95_inf"] * 100, supported["ci_95_sup"] * 100,
+        ])
+        fig.add_trace(go.Choropleth(
+            geojson=geojson, locations=supported["DEPARTAMENTO"], featureidkey="properties.NOMBDEP",
+            z=supported["tasa_multifatal"] * 100, colorscale=[[0, "#E8EFEE"], [1, BLUE]],
+            colorbar=dict(title="Tasa (%)"),
+            customdata=custom,
+            hovertemplate="<b>%{location}</b><br>Tasa: %{z:.2f}%<br>n=%{customdata[0]:,}<br>Multifatales=%{customdata[1]:,}<br>IC 95%%: %{customdata[2]:.2f}–%{customdata[3]:.2f}%<extra></extra>",
+            name="Soporte suficiente", marker_line_color="#FFFFFF", marker_line_width=.7,
+        ))
+    fig.update_geos(fitbounds="locations", visible=False)
+    fig.update_layout(title=f"Tasa multifatal por departamento (se informa con n ≥ {MINIMUM_REGIONAL_SUPPORT})")
+    return _plot_layout(fig, height=620, legend=True)
+
+
+def regional_page() -> None:
+    st.header("Patrones regionales")
+    st.write(
+        f"La tasa se informa solo con soporte n ≥ {MINIMUM_REGIONAL_SUPPORT}. Las regiones por debajo del mínimo quedan en gris; "
+        "no se las convierte en cero ni se las compara como si fueran estimaciones estables."
+    )
+    regional = cached_regional_summary()
     geo_path = ROOT / "data" / "geo" / "peru_departamentos_simple.geojson"
     if geo_path.exists():
         try:
-            with open(geo_path, encoding="utf-8") as geojson_file:
-                geojson = json.load(geojson_file)
-            available = {feature["properties"]["NOMBDEP"] for feature in geojson["features"]}
-            map_df = dept[dept["DEPARTAMENTO"].isin(available)].copy()
-            if not map_df.empty:
-                st.markdown("#### Mapa coroplético del Perú")
-                choropleth = px.choropleth(
-                    map_df,
-                    geojson=geojson,
-                    locations="DEPARTAMENTO",
-                    featureidkey="properties.NOMBDEP",
-                    color="multifatal",
-                    color_continuous_scale="OrRd",
-                    labels={"multifatal": "Tasa multifatal (%)", "DEPARTAMENTO": "Departamento"},
-                    hover_data={"siniestros": True, "multifatal": ":.1f"},
-                    title="Tasa de siniestros multifatales por departamento",
-                )
-                choropleth.update_geos(
-                    fitbounds="locations",
-                    visible=False,
-                    showcountries=False,
-                    showsubunits=False,
-                )
-                choropleth.update_layout(height=560, margin=dict(l=10, r=10, t=50, b=10))
-                st.plotly_chart(choropleth, width="stretch")
-                col_top, col_bot = st.columns(2)
-                with col_top:
-                    st.caption("Color: tasa multifatal (%) por departamento.")
-                with col_bot:
-                    st.caption("Fuente del GeoJSON: repositorio público `juaneladio/peru-geojson`.")
-            else:
-                st.warning("No se encontraron departamentos compatibles con el GeoJSON.")
-        except (OSError, ValueError) as exc:
-            st.warning(f"No se pudo cargar el GeoJSON: {exc}. El ranking de barras sigue disponible.")
+            geojson = json.loads(geo_path.read_text(encoding="utf-8"))
+            st.plotly_chart(regional_map(regional, geojson), width="stretch", config={"displayModeBar": False})
+        except (OSError, json.JSONDecodeError, KeyError, TypeError) as exc:
+            st.warning(f"No se pudo renderizar el mapa: {exc}. El ranking tabular permanece disponible.")
     else:
-        st.info("GeoJSON no presente en data/geo/. El ranking de barras cumple la función obligatoria.")
+        st.info("El GeoJSON departamental no está disponible. El ranking tabular permanece disponible.")
 
+    supported = regional[regional["soporte_suficiente"]].copy().sort_values("tasa_multifatal", ascending=False)
+    supported["tasa_multifatal_pct"] = supported["tasa_multifatal"] * 100
+    supported["ci_95_inf_pct"] = supported["ci_95_inf"] * 100
+    supported["ci_95_sup_pct"] = supported["ci_95_sup"] * 100
+    ranking_fig = go.Figure(go.Bar(
+        x=supported["tasa_multifatal_pct"], y=supported["DEPARTAMENTO"], orientation="h",
+        marker_color=BLUE, text=[f"{format_number_es(value, digits=1, suffix=' %')} · n={format_number_es(n)}" for value, n in zip(supported["tasa_multifatal_pct"], supported["siniestros_fatales"])],
+        textposition="outside",
+        error_x=dict(type="data", array=supported["ci_95_sup_pct"] - supported["tasa_multifatal_pct"], arrayminus=supported["tasa_multifatal_pct"] - supported["ci_95_inf_pct"], color=MUTED),
+        customdata=supported[["siniestros_fatales", "multifatales", "ci_95_inf_pct", "ci_95_sup_pct"]],
+        hovertemplate="<b>%{y}</b><br>Tasa: %{x:.2f}%<br>n=%{customdata[0]:,}<br>Multifatales=%{customdata[1]:,}<br>IC 95%%: %{customdata[2]:.2f}–%{customdata[3]:.2f}%<extra></extra>",
+    ))
+    ranking_fig.update_layout(title="Ranking departamental con incertidumbre")
+    ranking_fig.update_xaxes(title="Tasa multifatal (%)", rangemode="tozero")
+    ranking_fig.update_yaxes(title=None, autorange="reversed")
+    st.plotly_chart(_plot_layout(ranking_fig, height=760), width="stretch", config={"displayModeBar": False})
 
-def about_tab() -> None:
-    st.subheader("Sobre el modelo")
-    summary_path = ROOT / "report" / "tables" / "tab05_test_summary.json"
-    threshold = load_threshold()
-    if summary_path.exists():
-        summary = json.loads(summary_path.read_text(encoding="utf-8"))
-        cols = st.columns(4)
-        metrics = [
-            ("F1 multifatal", summary["f1_multifatal"]),
-            ("Recall multifatal", summary["recall_multifatal"]),
-            ("PR-AUC", summary["pr_auc"]),
-            ("ROC-AUC", summary["roc_auc"]),
-        ]
-        for col, (label, value) in zip(cols, metrics):
-            col.markdown(
-                f'<div class="metric-card"><div class="metric-label">{label}</div><div class="metric-value">{value:.4f}</div></div>',
-                unsafe_allow_html=True,
-            )
-
-    st.markdown(
-        f"""
-        - Problema: dado un siniestro fatal, estimar si deja 2+ fallecidos (alta letalidad).
-        - Modelo: MLP tabular guardado en `models/letalidad_nn.keras`.
-        - Umbral de decisión: `{threshold:.2f}`, seleccionado en validación.
-        - Calibración: isotónica ajustada en validación (`models/calibrator.pkl`).
-        - Preprocesamiento: `src.preprocessing.preparar_entrada()`.
-        - Dataset: siniestros fatales 2021–2025 (preliminar), ONSV.
-        - Integrantes: Rendo y Yimmy.
-        """
+    table = mask_unsupported_regional_rates(regional, MINIMUM_REGIONAL_SUPPORT)
+    for column in ("tasa_multifatal", "ci_95_inf", "ci_95_sup"):
+        table[column] = table[column] * 100
+    table.columns = ["Departamento", "Siniestros fatales", "Multifatales", "Tasa (%)", "IC 95% inf. (%)", "IC 95% sup. (%)", "Soporte suficiente"]
+    st.subheader("Tabla regional completa")
+    st.dataframe(table.round(2), width="stretch", hide_index=True)
+    st.download_button(
+        "Descargar tabla regional",
+        table.to_csv(index=False).encode("utf-8"),
+        file_name="patrones_regionales_onsv.csv",
+        mime="text/csv",
     )
-    shap_top = cached_shap_top5()
-    if not shap_top.empty:
-        st.markdown("#### Top-5 factores globales por SHAP")
-        st.dataframe(shap_top, width="stretch", hide_index=True)
+
+
+def _ci_lookup(ci: pd.DataFrame, metric: str) -> tuple[float, float, float]:
+    row = ci[(ci["probability_scale"] == "calibrated") & (ci["metric"] == metric)].iloc[0]
+    return float(row["estimate"]), float(row["ci_2_5"]), float(row["ci_97_5"])
+
+
+def evidence_page(manifest: dict[str, Any]) -> None:
+    st.header("Evidencia del modelo")
+    evidence = load_reference_artifacts()
+    metrics = evidence["metrics"]["calibrated"]
+    ci = evidence["ci"]
+
+    st.warning(
+        "Las métricas 2024–2025 son referencia histórica: sus etiquetas ya fueron observadas y no autorizan nuevos ajustes. "
+        "No se lo presenta como un test nuevo ni se lo usa para reajustar el modelo."
+    )
+    columns = st.columns(4)
+    metric_specs = [
+        ("PR-AUC", "pr_auc"), ("ROC-AUC", "roc_auc"), ("F1 multifatal", "f1_multifatal"), ("ECE · 10 bins", "ece_10_bins"),
+    ]
+    for column, (label, key) in zip(columns, metric_specs):
+        estimate, lower, upper = _ci_lookup(ci, key)
+        with column:
+            _card(label, format_number_es(estimate, digits=3), f"IC bootstrap 95 %: {format_number_es(lower, digits=3)}–{format_number_es(upper, digits=3)}")
+    st.caption(f'Prevalencia de la clase positiva: {_percent(metrics["class_rate"])}. PR-AUC debe leerse contra esta referencia, no contra 0.50.')
+
+    st.subheader("Comparación honesta con baselines")
+    baseline = evidence["baseline"].copy()
+    comparison = baseline[
+        ((baseline["model"] == "MLP_canonical") & (baseline["probability_scale"] == "platt"))
+        | baseline["model"].isin(["LogisticRegression_balanced", "RandomForest_balanced"])
+    ].copy()
+    names = {"MLP_canonical": "MLP canónica", "LogisticRegression_balanced": "Regresión logística", "RandomForest_balanced": "Random Forest"}
+    comparison["Modelo"] = comparison["model"].map(names)
+    comparison["F1"] = comparison["f1_multifatal"]
+    comparison["PR-AUC"] = comparison["pr_auc"]
+    comparison["ROC-AUC"] = comparison["roc_auc"]
+    model_fig = go.Figure()
+    for metric, color, symbol in [("F1", ORANGE, "diamond"), ("PR-AUC", BLUE, "circle"), ("ROC-AUC", "#7A8A91", "square")]:
+        model_fig.add_trace(go.Scatter(
+            x=comparison[metric], y=comparison["Modelo"], mode="markers", name=metric,
+            marker=dict(color=color, symbol=symbol, size=12),
+            hovertemplate=f"<b>%{{y}}</b><br>{metric}: %{{x:.3f}}<extra></extra>",
+        ))
+    model_fig.update_layout(title="Métricas en la referencia temporal fija", legend_title_text="Métrica")
+    model_fig.update_xaxes(title="Valor", range=[0, 1])
+    model_fig.update_yaxes(title=None)
+    st.plotly_chart(_plot_layout(model_fig, height=390, legend=True), width="stretch", config={"displayModeBar": False})
+    st.info(
+        "La MLP presenta el mejor ranking nominal (PR-AUC y ROC-AUC) en esta muestra fija. La regresión logística conserva "
+        "un F1 mayor. No hay evidencia de superioridad universal o estadísticamente significativa de la red."
+    )
+    _table_fallback("comparación de modelos", comparison[["Modelo", "F1", "PR-AUC", "ROC-AUC", "precision_multifatal", "recall_multifatal", "threshold"]].round(4), key="modelos")
+
+    st.subheader("Calibración y clasificación")
+    probabilities = evidence["probabilities"].copy()
+    probabilities["bin"] = pd.cut(probabilities["calibrated_probability"], bins=np.linspace(0, 1, 11), include_lowest=True)
+    reliability_rows = []
+    for interval, subset in probabilities.groupby("bin", observed=False):
+        if subset.empty:
+            continue
+        n = len(subset)
+        positives = int(subset["actual_multifatal"].sum())
+        lower, upper = wilson_interval(positives, n)
+        reliability_rows.append({"bin": str(interval), "predicha": subset["calibrated_probability"].mean(), "observada": positives / n, "n": n, "ci_inf": lower, "ci_sup": upper})
+    reliability = pd.DataFrame(reliability_rows)
+    reliability_fig = go.Figure()
+    reliability_fig.add_trace(go.Scatter(x=[0, 1], y=[0, 1], mode="lines", line=dict(color=UNSUPPORTED, dash="dash"), name="Calibración ideal", hoverinfo="skip"))
+    reliability_fig.add_trace(go.Scatter(
+        x=reliability["predicha"], y=reliability["observada"], mode="markers",
+        marker=dict(color=BLUE, size=np.clip(np.sqrt(reliability["n"]) * 1.5, 8, 24)), name="Bins observados",
+        error_y=dict(type="data", array=reliability["ci_sup"] - reliability["observada"], arrayminus=reliability["observada"] - reliability["ci_inf"], color=MUTED),
+        customdata=reliability[["n", "bin"]],
+        hovertemplate="Predicha: %{x:.3f}<br>Observada: %{y:.3f}<br>n=%{customdata[0]:,}<br>Bin: %{customdata[1]}<extra></extra>",
+    ))
+    reliability_fig.update_layout(title="Confiabilidad de la probabilidad calibrada", legend_title_text="Referencia")
+    reliability_fig.update_xaxes(title="Probabilidad media predicha", range=[0, 1])
+    reliability_fig.update_yaxes(title="Frecuencia observada", range=[0, 1])
+
+    confusion = evidence["confusion"]
+    confusion = confusion[confusion["probability_scale"] == "calibrated"].pivot(index="actual", columns="predicted", values="count").reindex(index=[0, 1], columns=[0, 1])
+    confusion_fig = go.Figure(go.Heatmap(
+        z=confusion.to_numpy(), x=["Prioridad estándar", "Priorizar revisión"], y=["1 fallecido", "2+ fallecidos"],
+        colorscale=[[0, "#EEF2F1"], [1, BLUE]], text=confusion.to_numpy(), texttemplate="%{text:,}",
+        hovertemplate="Real: %{y}<br>Decisión: %{x}<br>n=%{z:,}<extra></extra>", showscale=False,
+    ))
+    confusion_fig.update_layout(title="Matriz de confusión · umbral calibrado")
+    left, right = st.columns(2)
+    with left:
+        st.plotly_chart(_plot_layout(reliability_fig, height=440, legend=True), width="stretch", config={"displayModeBar": False})
+    with right:
+        st.plotly_chart(_plot_layout(confusion_fig, height=440), width="stretch", config={"displayModeBar": False})
+    _table_fallback("confiabilidad", reliability.round(4), key="confiabilidad")
+    confusion_table = (
+        evidence["confusion"]
+        .loc[lambda frame: frame["probability_scale"].eq("calibrated")]
+        .copy()
+        .assign(
+            Clase_real=lambda frame: frame["actual"].map({0: "1 fallecido", 1: "2+ fallecidos"}),
+            Decision=lambda frame: frame["predicted"].map({0: "Prioridad estándar", 1: "Priorizar revisión"}),
+        )[["Clase_real", "Decision", "count"]]
+        .rename(columns={"count": "Registros"})
+    )
+    _table_fallback("matriz de confusión", confusion_table, key="matriz_confusion")
+
+    st.subheader("Curvas de ranking")
+    y_true = probabilities["actual_multifatal"].to_numpy()
+    y_score = probabilities["calibrated_probability"].to_numpy()
+    precision, recall, _ = precision_recall_curve(y_true, y_score)
+    false_positive_rate, true_positive_rate, _ = roc_curve(y_true, y_score)
+    pr_fig = go.Figure(go.Scatter(x=recall, y=precision, mode="lines", line=dict(color=ORANGE, width=2.5), name="MLP"))
+    pr_fig.add_hline(y=float(y_true.mean()), line_dash="dash", line_color=MUTED, annotation_text="Prevalencia")
+    pr_fig.update_layout(title="Curva Precision–Recall")
+    pr_fig.update_xaxes(title="Recall", range=[0, 1])
+    pr_fig.update_yaxes(title="Precisión", range=[0, 1])
+    roc_fig = go.Figure(go.Scatter(x=false_positive_rate, y=true_positive_rate, mode="lines", line=dict(color=BLUE, width=2.5), name="MLP"))
+    roc_fig.add_trace(go.Scatter(x=[0, 1], y=[0, 1], mode="lines", line=dict(color=UNSUPPORTED, dash="dash"), name="Azar", hoverinfo="skip"))
+    roc_fig.update_layout(title="Curva ROC")
+    roc_fig.update_xaxes(title="Tasa de falsos positivos", range=[0, 1])
+    roc_fig.update_yaxes(title="Tasa de verdaderos positivos", range=[0, 1])
+    left, right = st.columns(2)
+    with left:
+        st.plotly_chart(_plot_layout(pr_fig, height=430), width="stretch", config={"displayModeBar": False})
+    with right:
+        st.plotly_chart(_plot_layout(roc_fig, height=430, legend=True), width="stretch", config={"displayModeBar": False})
+    ranking_tables = pd.concat(
+        [
+            pd.DataFrame({"Curva": "Precision–Recall", "Eje X": recall, "Eje Y": precision}),
+            pd.DataFrame({"Curva": "ROC", "Eje X": false_positive_rate, "Eje Y": true_positive_rate}),
+        ],
+        ignore_index=True,
+    )
+    _table_fallback("puntos de curvas PR y ROC", ranking_tables.round(6), key="curvas_pr_roc")
+
+    st.subheader("Explicabilidad")
+    explainability = load_explainability_artifacts()
+    groups = explainability["groups"].copy().sort_values("mean_abs_grouped_shap", ascending=True)
+    provenance = explainability["provenance"]
+    groups["Dirección media"] = groups["mean_signed_grouped_shap"].map(
+        lambda value: "Aumenta el score bruto" if value > 0 else "Reduce el score bruto" if value < 0 else "Neutra"
+    )
+    explanation_fig = go.Figure()
+    for direction, color in (("Aumenta el score bruto", ORANGE), ("Reduce el score bruto", BLUE), ("Neutra", UNSUPPORTED)):
+        subset = groups[groups["Dirección media"] == direction]
+        if subset.empty:
+            continue
+        explanation_fig.add_trace(go.Bar(
+            x=subset["mean_abs_grouped_shap"],
+            y=subset["raw_variable_group"],
+            orientation="h",
+            name=direction,
+            marker_color=color,
+            customdata=subset[["mean_signed_grouped_shap", "positive_contribution_share", "processed_feature_count"]],
+            hovertemplate=(
+                "<b>%{y}</b><br>Importancia global: %{x:.5f}<br>Contribución media firmada: %{customdata[0]:+.5f}"
+                "<br>Proporción de contribuciones positivas: %{customdata[1]:.1%}"
+                "<br>Features procesadas agrupadas: %{customdata[2]:.0f}<extra></extra>"
+            ),
+        ))
+    explanation_fig.update_layout(
+        title="Qué grupos de variables mueven el score de la MLP",
+        barmode="overlay",
+        legend_title_text="Dirección media en validación",
+    )
+    explanation_fig.update_xaxes(title="Media del valor SHAP absoluto agrupado")
+    explanation_fig.update_yaxes(title=None)
+    st.plotly_chart(_plot_layout(explanation_fig, height=560, legend=True), width="stretch", config={"displayModeBar": False})
+    st.caption(
+        f'{provenance["method"]} sobre el score sigmoide bruto · fondo: {provenance["background_sample_size"]} registros '
+        f'2021–2022 · explicados: {provenance["explanation_sample_size"]} registros de validación 2023 · '
+        f'semilla {provenance["seed"]}. Las one-hot y variables derivadas se sumaron dentro de su grupo interpretable.'
+    )
+    st.info(
+        "Las contribuciones resumen asociaciones globales aprendidas por la MLP. El signo expresa el promedio de validación "
+        "respecto del fondo de entrenamiento; la explicabilidad presentada corresponde al nivel global validado."
+    )
+    display_groups = groups.sort_values("mean_abs_grouped_shap", ascending=False).rename(columns={
+        "raw_variable_group": "Grupo interpretable",
+        "processed_feature_count": "Features agrupadas",
+        "mean_abs_grouped_shap": "Importancia global",
+        "mean_signed_grouped_shap": "Contribución media firmada",
+        "positive_contribution_share": "Proporción positiva",
+        "importance_share": "Participación de importancia",
+    })
+    _table_fallback(
+        "importancia global agrupada",
+        display_groups[["Grupo interpretable", "Features agrupadas", "Importancia global", "Contribución media firmada", "Proporción positiva", "Dirección media"]].round(5),
+        key="explicabilidad_global",
+    )
+    with st.expander("Arquitectura y trazabilidad"):
+        architecture = manifest["architecture"]
+        st.json({
+            "version": manifest["model_version"],
+            "hidden_units": architecture["hidden_units"],
+            "dropout": architecture["dropout"],
+            "l2": architecture["l2"],
+            "learning_rate": architecture["learning_rate"],
+            "seed": architecture["seed"],
+            "feature_count": manifest["feature_count"],
+            "calibration": manifest["calibration"]["method"],
+            "weights_frozen": architecture["weights_frozen"],
+        })
 
 
 def main() -> None:
-    app_header()
-    tabs = st.tabs(["Predicción", "EDA", "Letalidad por departamento", "Sobre el modelo"])
-    with tabs[0]:
-        prediction_tab()
-    with tabs[1]:
-        eda_tab()
-    with tabs[2]:
-        risk_tab()
-    with tabs[3]:
-        about_tab()
+    try:
+        manifest = load_manifest()
+        app_header(manifest)
+        requested_slug = st.query_params.get("section", "panorama")
+        label_by_slug = {slug: label for label, slug in SECTION_SLUGS.items()}
+        initial_label = label_by_slug.get(str(requested_slug), "Panorama")
+        selected = st.radio(
+            "Sección",
+            list(SECTION_SLUGS),
+            index=list(SECTION_SLUGS).index(initial_label),
+            horizontal=True,
+            label_visibility="collapsed",
+            key="section_navigation",
+        )
+        selected_slug = SECTION_SLUGS[selected]
+        if str(requested_slug) != selected_slug:
+            st.query_params["section"] = selected_slug
+        pages = {
+            "Panorama": lambda: overview_page(manifest),
+            "Estimar": estimate_page,
+            "Explorar datos": explore_page,
+            "Patrones regionales": regional_page,
+            "Evidencia del modelo": lambda: evidence_page(manifest),
+        }
+        pages[selected]()
+    except RuntimeArtifactError as exc:
+        st.error(str(exc), icon="⚠️")
+        st.info("La interfaz opera en modo estrictamente read-only. Corregí los artefactos fuera de la app y volvé a iniciar.")
+        st.stop()
 
 
 if __name__ == "__main__":

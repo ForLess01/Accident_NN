@@ -1,7 +1,0 @@
-{
-  "threshold": 0.35,
-  "f1_multifatal": 0.27438370846730975,
-  "precision_multifatal": 0.16120906801007556,
-  "recall_multifatal": 0.920863309352518,
-  "selection_rule": "max recall among thresholds with F1 >= 90% of best validation F1"
-}

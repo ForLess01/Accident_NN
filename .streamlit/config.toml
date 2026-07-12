@@ -1,0 +1,22 @@
+[theme]
+base = "light"
+primaryColor = "#C94F16"
+backgroundColor = "#FCFBF7"
+secondaryBackgroundColor = "#F3EFE7"
+textColor = "#202522"
+font = "sans serif"
+baseRadius = "small"
+buttonRadius = "small"
+
+[theme.sidebar]
+backgroundColor = "#F3EFE7"
+
+[client]
+toolbarMode = "minimal"
+showErrorDetails = "none"
+
+[browser]
+gatherUsageStats = false
+
+[runner]
+fastReruns = true

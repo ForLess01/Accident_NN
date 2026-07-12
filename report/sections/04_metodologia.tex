@@ -1,54 +1,46 @@
 \section{Metodología}\label{sec:metodologia}
 
-\subsection{Marco de trabajo}
-El proceso se organizó siguiendo el ciclo CRISP-DM, adaptado a la naturaleza de un trabajo académico de dos días. La correspondencia fase $\leftrightarrow$ bloque del proyecto se muestra en la tabla~\ref{tab:crisp}.
+\subsection{Diseño experimental definitivo}
+El proyecto sigue CRISP-DM con una separación cronológica estricta. Este corte es el mecanismo definitivo para medir deriva entre periodos y bloquear el uso de información futura.
 
 \begin{table}[H]
 \centering
-\caption{Correspondencia entre fases CRISP-DM y bloques de ejecución del proyecto.}
-\label{tab:crisp}
-\begin{tabular}{lll}
+\caption{Particiones y usos permitidos del protocolo canónico.}
+\label{tab:particiones-canonicas}
+\small
+\begin{tabularx}{\textwidth}{p{3cm}p{2.8cm}rrX}
 \toprule
-Fase CRISP-DM & Bloque & Entregable principal \\
+Partición & Periodo & $n$ & Positivos & Uso autorizado \\
 \midrule
-Comprensión del negocio y de los datos & A, B & Repositorio, auditoría, \texttt{base\_limpia.parquet} \\
-Análisis exploratorio & C & fig01--fig13 y fig23, hallazgos H1--H11 \\
-Preparación de datos & D & 116 características, escalado, codificación, \texttt{demo\_cases.csv} \\
-Modelado & E & \texttt{letalidad\_nn.keras}, \texttt{threshold.json}, \texttt{tab04} \\
-Evaluación & F & \texttt{tab03}, \texttt{tab05}, fig16--fig22, top-5 SHAP, bootstrap \\
-Despliegue & G & App Streamlit, checklist \texttt{tab09} \\
+Entrenamiento & 2021--2022 & 4\,872 & 510 & Ajuste de preprocesamiento y pesos \\
+Validación & 2023 & 2\,000 & 196 & Arquitectura, semilla, umbrales y calibración OOF \\
+Referencia histórica & 2024--2025 & 2\,232 & 222 & Informe final; sin selección ni reajuste \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
 \end{table}
 
-\subsection{Pipeline}
-El flujo completo, reproducible de punta a punta, es:
-\[
-\texttt{data/raw/} \xrightarrow{\text{Bloque B}} \texttt{base\_limpia.parquet} \xrightarrow{\text{Bloque D}} X_{\text{train}}, X_{\text{val}}, X_{\text{test}} \xrightarrow{\text{Bloque E}} \texttt{letalidad\_nn.keras} \xrightarrow{\text{Bloque F}} \text{eval. en test} \xrightarrow{\text{Bloque G}} \texttt{streamlit\_app.py}
-\]
+\subsection{Flujo reproducible}
+\begin{align*}
+\texttt{base\_limpia.parquet}
+&\xrightarrow{\text{corte cronológico}} \{2021\text{--}22,\ 2023,\ 2024\text{--}25\}\\
+&\xrightarrow{\text{fit solo 2021--22}} \text{162 features procesadas}\\
+&\xrightarrow{\text{selección 2023}} \texttt{MLP\_64\_32, seed 314, t=0.65}\\
+&\xrightarrow{\text{5-fold OOF 2023}} \text{Platt + umbral calibrado 0.20}\\
+&\xrightarrow{\text{congelar}} \texttt{models/final/}\\
+&\xrightarrow{\text{referencia 2024--25}} \text{métricas, IC y errores}.
+\end{align*}
 
-\subsection{Herramientas y versiones}
-\begin{itemize}
-  \item Python 3.12.13 en macOS (ARM); idéntica versión en Windows.
-  \item TensorFlow $\geq$ 2.18, ``\textless 2.20'' (con Keras 3 integrado, formato \texttt{.keras}).
-  \item scikit-learn $\geq$ 1.6 (líneas base, métricas, \texttt{StandardScaler}, \texttt{compute\_class\_weight}).
-  \item imbalanced-learn $\geq$ 0.13 (SMOTE, solo si aplica C4).
-  \item shap $\geq$ 0.46, interpretabilidad.
-  \item pandas $\geq$ 2.2, numpy $\geq$ 2.0, pyarrow, matplotlib $\geq$ 3.9, seaborn $\geq$ 0.13, plotly $\geq$ 5.24.
-  \item streamlit $\geq$ 1.40, interfaz gráfica web local.
-  \item holidays, feriados del Perú; joblib, persistencia.
-\end{itemize}
-Los congelados exactos por plataforma se incluyen en los anexos A6 y A7.
+\subsection{Selección del modelo}
+Se compararon tres configuraciones MLP y tres semillas (42, 314 y 2718). La configuración se eligió por mediana de PR-AUC en validación, luego mediana de F1 y finalmente menor rango intercuartílico de PR-AUC. La semilla 314 quedó asociada al artefacto seleccionado. Los mismos datos y la misma política de umbral se aplicaron a regresión logística balanceada y Random Forest balanceado para evitar comparaciones ventajosas.
 
-\subsection{Semillas y reproducibilidad}
-Al inicio de todo notebook y script se fijaron las semillas:
-\begin{lstlisting}
-import os, random, numpy as np, tensorflow as tf
-SEED = 42
-os.environ["PYTHONHASHSEED"] = str(SEED)
-random.seed(SEED); np.random.seed(SEED); tf.random.set_seed(SEED)
-\end{lstlisting}
-El modelo canónico se entrenó una sola vez en la máquina macOS del integrante Rendo. Los artefactos \texttt{letalidad\_nn.keras}, \texttt{scaler.pkl}, \texttt{encoders.pkl}, \texttt{feature\_list.json} y \texttt{threshold.json} se versionaron en Git y los consumió el otro integrante, sin re-entrenar. Las cifras de este informe provienen exclusivamente de ese artefacto.
+\subsection{Calibración y umbrales}
+Platt e isotónica se compararon mediante Brier OOF de cinco particiones estratificadas dentro de 2023~\cite{scikit_learn_2024}. Se seleccionó Platt por menor Brier OOF; el umbral calibrado 0.20 maximizó F1 sobre esas probabilidades OOF. El umbral crudo 0.65 proviene de la política predeclarada sobre scores de validación. Las escalas no se mezclan y la interfaz toma decisiones visibles solo en la escala calibrada.
 
-\subsection{Separación de subconjuntos}
-Para no confundir ``probar la interfaz'' con ``evaluar el modelo'', se manejaron cuatro conceptos distintos: entrenamiento (ajustar pesos y \emph{fits}), validación (elegir hiperparámetros, \emph{early stopping} y calibrar el umbral), prueba final (evaluación única e intocable) y casos de demostración (probar la inferencia de la interfaz, jamás medir desempeño). Los casos de demostración se construyeron desde validación y casos sintéticos controlados, nunca desde la prueba final.
+\subsection{Evaluación e incertidumbre}
+Se reportan dos vistas del mismo modelo congelado: score crudo y probabilidad Platt. Para las métricas de referencia se calcularon 1\,000 remuestreos bootstrap al 95\,\%. La evaluación incluye comparación con prevalencia, regresión logística y Random Forest; no se realizan pruebas o ajustes posteriores que reclasifiquen 2024--2025 como un nuevo periodo no observado.
+
+\subsection{Explicabilidad separada de la referencia}
+Gradient SHAP se ejecutó sin cargar etiquetas ni datos de 2024--2025~\cite{lundberg_shap_2017}. El fondo procede de entrenamiento y la muestra explicada de validación. Esta separación evita que la interpretación se convierta en una vía indirecta de ajuste a la referencia.
+
+\subsection{Implementación}
+La implementación usa Python 3.12, TensorFlow 2.19, scikit-learn 1.9, pandas 3.0, NumPy 2.1, SHAP 0.52, Streamlit y Plotly~\cite{tensorflow_2024,keras_2024,scikit_learn_2024}. \path{models/final/manifest.json} fija versiones, hashes, particiones, arquitectura, calibrador y umbrales; el cargador de inferencia rechaza artefactos alterados.

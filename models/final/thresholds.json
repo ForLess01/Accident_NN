@@ -1,0 +1,14 @@
+{
+  "raw": {
+    "value": 0.65,
+    "probability_scale": "raw_mlp_sigmoid",
+    "source_partition": "validation_2023",
+    "policy": "maximum 2023 selection-period F1; ties recall, precision, higher threshold"
+  },
+  "calibrated": {
+    "value": 0.2,
+    "probability_scale": "platt_calibrated_probability",
+    "source_partition": "validation_2023_oof",
+    "policy": "max validation F1; ties: recall, precision, higher threshold"
+  }
+}

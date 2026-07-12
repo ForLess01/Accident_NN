@@ -1,63 +1,25 @@
 \section{Preprocesamiento}\label{sec:preprocesamiento}
 
-\subsection{Orden inviolable: primero \emph{split}, después todo \emph{fit}}
-Este es el segundo guardián anti-fuga del proyecto, junto con la exclusión de las columnas de resultado. Cualquier estadístico usado para transformar (mediana, frecuencias, medias, escalado) se calcula solo con el conjunto de entrenamiento, y se aplica luego a validación y prueba.
+\subsection{Contrato anti-fuga}
+El target es \texttt{target\_multifatal}=1 cuando \texttt{FALLECIDOS}$\geq2$. Por ser resultado directo, \texttt{FALLECIDOS} no entra a $X$. También se excluyen \texttt{LESIONADOS}, \texttt{VEHICULOS\_DANADOS}, causas post-investigación y señalización con faltantes dependientes del periodo. La clase del siniestro sí está disponible después de la notificación; esto limita el uso a priorización posterior al hecho y descarta cualquier interpretación preventiva.
 
-\subsection{Regla anti-fuga: exclusión de columnas de resultado}
-Cuatro grupos de columnas se prohibieron como entradas:
+\subsection{Corte cronológico}
+Las fechas determinan tres bloques sin solapamiento: 2021--2022 para entrenamiento, 2023 para validación y calibración, y 2024--2025 para referencia histórica. El escalador, las categorías, el mapa de frecuencias de vía y cualquier imputación se ajustan únicamente con entrenamiento. Los transformadores no vuelven a ajustarse al procesar periodos posteriores.
+
+\subsection{Limpieza y codificación}
+Las categorías se normalizan a vocabularios cerrados con una categoría explícita \texttt{DESCONOCIDO}. Los códigos de carretera no vistos reciben frecuencia cero. Latitud y longitud se convierten a numérico; el \emph{bundle} final exige el par completo para inferencia y la interfaz no inventa ubicaciones. Las continuas se estandarizan con estadísticos 2021--2022; las variables cíclicas permanecen en $[-1,1]$ y las categóricas se codifican \emph{one-hot}.
+
+\subsection{Contrato persistido}
+\path{models/final/} contiene \path{feature_list.json}, \path{feature_schema.json}, escalador, codificadores, modelo, calibrador, umbrales y manifiesto. El manifiesto registra hashes SHA-256 y el cargador de inferencia los verifica antes de predecir. El vector final tiene exactamente 162 columnas y el orden es parte del contrato.
+
+\subsection{Pruebas de frontera}
+Las pruebas automatizadas verifican que:
 \begin{itemize}
-  \item \texttt{FALLECIDOS} define el target: usarla sería fuga total.
-  \item \texttt{LESIONADOS} y \texttt{VEHICULOS\_DANADOS} se cuentan después del siniestro y correlacionan directamente con la clase (media de afectados: 1.4 en letalidad simple vs.\ 5.0 en multifatales). Usarlas produciría métricas infladas y un modelo indefendible.
-  \item \texttt{CAUSA\_FACTOR} y \texttt{CAUSA\_ESPECIFICA} se determinan en la investigación posterior: el 49\,\% de los registros figura ``en proceso de investigación''. Para un modelo predictivo, la causa no se conoce en el momento del evento.
-  \item Las señales vertical y horizontal tienen 77.9\,\% de faltantes concentrados por periodo de registro, lo que introduciría una correlación espuria con el año.
+  \item las particiones temporales no se solapen;
+  \item validación, no la referencia, seleccione umbrales y calibración;
+  \item el modelo, el esquema y la lista tengan 162 entradas en el mismo orden;
+  \item las escalas cruda y calibrada conserven umbrales distintos;
+  \item el par de coordenadas sea obligatorio en la inferencia final;
+  \item una entrada inválida elimine cualquier resultado previo de la interfaz.
 \end{itemize}
-Estas exclusiones se declaran como decisión metodológica explícita: de las 116 características finales, ninguna deriva de esas columnas. La prueba del contrato de preprocesamiento lo verifica automáticamente.
-
-\subsection{Limpieza antes del \emph{split}}
-Antes del \emph{split} se aplicaron transformaciones determinísticas que no usan estadísticos del dataset:
-\begin{itemize}
-  \item Normalización de texto (\texttt{str.strip().str.upper()}) y conversión de los tokens \texttt{SIN INFO}, \texttt{NO CORRESPONDE}, \texttt{SIN CLASIFICAR} y vacíos a \texttt{NaN}.
-  \item Parseo de \texttt{FECHA} con \texttt{dayfirst=True}, \texttt{errors="coerce"} (2 filas inválidas eliminadas).
-  \item Parseo de \texttt{HORA} en formato \texttt{HH:MM} $\rightarrow$ \texttt{hora\_entera} $\in [0, 23]$.
-  \item Sanidad de coordenadas: valores fuera del recuadro territorial del Perú ($[-18.4, 0.1]$ lat, $[-81.4, -68.6]$ lon) anulados (1 registro).
-  \item Deduplicación por \texttt{CODIGO\_SINIESTRO} (0 duplicados).
-\end{itemize}
-
-\subsection{\emph{Split} estratificado y reproducible}
-\begin{lstlisting}
-from sklearn.model_selection import train_test_split
-X_temp, X_test, y_temp, y_test = train_test_split(
-    X, y, test_size=0.15, stratify=y, random_state=SEED)
-X_train, X_val, y_train, y_val = train_test_split(
-    X_temp, y_temp, test_size=0.1765, stratify=y_temp, random_state=SEED)
-# resultado: 70 % train / 15 % val / 15 % test
-\end{lstlisting}
-Resultado: 6\,372 / 1\,366 / 1\,366 filas. El porcentaje de clase multifatal es 10.20\,\% en \emph{train} y 10.18\,\% en \emph{val} y \emph{test}: la estratificación es prácticamente exacta.
-
-\subsection{Imputaciones y \emph{flags} de faltantes}
-Las filas con \texttt{HORA} nula usan \texttt{hora\_sin = hora\_cos = 0} junto con \texttt{hora\_faltante = 1}, para que la red aprenda del faltante en lugar de recibir una mentira imputada. Las coordenadas faltantes se imputan con la mediana calculada solo en \emph{train} y se añade el \emph{flag} \texttt{coord\_faltante}. Las categóricas nulas se mapean a la categoría cerrada \texttt{DESCONOCIDO}.
-
-\subsection{Escalado y codificación}
-\begin{itemize}
-  \item Las continuas (\texttt{LATITUD}, \texttt{LONGITUD}, \texttt{via\_freq}, \texttt{anio}) se escalaron con \texttt{StandardScaler} ajustado solo en \emph{train}.
-  \item Las cíclicas (\texttt{hora\_sin}, \texttt{hora\_cos}) ya están en $[-1, 1]$ y no se escalan.
-  \item \texttt{DEPARTAMENTO} $\rightarrow$ \emph{One-Hot} (25 columnas).
-  \item \texttt{COD CARRETERA} $\rightarrow$ prefijo alfabético (\emph{One-Hot}) más \emph{frequency encoding} del código completo calculado en \emph{train}; códigos no vistos se mapean a \texttt{via\_freq = 0}.
-  \item \texttt{CLASE}, \texttt{ZONA}, \texttt{RED\_VIAL}, \texttt{TIPO\_VIA}, \texttt{CLIMA}, \texttt{CARACTERISTICA\_VIA}, \texttt{PERFIL\_VIA} y \texttt{SUPERFICIE} $\rightarrow$ normalización a categorías cerradas + \emph{One-Hot} (detalle en la \autoref{sec:ingenieria}).
-\end{itemize}
-
-\subsection{Persistencia del contrato}
-El orden final de las 116 características se congela en \texttt{models/feature\_list.json}: el orden de columnas es contrato, no convención. Los transformadores se persisten en \texttt{models/scaler.pkl} y \texttt{models/encoders.pkl} con \texttt{joblib.dump}. La interfaz gráfica consume estos artefactos, por lo que no puede divergir del pipeline de entrenamiento.
-
-\subsection{Casos de demostración, separados de la prueba final}
-Se creó \texttt{data/processed/demo\_cases.csv} con cinco casos controlados construidos desde validación, nunca desde el test final: (1) caso diurno de referencia con letalidad simple, (2) mismo caso en horario nocturno, (3) mismo caso en curva con lluvia, (4) código de carretera no visto \texttt{PE-999X} (debe mapear \texttt{via\_freq = 0} sin romperse), (5) departamento PUNO en zona rural. Sirven para probar coherencia de la interfaz, no para medir desempeño.
-
-\subsection{Prueba del contrato de preprocesamiento}
-La prueba en \texttt{tests/test\_preprocessing\_contract.py} verifica que \texttt{preparar\_entrada()}:
-\begin{itemize}
-  \item Devuelve exactamente 116 columnas, en el orden de \texttt{feature\_list.json}.
-  \item No genera \texttt{NaN}.
-  \item Acepta un código de carretera no visto y produce \texttt{via\_freq = 0}.
-  \item Activa \texttt{coord\_faltante} ante coordenadas nulas y normaliza las categorías compuestas (p.\,ej.\ \texttt{ATROPELLO FUGA} $\rightarrow$ \texttt{ATROPELLO}).
-\end{itemize}
-Esta prueba es la garantía de que la inferencia de la GUI y el entrenamiento comparten exactamente el mismo preprocesamiento.
+Los casos de demostración prueban ejecución, no desempeño.

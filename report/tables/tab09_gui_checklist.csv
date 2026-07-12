@@ -1,8 +1,0 @@
-check,passed,detail
-demo_cases_predict,True,5 casos predichos
-response_under_2_seconds,True,0.169s
-nocturno_changes_probability,True,base=0.6517; nocturno=0.6586
-unseen_road_code_does_not_break,True,probabilidad=0.6567
-puno_case_does_not_break,True,probabilidad=0.6338
-historical_comparison_available,True,8 tasas disponibles
-posthoc_calibration_available,True,score=0.1438; calibrador=isotonic

@@ -1,144 +1,122 @@
-# Clasificación de alta letalidad en siniestros viales fatales del Perú
+# Accident_NN - modelo definitivo de multifatalidad vial
 
-Proyecto del curso **Redes Neuronales — Segunda Unidad**. El objetivo es construir una red neuronal para clasificación binaria de alta letalidad (2+ fallecidos) en siniestros viales fatales del Perú, con EDA, preprocesamiento, ingeniería de características, entrenamiento, evaluación, calibración probabilística, interfaz gráfica local con Streamlit, informe y anexos.
+Proyecto académico de redes neuronales que estima la probabilidad de **dos o más fallecidos**, condicionada a que el registro corresponde a un siniestro vial fatal ya notificado. El repositorio conserva una sola implementación: la MLP definitiva, su evidencia reproducible, la interfaz Streamlit y el informe académico.
 
-## Integrantes
+## Resultado principal
 
-- Rendo — líder técnico, entrenamiento canónico en macOS.
-- Yimmy — EDA, GUI e informe bajo revisión técnica de Rendo.
-
-## Fuente de datos
-
-Dataset oficial: **SINIESTROS DE TRANSITO FATALES 2021-2025 (PRELIMINAR)**.
-
-- Autor oficial: Observatorio Nacional de Seguridad Vial (ONSV).
-- Portal: https://www.onsv.gob.pe/datosabiertos
-- Publicado por ONSV: 2026-02-27.
-- Fecha de verificación local en el repositorio: 2026-07-09.
-- El ONSV declara los datos de 2025 como preliminares.
-
-Archivos versionados en `data/raw/`:
-
-| Archivo | Observación |
+| Elemento | Valor definitivo |
 |---|---|
-| `BBDD_ONSV_SINIESTROS_FATALES_2021-2025.xlsx` | Base oficial ONSV “SINIESTROS DE TRANSITO FATALES 2021-2025 (PRELIMINAR)”; hoja `SINIESTROS`, encabezado en fila 5; 9,106 registros de datos. |
-| `Accidentes de tránsito en carreteras-2020-2021-Sutran.csv` | Fuente de la primera iteración del proyecto (mortal/no-mortal); se conserva como evidencia histórica. |
-| `Formato_2_Diccionario_de_datos.docx` | Diccionario de la fuente Sutran. |
+| Fuente | ONSV, siniestros fatales del Perú 2021-2025 |
+| Registros | 9 104 |
+| Objetivo | `target_multifatal = 1` cuando `FALLECIDOS >= 2` |
+| Entrenamiento | 2021-2022: 4 872 registros |
+| Selección y calibración | 2023: 2 000 registros |
+| Referencia histórica | 2024-2025: 2 232 registros |
+| Entrada | 162 características sin variables de resultado |
+| Arquitectura | `MLP_64_32`, ReLU, dropout 0.35, L2, semilla 314 |
+| Calibración desplegada | Platt, seleccionada por Brier OOF en 2023 |
+| Umbral calibrado | 0.20, seleccionado con predicciones OOF de 2023 |
 
-## Definición del problema
+La referencia 2024-2025 produjo PR-AUC **0.2249**, ROC-AUC **0.7482** y F1 multifatal **0.2958** en la escala calibrada. La MLP supera nominalmente a los baselines en métricas de ranking; la regresión logística conserva mayor F1 (**0.3183**). Por rigor, el proyecto **no afirma superioridad universal** de la red.
 
-Dado que ocurre un siniestro fatal, el modelo estima la probabilidad de que sea **multifatal** (2 o más fallecidos, 10.19% de los casos). El encuadre es condicional porque la base ONSV registra únicamente siniestros con al menos un fallecido. Columnas de resultado (lesionados, vehículos dañados) y de causa post-investigación quedan excluidas como features por fuga de datos.
+## Ejecución rápida en macOS
 
-## Estructura del repositorio
-
-```text
-.
-├── Plan.md
-├── data/
-│   ├── raw/
-│   ├── processed/
-│   └── geo/
-├── notebooks/
-├── src/
-├── app/
-├── models/
-├── report/
-│   ├── main.tex
-│   ├── sections/
-│   ├── bib/referencias.bib
-│   ├── figures/
-│   ├── tables/
-│   └── output/
-├── tests/
-├── docs/
-├── requirements.txt
-└── README.md
-```
-
-## Requisitos
-
-- Python 3.12.x.
-- Entorno virtual local por integrante.
-
-### macOS
+Requisitos verificados: macOS, Python **3.12** y un entorno virtual local.
 
 ```bash
+cd /Users/rendoaltar/Developer/Accident_NN
 python3.12 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-pip freeze > requirements-macos.txt
+python -m pip install --upgrade pip
+python -m pip install -r requirements-macos.txt
+python -m streamlit run app/streamlit_app.py
 ```
 
-### Windows PowerShell
+Abrí [http://localhost:8501](http://localhost:8501). La interfaz carga `models/final/`, verifica hashes y utiliza exactamente el mismo contrato de características del entrenamiento.
 
-```powershell
-py -3.12 -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-pip freeze > requirements-windows.txt
-```
-
-## Ejecución
-
-### Pipeline (scripts por bloque)
+Si el entorno ya existe, el camino corto es:
 
 ```bash
-.venv/bin/python src/block_b_dataset_audit.py        # auditoría y limpieza
-.venv/bin/python src/block_c_eda.py                  # figuras y hallazgos EDA
-.venv/bin/python src/block_d_preprocessing.py        # split, features y artefactos
-.venv/bin/python src/block_e_modeling.py             # baselines + grid MLP + umbral
-.venv/bin/python src/block_f_evaluation.py           # evaluación única en test
-.venv/bin/python src/block_f_posthoc_calibration.py  # calibración isotónica + bootstrap
-.venv/bin/python src/block_g_app_check.py            # checklist funcional de la GUI
-.venv/bin/python tests/test_preprocessing_contract.py
+cd /Users/rendoaltar/Developer/Accident_NN
+.venv/bin/python -m streamlit run app/streamlit_app.py
 ```
 
-### Entrenamiento
+Cada sección tiene una URL compartible, por ejemplo `?section=estimar` o `?section=evidencia`.
 
-El modelo canónico se entrena una sola vez en la máquina de Rendo. Los artefactos (`letalidad_nn.keras`, `calibrator.pkl`, `scaler.pkl`, `encoders.pkl`, `feature_list.json`, `threshold.json`) quedan versionados en `models/`.
-
-### Interfaz Streamlit
+## Verificación
 
 ```bash
-streamlit run app/streamlit_app.py
+./scripts/check_release.py --local-content
 ```
 
-La GUI es de solo lectura: consume los artefactos versionados y no reentrena nada.
-
-### Informe LaTeX
+`--local-content` es apropiado mientras los archivos definitivos todavía no estén confirmados en Git: valida contenido y reporta lo no versionado como advertencia. Antes de entregar desde un commit, ejecutá el gate estricto:
 
 ```bash
-cd report
-latexmk -pdf -interaction=nonstopmode main.tex
+./scripts/check_release.py
 ```
 
-## Resultados principales (test, evaluación única)
+El gate ejecuta las cuatro pruebas directas, AppTest, hashes del manifiesto, paridad de inferencia sobre 2 232 registros, guard de explicabilidad, escaneo de notebooks/imports, referencias obsoletas, vigencia del PDF y `git diff --check`. No reentrena ni inicia servidores persistentes.
 
-| Métrica | Valor | IC 95% bootstrap |
-|---|---:|---|
-| ROC-AUC | 0.7474 | [0.7114, 0.7832] |
-| Recall multifatal | 0.8849 | [0.8322, 0.9323] |
-| F1 multifatal | 0.2746 | [0.2383, 0.3130] |
-| PR-AUC (prevalencia 0.102) | 0.2038 | [0.1661, 0.2602] |
-| Brier calibrado (isotónica) | 0.0872 | [0.0765, 0.0986] |
+Regeneración de evidencia sin reentrenar la red:
 
-Top-5 SHAP: `clase_atropello`, `zona_rural`, `clase_despiste`, `clase_choque`, `zona_urbana`.
+```bash
+.venv/bin/python src/final_model_bundle.py
+.venv/bin/python src/final_evaluation_figures.py
+.venv/bin/python src/final_explainability.py
+```
 
-## Bitácora de decisiones
+El entrenamiento completo solo es necesario si se decide rehacer la búsqueda predeclarada:
 
-| Fecha | Bloque | Situación | Decisión | Contingencia aplicada / Justificación |
-|---|---|---|---|---|
-| 2026-07-08 | A–H | Primera iteración completa con fuente Sutran 2020-2021 (mortal/no-mortal) | Pipeline completo, informe y defensa; ROC-AUC 0.6840, empate con la logística | Diagnóstico: techo informacional por solo 6 variables base |
-| 2026-07-09 | B | La única fuente peruana con variables pre-impacto a nivel registro (ONSV) es fatal-únicamente | Cambio de fuente a ONSV 2021-2025 y reformulación del target a alta letalidad (FALLECIDOS ≥ 2) | Evita sesgo de selección por mezcla de fuentes; decisión discutida en el informe |
-| 2026-07-09 | B | Base auditada: 9,106 filas de datos, 2 fechas inválidas | N final 9,104; multifatal 928 (10.19%) | C2 (3000 ≤ N < 10000, split 70/15/15); C5 (class_weight, sin SMOTE) |
-| 2026-07-09 | B | Columnas de resultado y causa disponibles en la base | Excluidas como features: LESIONADOS, VEHICULOS_DANADOS, CAUSA_*, señales (78% faltantes) | Guardia anti-fuga; verificada en el contrato de preprocesamiento |
-| 2026-07-09 | D | Contrato de features congelado | 116 features; `feature_list.json`, `scaler.pkl`, `encoders.pkl`, `tab02_feature_contract.csv` | Estadísticos fit solo con train; `preparar_entrada()` verificado por test |
-| 2026-07-09 | D | Split estratificado creado | Train/Val/Test = 6372/1366/1366; multifatal 10.20%/10.18%/10.18% | Diferencia < 1 punto porcentual |
-| 2026-07-09 | E | Grid cerrado de 6 corridas ejecutado | Mejor modelo: `R5_one_hidden_layer`; guardado en `models/letalidad_nn.keras` | Selección por F1-multifatal en validación; test no usado |
-| 2026-07-09 | E | Umbral calibrado en validación | `threshold=0.35`; recall 0.9209; F1 0.2744 | Regla: máximo recall con F1 ≥ 90% del mejor F1 de validación |
-| 2026-07-09 | F | Test final evaluado una sola vez | MLP: recall 0.8849, F1 0.2746, PR-AUC 0.2038, ROC-AUC 0.7474 | `test_evaluations=1`; umbral 0.35 congelado desde validación |
-| 2026-07-09 | F | La logística obtiene F1 nominalmente superior (0.3081) | Se reporta el empate estadístico con honestidad; el MLP gana en recall | C13; intervalos bootstrap traslapados |
-| 2026-07-09 | F | Calibración post-hoc y CIs bootstrap | Calibrador isotónico ajustado en validación; `tab11`, `tab12`, `fig22` | Brier test baja de 0.2139 a 0.0872, mejor que el predictor de tasa base (0.0916) |
-| 2026-07-09 | C | EDA regenerado para ONSV | `fig01`–`fig13`, `fig23` (scatter geográfico) y hallazgos H1–H11 | Hallazgo fuerte: rural 15.1% vs urbano 3.6%; lluvia 17.6% vs despejado 9.8% |
-| 2026-07-09 | G | GUI adaptada al nuevo problema | Inputs de zona, red vial, clima, curvatura, perfil y superficie; gauge con probabilidad calibrada; mapa coroplético activo | Checklist G: 7/7 checks; verificada de punta a punta en navegador |
-| 2026-07-09 | H/I | Informe y defensa reescritos | `report/main.pdf` (36 páginas) recompilado; `docs/defensa_10min.md` actualizado | Título, resumen, secciones y bitácora reflejan el problema reformulado |
+```bash
+.venv/bin/python src/block_e_modeling.py
+```
+
+No se debe ajustar arquitectura, calibrador o umbrales con 2024-2025: esas etiquetas ya fueron observadas y solo constituyen referencia histórica.
+
+## Formulario académico
+
+- Los campos requeridos comienzan vacíos; los opcionales usan `NO INFORMADO`.
+- **Cargar caso de demostración** completa explícitamente un registro real de validación.
+- La fecha se restringe al periodo documentado 2021-2025.
+- Las coordenadas deben formar un par dentro del Perú y corresponder al departamento elegido.
+- El código de vía ofrece búsqueda sobre códigos conocidos y advierte cuando recibe uno nuevo con formato válido.
+- Los comparadores de subgrupo con soporte menor que 30 se enmascaran.
+
+## Estructura canónica
+
+```text
+app/streamlit_app.py              interfaz profesional
+src/block_b_dataset_audit.py      limpieza reproducible de la fuente ONSV
+src/block_c_eda.py                análisis exploratorio
+src/model_protocol.py             corte cronológico y 162 características
+src/block_e_modeling.py           búsqueda y selección de la MLP
+src/final_model_bundle.py         calibración, evaluación, hashes e inferencia
+src/final_evaluation_figures.py   figuras de selección y comparación
+src/final_explainability.py       Gradient SHAP global sin usar 2024-2025
+models/final/                     único bundle de inferencia
+report/                           informe, figuras y tablas definitivas
+docs/defensa_10min.md             guion de sustentación
+```
+
+## Interpretación académica
+
+- El target es la multifatalidad entre siniestros fatales notificados por el ONSV.
+- PR-AUC es central porque la clase multifatal representa cerca del 10 %.
+- La calibración mejora la lectura probabilística, pero no crea capacidad discriminativa.
+- Gradient SHAP describe asociaciones del modelo, no causalidad.
+- El principal límite es informacional: faltan velocidad, alcohol, ocupantes, cinturón/casco y características vehiculares.
+
+## Errores comunes
+
+| Mensaje o síntoma | Solución |
+|---|---|
+| `python3.12: command not found` | Instalá Python 3.12 y repetí la creación de `.venv`. |
+| `No module named streamlit` | Activá `.venv` e instalá `requirements-macos.txt`. |
+| Error al abrir el Excel ONSV | Confirmá `openpyxl==3.1.5` y `et_xmlfile==2.0.0` con `python -m pip show openpyxl et_xmlfile`. |
+| Hash canónico inválido | Restaurá el archivo indicado; la app protege la correspondencia entre modelo y evidencia. |
+| Puerto 8501 ocupado | Ejecutá `python -m streamlit run app/streamlit_app.py --server.port 8502`. |
+| El gate estricto informa archivos no versionados | Confirmá los archivos definitivos en Git antes de la entrega; durante desarrollo usá `--local-content`. |
+
+## Informe
+
+El documento final está en [`report/main.pdf`](report/main.pdf). La especificación y el estado definitivo del proyecto están en [`Plan.md`](Plan.md). La reproducibilidad de un clon debe declararse únicamente después de que todos los artefactos canónicos requeridos estén versionados; el gate estricto lo comprueba.

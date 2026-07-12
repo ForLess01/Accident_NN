@@ -1,137 +1,56 @@
 \section{Marco teórico}\label{sec:marco-teorico}
 
-\subsection{Seguridad vial}
-La siniestralidad vial se modela como un fenómeno multifactorial donde interactúan el entorno (infraestructura, hora, clima), el vehículo y el conductor. Los registros policiales capturan variables posteriores al hecho (modalidad del accidente, ubicación, hora, víctimas). La literatura coincide en que la severidad de un accidente depende tanto de la mecánica del impacto (atropello, choque, despiste, volcadura) como de factores temporales (nocturnidad, fatiga) y territoriales (tramos peligrosos). Este trabajo no reemplaza esa literatura: la usa como motivación para justificar qué variables derivar~\cite{onsv_siniestros_fatales_2021_2025, who_road_safety_2023}.
+\subsection{Seguridad vial y alcance condicional}
+La severidad vial es multifactorial: interactúan infraestructura, condiciones ambientales, vehículo, conductor y respuesta posterior. La base ONSV utilizada registra exclusivamente siniestros con al menos un fallecido; por ello, el modelo no estima ocurrencia ni fatalidad general. Su pregunta es condicional: \emph{dado un siniestro ya fatal y notificado, ¿el registro pertenece a la clase multifatal?} Esta restricción evita mezclar universos incompatibles y define un uso de priorización posterior a la notificación~\cite{onsv_siniestros_fatales_2021_2025,who_road_safety_2023}.
 
-\subsection{Redes neuronales}
-\subsubsection{Neurona artificial y perceptrón multicapa}
-Una neurona artificial calcula una combinación lineal de sus entradas con un sesgo y la pasa por una función de activación:
+\subsection{Perceptrón multicapa}
+Una neurona calcula $a=f(Wx+b)$. Un perceptrón multicapa (MLP) encadena capas densas y aprende relaciones no lineales mediante retropropagación~\cite{goodfellow_deep_learning_2016}. Para las dos capas ocultas del modelo canónico:
 \[
-a = f(Wx + b)
+\hat{y}=\sigma\!\left(W_3 f(W_2 f(W_1x+b_1)+b_2)+b_3\right),
 \]
-Un perceptrón multicapa (\emph{MLP}, por sus siglas en inglés) es una red \emph{feed-forward} densa: capas de neuronas totalmente conectadas, donde la salida de una capa es la entrada de la siguiente. Para datos tabulares, el MLP es el estándar, y es la arquitectura usada en este proyecto.
+donde $f$ es ReLU y $\sigma$ es sigmoide. La salida sigmoide es un \emph{score} crudo; no debe llamarse probabilidad operacional hasta evaluar su calibración.
 
-\subsubsection{Activaciones}
-Se utilizaron dos funciones de activación:
-\begin{itemize}
-  \item \textbf{ReLU} (\emph{rectified linear unit}), $\max(0, x)$, en las capas ocultas: evita el desvanecimiento del gradiente y es barata de calcular.
-  \item \textbf{Sigmoide}, $\sigma(z) = \frac{1}{1+e^{-z}}$, que comprime la salida al intervalo $(0,1)$ y se interpreta como una probabilidad. Se reservó para la capa de salida, porque la tarea es clasificación binaria.
-\end{itemize}
-
-\subsubsection{Función de pérdida y backpropagation}
-La red se entrenó minimizando la \textbf{entropía cruzada binaria} (\emph{binary cross-entropy}), la pérdida correcta para clasificación binaria con salida sigmoide. Con pesos de clase $w_1$ para la clase multifatal y $w_0$ para la clase de letalidad simple:
+La pérdida es entropía cruzada binaria ponderada:
 \[
-\mathcal{L}(y,\hat{y}) = -\frac{1}{N}\sum_{i=1}^{N}\left[w_1\, y_i \log \hat{y}_i + w_0\,(1-y_i)\log(1-\hat{y}_i)\right]
+\mathcal{L}=-\frac{1}{N}\sum_{i=1}^{N}\left[w_1 y_i\log\hat{y}_i+w_0(1-y_i)\log(1-\hat{y}_i)\right].
 \]
-El descenso de gradiente y la retropropagación (\emph{backpropagation}) calculan, mediante la regla de la cadena, el gradiente de la pérdida respecto a cada peso y los actualizan en dirección contraria. La notación de la salida del MLP de dos capas usado en algunos rundowns del informe es $\hat{y} = \sigma\!\left(W_2\,f(W_1 x + b_1) + b_2\right)$.
+Se usó Adam con tasa inicial $5\times10^{-4}$, lotes de 64, pesos de clase, \emph{dropout} 0.35, regularización L2 de $3\times10^{-4}$ y parada temprana por PR-AUC de validación~\cite{kingma_adam_2014}.
 
-\subsubsection{Optimizador Adam}
-Se usó el optimizador \emph{Adam}, una variante del descenso de gradiente con momento y tasa de aprendizaje adaptativa por parámetro. La tasa inicial fue $1\times 10^{-3}$.
+\subsection{Evaluación bajo desbalance}
+La clase multifatal representa alrededor del 10\,\%, por lo que la exactitud aislada es insuficiente. Se reportan precisión, \emph{recall}, F1, PR-AUC, ROC-AUC, matriz de confusión e intervalos bootstrap. PR-AUC debe leerse contra la prevalencia: un clasificador sin capacidad de ordenamiento obtiene aproximadamente la tasa positiva.
 
-\subsubsection{Época, \emph{batch} y parada temprana}
-Una época es una pasada completa por el conjunto de entrenamiento; un \emph{batch} es el subconjunto usado en una actualización de pesos. Se usó \emph{batch size} 32, hasta 200 épocas, con \emph{early stopping} (\emph{patience} 15, restaurando los mejores pesos) monitoreando el PR-AUC de validación. Esto detiene el entrenamiento cuando la métrica de validación deja de mejorar.
+El umbral transforma scores en clases. La política canónica maximiza F1 en validación y desempata por \emph{recall}, precisión y mayor umbral. La salida cruda y la calibrada pertenecen a escalas distintas: el umbral 0.65 solo corresponde al score sigmoide, mientras que 0.20 solo corresponde a la probabilidad Platt.
 
-\subsubsection{Sobreajuste y regularización}
-El sobreajuste (\emph{overfitting}) ocurre cuando la red memoriza el entrenamiento y falla en datos nuevos; se detecta cuando el \emph{val\_loss} sube mientras el \emph{train\_loss} baja. El riesgo es alto aquí por el tamaño modesto del dataset. Para controlarlo se usaron tres mecanismos:
-\begin{itemize}
-  \item \textbf{Dropout} (0.3--0.5 entre capas ocultas), que apaga neuronas al azar en entrenamiento y obliga a representaciones redundantes.
-  \item \textbf{Batch normalization}, que normaliza activaciones por \emph{batch} y estabiliza el entrenamiento, ubicada tras la primera capa densa.
-  \item \textbf{Early stopping}, descrito arriba.
-\end{itemize}
+\subsection{Calibración probabilística}
+La calibración pregunta si, entre casos con probabilidad predicha cercana a $p$, la frecuencia observada también se aproxima a $p$. Se evalúa con Brier, ECE y curva de confiabilidad. Platt aplica una regresión logística al score; isotónica aprende una función monótona por tramos. Ambos métodos se compararon con predicciones \emph{out-of-fold} de cinco particiones exclusivamente en validación 2023, siguiendo implementaciones reproducibles de scikit-learn~\cite{scikit_learn_2024}. La calibración puede mejorar Brier y ECE, pero, si conserva el orden, no cambia PR-AUC ni ROC-AUC.
 
-\subsubsection{Escalado y codificación}
-Las redes convergen mal con características en escalas dispares, por lo que las continuas se escalaron con \texttt{StandardScaler} ajustado solo en entrenamiento. Las categóricas se codificaron con \emph{One-Hot} (baja cardinalidad) y \emph{frequency encoding} (alta cardinalidad, como el código de vía).
-
-\subsection{Clasificación vs. regresión}
-La consigna del curso admite ``predicción o clasificación''. En rigor técnico:
-\begin{itemize}
-  \item En \textbf{clasificación} la salida es una categoría discreta (multifatal/letalidad simple); la red termina en una neurona con activación sigmoide y se entrena con entropía cruzada.
-  \item En \textbf{regresión} la salida es un número continuo; la red termina en una neurona lineal y se entrena con MSE/MAE.
-\end{itemize}
-Se eligió clasificación binaria porque: el conteo de fallecidos dentro de los siniestros fatales tiene una distribución muy sesgada (89.8\,\% con exactamente un fallecido, con una cola larga que llega hasta 33), la pregunta útil de seguridad vial es ``¿alta letalidad o no?'', y la clasificación permite la batería completa de evaluación estándar (matriz de confusión, F1, curvas ROC/PR). Al clasificar, el modelo también produce una probabilidad de siniestro multifatal, cubriendo ambos términos de la consigna con precisión técnica.
-
-\subsection{Métricas bajo desbalance}
-Con la clase multifatal minoritaria, la \emph{accuracy} es engañosa. Se utilizaron:
-\begin{itemize}
-  \item \textbf{Matriz de confusión}: TP/TN/FP/FN.
-  \item \textbf{Precision}: $P = \frac{TP}{TP+FP}$.
-  \item \textbf{Recall}: $R = \frac{TP}{TP+FN}$.
-  \item \textbf{F1}: media armónica $F1 = 2\frac{P \cdot R}{P + R}$.
-  \item \textbf{Curva ROC y ROC-AUC}: TPR vs.\ FPR variando el umbral.
-  \item \textbf{Curva Precision-Recall y PR-AUC}: la métrica de monitoreo principal porque es la correcta bajo desbalance.
-\end{itemize}
-
-\subsection{Costo asimétrico y umbral de decisión}
-La sigmoide entrega una probabilidad cruda; clasificar exige un corte. No se asumió 0.5: el umbral se calibró en validación privilegiando \emph{recall}-multifatal. La justificación es la asimetría de costos en este dominio:
-
-\begin{itemize}
-  \item \textbf{Falso positivo} (el modelo dice ``alta letalidad'' y el siniestro dejó una sola víctima): se sobreestima el riesgo de un escenario; recursos de fiscalización mal asignados. \emph{Costo moderado}.
-  \item \textbf{Falso negativo} (el modelo dice ``letalidad simple'' y el siniestro dejó múltiples víctimas): se subestima un escenario de alta letalidad; no se prioriza un contexto peligroso. \textbf{Costo alto}.
-\end{itemize}
-
-\subsection{Calibración del umbral vs. calibración probabilística}
-Es importante distinguir dos conceptos que se confunden con facilidad:
-\begin{itemize}
-  \item La \textbf{calibración del umbral} decide desde qué probabilidad se etiqueta como ALTA LETALIDAD. Se realizó en el conjunto de validación.
-  \item La \textbf{calibración probabilística} diagnostica si las probabilidades predichas se parecen a frecuencias reales observadas. Primero se evaluó la sigmoide cruda con \emph{Brier score} y curva de calibración; luego se ajustó un calibrador post-hoc usando solo validación y se diagnosticó sobre el test congelado.
-\end{itemize}
-
-\subsection{Fuga de datos}
-La fuga de datos (\emph{data leakage}) ocurre cuando información del objetivo o del futuro se cuela en las entradas. En este proyecto se aplicaron dos guardias:
+\subsection{Control de fuga y reproducibilidad}
+Se aplicaron tres barreras:
 \begin{enumerate}
-  \item Las columnas de resultado (\texttt{FALLECIDOS}, \texttt{LESIONADOS}, \texttt{VEHICULOS\_DANADOS}) y las de causa post-investigación se prohibieron como entradas porque describen el desenlace del siniestro, no su contexto previo. Usarlas produciría un modelo trivial e indefendible.
-  \item Todo \emph{fit} de preprocesamiento (escalado, codificación, imputación, frecuencias de vía) se ajustó solo en el conjunto de entrenamiento, aplicando luego a validación y prueba.
+  \item Las columnas de resultado (fallecidos, lesionados y vehículos dañados), causa post-investigación y señales con faltantes dependientes del periodo no entran al modelo.
+  \item Escalador, codificadores y frecuencias de vía se ajustan solo con 2021--2022. Arquitectura, semilla, calibración y umbrales se seleccionan solo con 2023.
+  \item Los resultados 2024--2025 ya fueron observados; quedan congelados como referencia histórica y no autorizan nuevos ajustes.
 \end{enumerate}
+Semillas, versiones, hashes, esquema y artefactos se registran en el manifiesto canónico \texttt{manifest.json}.
 
-\subsection{Reproducibilidad}
-La reproducibilidad garantiza que los mismos datos más el mismo código produzcan los mismos resultados. Se fijaron semillas en \texttt{numpy}, \texttt{tensorflow}, \texttt{random} y \texttt{PYTHONHASHSEED}; las versiones de las librerías se congelaron en \texttt{requirements.txt} y los congelados por plataforma en \texttt{requirements-macos.txt} y \texttt{requirements-windows.txt}. Aun así, macOS (ARM) y Windows (x86) pueden producir diferencias numéricas mínimas por implementaciones BLAS distintas, por lo que el modelo canónico se entrenó una sola vez en la máquina del integrante con macOS y el artefacto \texttt{.keras} se versionó en Git.
-
-\subsection{Interpretabilidad con SHAP}
-SHAP (\emph{SHapley Additive exPlanations}) cuantifica la contribución marginal de cada característica a cada predicción, apoyándose en valores de Shapley de la teoría de juegos. Se utilizó para identificar el top-5 de factores de riesgo globales y para contrastar la interpretabilidad del modelo con los hallazgos del análisis exploratorio.
+\subsection{Interpretabilidad con Gradient SHAP}
+SHAP distribuye el cambio del score entre las variables respecto de un fondo~\cite{lundberg_shap_2017}. Se aplicó \texttt{shap.GradientExplainer} al score crudo de la MLP con 256 registros de fondo de entrenamiento 2021--2022 y 512 registros explicados de validación 2023. Las 162 características procesadas se agregaron en 17 grupos interpretables. La contribución firmada media no es un efecto monotónico, una recomendación de intervención ni evidencia causal.
 
 \begin{figure}[H]
   \centering
-  \setlength{\fboxsep}{4pt}
   \footnotesize
-  \begin{tabular}{@{}c@{\hspace{0.35em}}c@{\hspace{0.35em}}c@{\hspace{0.35em}}c@{\hspace{0.35em}}c@{\hspace{0.35em}}c@{\hspace{0.35em}}c@{\hspace{0.35em}}c@{\hspace{0.35em}}c@{}}
-    \fbox{\begin{minipage}{0.115\textwidth}\centering
-      \textbf{Entrada}\\
-      116 features\\
-      pre-impacto
-    \end{minipage}}
-    &
-    $\rightarrow$
-    &
-    \fbox{\begin{minipage}{0.115\textwidth}\centering
-      \textbf{Capa oculta}\\
-      Dense(32)\\
-      ReLU
-    \end{minipage}}
-    &
-    $\rightarrow$
-    &
-    \fbox{\begin{minipage}{0.115\textwidth}\centering
-      \textbf{BatchNorm}\\
-      estabiliza\\
-      activaciones
-    \end{minipage}}
-    &
-    $\rightarrow$
-    &
-    \fbox{\begin{minipage}{0.115\textwidth}\centering
-      \textbf{Dropout}\\
-      regulariza\\
-      $p=0.4$
-    \end{minipage}}
-    &
-    $\rightarrow$
-    &
-    \fbox{\begin{minipage}{0.115\textwidth}\centering
-      \textbf{Salida}\\
-      Dense(1)\\
-      sigmoide
-    \end{minipage}}
+  \setlength{\fboxsep}{5pt}
+  \begin{tabular}{@{}c@{\hspace{0.2em}}c@{\hspace{0.2em}}c@{\hspace{0.2em}}c@{\hspace{0.2em}}c@{\hspace{0.2em}}c@{\hspace{0.2em}}c@{\hspace{0.2em}}c@{\hspace{0.2em}}c@{}}
+    \fbox{\begin{minipage}{0.105\textwidth}\centering\textbf{Entrada}\\162 features\\contexto\end{minipage}}
+    & $\rightarrow$ &
+    \fbox{\begin{minipage}{0.105\textwidth}\centering\textbf{Oculta 1}\\Dense(64)\\ReLU + L2\end{minipage}}
+    & $\rightarrow$ &
+    \fbox{\begin{minipage}{0.105\textwidth}\centering\textbf{Dropout}\\$p=0.35$\\control\end{minipage}}
+    & $\rightarrow$ &
+    \fbox{\begin{minipage}{0.105\textwidth}\centering\textbf{Oculta 2}\\Dense(32)\\ReLU + L2\end{minipage}}
+    & $\rightarrow$ &
+    \fbox{\begin{minipage}{0.105\textwidth}\centering\textbf{Salida}\\Dense(1)\\sigmoide\end{minipage}}
   \end{tabular}
-  \caption{Arquitectura del MLP seleccionado (corrida R5, una capa oculta de 32 neuronas). La capa de salida sigmoide produce la probabilidad de siniestro multifatal.}
+  \caption{Arquitectura canónica \texttt{MLP\_64\_32}. La salida cruda se calibra después con Platt; la calibración no cambia los pesos.}
   \label{fig:arquitectura}
 \end{figure}

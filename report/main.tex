@@ -1,6 +1,7 @@
 \documentclass[12pt,a4paper]{article}
 
 \usepackage[spanish,es-tabla]{babel}
+\decimalpoint
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage{geometry}
@@ -9,12 +10,32 @@
 \usepackage{amsmath}
 \usepackage{listings}
 \usepackage{float}
-\usepackage{hyperref}
 \usepackage{xcolor}
+\usepackage{tcolorbox}
+\usepackage{hyperref}
 \usepackage{caption}
 \usepackage{tabularx}
 \usepackage{array}
 \usepackage{longtable}
+
+% Tipografias académicas y formales
+\usepackage{lmodern} % asegura soporte de itálica/negrita en typewriter y texto principal de alta calidad (incluye Sans-serif para cabeceras)
+
+% Formateo de cabeceras en Sans-serif (nativo de LaTeX para evitar bugs de titlesec)
+\makeatletter
+\renewcommand\section{\@startsection {section}{1}{\z@}%
+                                   {-3.5ex \@plus -1ex \@minus -.2ex}%
+                                   {2.3ex \@plus.2ex}%
+                                   {\normalfont\Large\bfseries\sffamily}}
+\renewcommand\subsection{\@startsection{subsection}{2}{\z@}%
+                                     {-3.25ex\@plus -1ex \@minus -.2ex}%
+                                     {1.5ex \@plus .2ex}%
+                                     {\normalfont\large\bfseries\sffamily}}
+\renewcommand\subsubsection{\@startsection{subsubsection}{3}{\z@}%
+                                     {-3.25ex\@plus -1ex \@minus -.2ex}%
+                                     {1.5ex \@plus .2ex}%
+                                     {\normalfont\normalsize\bfseries\sffamily}}
+\makeatother
 
 \geometry{margin=2.5cm}
 
@@ -25,21 +46,57 @@
   urlcolor=blue
 }
 
+% Paleta de colores profesionales para código
+\definecolor{codebg}{HTML}{F8FAFC}
+\definecolor{codeborder}{HTML}{E2E8F0}
+\definecolor{codekeyword}{HTML}{1E40AF}
+\definecolor{codecomment}{HTML}{475569}
+\definecolor{codestring}{HTML}{0D9488}
+\definecolor{codenumber}{HTML}{94A3B8}
+\definecolor{darkslate}{HTML}{334155}
+
 \lstset{
-  basicstyle=\ttfamily\footnotesize,
+  backgroundcolor=\color{codebg},
+  basicstyle=\ttfamily\footnotesize\color{darkslate},
   breaklines=true,
+  breakatwhitespace=true,
   frame=single,
+  frameround=tttt,
+  framerule=0.8pt,
+  rulecolor=\color{codeborder},
   numbers=left,
-  numberstyle=\tiny,
+  numberstyle=\tiny\color{codenumber},
+  numbersep=8pt,
   showstringspaces=false,
   language=Python,
-  keywordstyle=\color{blue},
-  commentstyle=\color{gray},
-  stringstyle=\color{teal}
+  keywordstyle=\bfseries\color{codekeyword},
+  commentstyle=\itshape\color{codecomment},
+  stringstyle=\color{codestring},
+  keepspaces=true,
+  basewidth=0.5em,
+  framesep=6pt
 }
 
+% Caja de arquitectura de red neuronal
+\newtcolorbox{archbox}[1]{
+  colback=#1!8!white,
+  colframe=#1!75!black,
+  width=2.5cm,
+  height=2.2cm,
+  arc=3pt,
+  boxrule=0.8pt,
+  left=2pt,
+  right=2pt,
+  top=4pt,
+  bottom=4pt,
+  valign=center,
+  halign=center,
+  nobeforeafter
+}
+
+
 \title{Clasificación de alta letalidad en siniestros viales fatales del Perú\\[0.3em]
-\large Red neuronal para predicción de siniestros multifatales (ONSV 2021--2025)}
+\large Red neuronal para priorización posterior a la notificación (ONSV 2021--2025)}
 \author{Rendo \and Yimmy \\[0.3em] \small Curso: Redes Neuronales --- Segunda Unidad}
 \date{2026}
 

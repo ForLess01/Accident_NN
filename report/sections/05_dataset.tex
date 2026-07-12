@@ -9,8 +9,8 @@ Se utilizó la base \emph{SINIESTROS DE TRANSITO FATALES 2021--2025 (PRELIMINAR)
 
 \noindent El portal describe el recurso como: ``Detalle de siniestros de tránsito con consecuencias fatales, ocurridos a nivel nacional, 2021--2025 (preliminar)'', autor ONSV. El archivo original se mantiene en \texttt{data/raw/BBDD\_ONSV\_SINIESTROS\_FATALES\_2021-2025.xlsx} (hoja \texttt{SINIESTROS}, encabezado en la fila 5). La fecha de descarga y verificación local fue el 2026-07-09. Es un dato abierto del Estado peruano, lo que permite libre reuso con atribución. El ONSV declara la información de 2025 como preliminar.
 
-\subsection{Por qué se cambió la fuente}
-La primera iteración del proyecto usó el registro Sutran 2020--2021 de accidentes en carreteras, que permite construir el target mortal/no-mortal pero solo ofrece seis variables base (fecha, hora, departamento, vía, kilómetro y modalidad), sin ninguna condición del entorno. La evaluación crítica de esa iteración mostró un techo informacional: la red empataba con la regresión logística porque no había señal suficiente que aprender. La base ONSV aporta las variables pre-impacto que la literatura reconoce como determinantes (clima, geometría y superficie de la vía, ruralidad, red vial, coordenadas), al costo de restringir el universo a siniestros fatales. Se aceptó ese costo reformulando el problema hacia la alta letalidad, en lugar de mezclar fuentes con criterios de registro incompatibles.
+\subsection{Adecuación de la fuente}
+La base ONSV aporta fecha, hora, localización, clase notificada, clima, geometría, superficie y clasificación vial. Estas variables permiten estudiar asociaciones de multifatalidad sin mezclar fuentes con criterios de registro incompatibles. Su límite es igualmente claro: al contener solo siniestros fatales, obliga a formular un objetivo condicional de alta letalidad y no una predicción de mortalidad general.
 
 \subsection{Diccionario de datos base}
 La \autoref{tab:diccionario} resume las variables del registro y su rol en el proyecto.
@@ -19,14 +19,14 @@ La \autoref{tab:diccionario} resume las variables del registro y su rol en el pr
 \centering
 \caption{Variables del registro ONSV y su rol en el proyecto.}
 \label{tab:diccionario}
-\begin{tabular}{lll}
+\begin{tabularx}{\textwidth}{p{3.5cm} p{4.2cm} X}
 \toprule
 Columna & Rol & Justificación \\
 \midrule
 \texttt{FECHA}, \texttt{HORA} & Característica (derivar) & Estacionalidad, nocturnidad, fatiga \\
 \texttt{DEPARTAMENTO} & Característica categórica & Geografía del riesgo \\
 \texttt{ZONA} & Característica categórica & Ruralidad: velocidades y respuesta médica \\
-\texttt{RED VIAL} & Característica categórica & Nacional/departamental/provincial/urbana \\
+\texttt{RED VIAL} & Característica categórica & Nacional\slash departamental\slash provincial\slash urbana \\
 \texttt{TIPO DE VÍA} & Característica categórica & Carretera, avenida, calle, vía expresa \\
 \texttt{COD CARRETERA} & Característica (derivar) & Familias de vías y frecuencia \\
 \texttt{COORDENADAS} & Característica numérica & Señal espacial continua \\
@@ -39,15 +39,18 @@ Columna & Rol & Justificación \\
 \texttt{CANTIDAD DE LESIONADOS} & \textbf{Excluida} & Resultado posterior (fuga) \\
 \texttt{CANTIDAD VEHÍCULOS DAÑADOS} & \textbf{Excluida} & Resultado posterior (fuga) \\
 \texttt{CAUSA (factor y específica)} & \textbf{Excluida} & Se determina en la investigación posterior \\
-\texttt{SEÑALES vertical/horizontal} & \textbf{Excluida} & 78\,\% de faltantes concentrados por periodo \\
+\texttt{SEÑALES vertical\slash horizontal} & \textbf{Excluida} & 78\,\% de faltantes concentrados por periodo \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
 \end{table}
 
 \subsection{Variable objetivo}
 Se construyó el target binario condicional al universo de siniestros fatales:
 \[
-y = 1 \iff \texttt{FALLECIDOS} \geq 2 \quad \text{(``ALTA LETALIDAD'')}, \qquad y = 0 \iff \texttt{FALLECIDOS} = 1
+y = \begin{cases}
+1, & \text{si } \text{FALLECIDOS} \geq 2 \quad \text{(``Alta Letalidad'')} \\
+0, & \text{si } \text{FALLECIDOS} = 1
+\end{cases}
 \]
 La prohibición de \texttt{LESIONADOS}, \texttt{VEHICULOS\_DANADOS} y las columnas de causa como entradas se declara explícitamente como decisión metodológica en la \autoref{sec:preprocesamiento}: los conteos se levantan después del siniestro (fuga directa del resultado) y la causa se codifica al cierre de la investigación (el 49\,\% figura ``en proceso de investigación'').
 
@@ -63,7 +66,7 @@ La auditoría (Bloque B) verificó y registró:
   \item Coordenadas fuera del territorio peruano anuladas: 1 registro.
 \end{itemize}
 
-Como $3\,000 \leq N < 10\,000$ se aplicó la contingencia C2 (arquitectura A, \emph{split} 70/15/15). Como el porcentaje de clase multifatal se ubica entre 5\,\% y 25\,\%, se aplicó C5: \texttt{class\_weight} sin SMOTE. \autoref{tab:audit} resume la auditoría.
+El protocolo usa un corte cronológico 2021--2022 / 2023 / 2024--2025. Como la clase multifatal representa 10.19\,\%, se usan pesos de clase sin SMOTE: sintetizar combinaciones categóricas y geográficas habría introducido casos difíciles de justificar. \autoref{tab:audit} resume la auditoría de fuente.
 
 \begin{table}[H]
 \centering

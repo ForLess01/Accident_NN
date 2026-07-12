@@ -8,6 +8,8 @@ __pycache__/
 # Regenerable local outputs
 data/processed/*
 !data/processed/.gitkeep
+!data/processed/base_limpia.parquet
+!data/processed/demo_cases.csv
 data/geo/*
 !data/geo/.gitkeep
 !data/geo/peru_departamentos_simple.geojson
@@ -32,4 +34,3 @@ report/output/*
 *.nav
 *.bcf
 *.run.xml
-

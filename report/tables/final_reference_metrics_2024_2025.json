@@ -1,0 +1,30 @@
+{
+  "reference_partition": "2024-2025",
+  "endpoint_status": "historical reference; labels have already been observed and cannot support further tuning",
+  "raw": {
+    "n": 2232,
+    "positives": 222,
+    "class_rate": 0.09946236559139784,
+    "threshold": 0.65,
+    "f1_multifatal": 0.30303030303030304,
+    "precision_multifatal": 0.2345679012345679,
+    "recall_multifatal": 0.42792792792792794,
+    "pr_auc": 0.22488456244372435,
+    "roc_auc": 0.7481914750571468,
+    "brier": 0.18168342113494873,
+    "ece_10_bins": 0.2623002306394627
+  },
+  "calibrated": {
+    "n": 2232,
+    "positives": 222,
+    "class_rate": 0.09946236559139784,
+    "threshold": 0.2,
+    "f1_multifatal": 0.2957983193277311,
+    "precision_multifatal": 0.2359249329758713,
+    "recall_multifatal": 0.3963963963963964,
+    "pr_auc": 0.22488456244372435,
+    "roc_auc": 0.7481914750571468,
+    "brier": 0.08306565514471038,
+    "ece_10_bins": 0.008530335292795411
+  }
+}

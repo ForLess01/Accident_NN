@@ -1,0 +1,12 @@
+{
+  "split_sizes": {
+    "train": 4872,
+    "validation": 2000,
+    "reference": 2232
+  },
+  "feature_count": 162,
+  "selected_config": "MLP_64_32",
+  "selected_threshold": 0.65,
+  "reference_period_used_for_selection": false,
+  "selected_seed": 314
+}

@@ -1,0 +1,9 @@
+probability_scale,actual,predicted,count
+raw,0,0,1700
+raw,0,1,310
+raw,1,0,127
+raw,1,1,95
+calibrated,0,0,1725
+calibrated,0,1,285
+calibrated,1,0,134
+calibrated,1,1,88
