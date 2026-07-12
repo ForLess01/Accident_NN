@@ -22,6 +22,7 @@ if str(ROOT) not in sys.path:
 from src.app_inference import (
     InputContractError,
     RuntimeArtifactError,
+    departments_for_point,
     historical_comparison,
     load_clean_dataset,
     load_demo_cases,
@@ -199,6 +200,28 @@ def cached_regional_summary() -> pd.DataFrame:
     return regional_summary(MINIMUM_REGIONAL_SUPPORT)
 
 
+TRACKING_DIMENSIONS = {
+    "Clase de siniestro": "CLASE",
+    "Zona": "ZONA",
+    "Clima": "CLIMA",
+    "Red vial": "RED_VIAL",
+    "Tipo de vía": "TIPO_VIA",
+    "Departamento": "DEPARTAMENTO",
+}
+
+
+@st.cache_data(show_spinner=False)
+def cached_reference_with_features() -> pd.DataFrame:
+    """Frozen 2024-2025 predictions joined with the registry context of each record."""
+    probabilities = load_reference_artifacts()["probabilities"]
+    base = cached_clean_dataset()
+    context = base.loc[probabilities["row_index"].to_numpy(), list(TRACKING_DIMENSIONS.values())].reset_index(drop=True)
+    joined = pd.concat([probabilities.reset_index(drop=True), context], axis=1)
+    for column in TRACKING_DIMENSIONS.values():
+        joined[column] = joined[column].fillna("SIN DATO").astype(str)
+    return joined
+
+
 @st.cache_data(show_spinner=False)
 def load_reference_artifacts() -> dict[str, Any]:
     tables = ROOT / "report" / "tables"
@@ -334,6 +357,88 @@ def _risk_ordering_chart(probabilities: pd.DataFrame) -> tuple[go.Figure, pd.Dat
     return _plot_layout(fig, height=430, legend=True), table
 
 
+def _category_tracking_chart(joined: pd.DataFrame, column: str, label: str) -> tuple[go.Figure, pd.DataFrame]:
+    grouped = (
+        joined.groupby(column)
+        .agg(
+            observada=("actual_multifatal", "mean"),
+            predicha=("calibrated_probability", "mean"),
+            n=("actual_multifatal", "size"),
+            multifatales=("actual_multifatal", "sum"),
+        )
+        .reset_index()
+        .rename(columns={column: "categoria"})
+    )
+    grouped = grouped[grouped["n"] >= MINIMUM_REGIONAL_SUPPORT].sort_values("observada")
+    grouped["observada_pct"] = grouped["observada"] * 100
+    grouped["predicha_pct"] = grouped["predicha"] * 100
+    intervals = [wilson_interval(int(positives), int(n)) for positives, n in zip(grouped["multifatales"], grouped["n"])]
+    grouped["ci_inf_pct"] = [low * 100 for low, _ in intervals]
+    grouped["ci_sup_pct"] = [high * 100 for _, high in intervals]
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=grouped["observada_pct"], y=grouped["categoria"], mode="markers", name="Tasa multifatal observada",
+        marker=dict(color=INK, size=11),
+        error_x=dict(type="data", array=grouped["ci_sup_pct"] - grouped["observada_pct"], arrayminus=grouped["observada_pct"] - grouped["ci_inf_pct"], color=MUTED, thickness=1.3),
+        customdata=grouped[["n", "multifatales"]],
+        hovertemplate="<b>%{y}</b><br>Observada: %{x:.1f}%<br>Multifatales: %{customdata[1]:,} de %{customdata[0]:,}<extra></extra>",
+    ))
+    fig.add_trace(go.Scatter(
+        x=grouped["predicha_pct"], y=grouped["categoria"], mode="markers", name="Probabilidad media del modelo",
+        marker=dict(color=ORANGE, symbol="diamond", size=12, line=dict(color="#FFFFFF", width=1.2)),
+        hovertemplate="<b>%{y}</b><br>Predicha media: %{x:.1f}%<extra></extra>",
+    ))
+    fig.update_layout(title=f"Por {label.lower()}: lo que el modelo estimó vs. lo que ocurrió en 2024–2025")
+    fig.update_xaxes(title="Multifatalidad (%)", rangemode="tozero")
+    fig.update_yaxes(title=None)
+    height = max(360, 90 + 42 * len(grouped))
+    table = grouped[["categoria", "n", "multifatales", "observada_pct", "predicha_pct", "ci_inf_pct", "ci_sup_pct"]].round(2)
+    return _plot_layout(fig, height=height, legend=True), table
+
+
+def _category_monthly_chart(joined: pd.DataFrame, column: str, category: str, label: str) -> tuple[go.Figure | None, pd.DataFrame]:
+    subset = joined[joined[column] == category].copy()
+    subset["mes"] = pd.to_datetime(subset["fecha"]).dt.to_period("M").dt.to_timestamp()
+    monthly = (
+        subset.groupby("mes")
+        .agg(
+            observada=("actual_multifatal", "mean"),
+            predicha=("calibrated_probability", "mean"),
+            n=("actual_multifatal", "size"),
+            multifatales=("actual_multifatal", "sum"),
+        )
+        .reset_index()
+    )
+    monthly = monthly[monthly["n"] >= MINIMUM_REGIONAL_SUPPORT].copy()
+    if len(monthly) < 4:
+        return None, pd.DataFrame()
+    monthly["observada_pct"] = monthly["observada"] * 100
+    monthly["predicha_pct"] = monthly["predicha"] * 100
+    intervals = [wilson_interval(int(positives), int(n)) for positives, n in zip(monthly["multifatales"], monthly["n"])]
+    monthly["ci_inf_pct"] = [low * 100 for low, _ in intervals]
+    monthly["ci_sup_pct"] = [high * 100 for _, high in intervals]
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=monthly["mes"], y=monthly["observada_pct"], mode="lines+markers", name="Tasa multifatal observada",
+        line=dict(color=INK, width=2.2), marker=dict(size=7, color=INK),
+        error_y=dict(type="data", array=monthly["ci_sup_pct"] - monthly["observada_pct"], arrayminus=monthly["observada_pct"] - monthly["ci_inf_pct"], color="rgba(32,37,34,.35)", thickness=1.2),
+        customdata=monthly[["n", "multifatales"]],
+        hovertemplate="%{x|%b %Y}<br>Observada: %{y:.1f}%<br>Multifatales: %{customdata[1]:,} de %{customdata[0]:,}<extra></extra>",
+    ))
+    fig.add_trace(go.Scatter(
+        x=monthly["mes"], y=monthly["predicha_pct"], mode="lines+markers", name="Probabilidad media del modelo",
+        line=dict(color=ORANGE, width=2.2, dash="dot"), marker=dict(size=7, color=ORANGE, symbol="diamond"),
+        hovertemplate="%{x|%b %Y}<br>Predicha media: %{y:.1f}%<extra></extra>",
+    ))
+    fig.update_layout(title=f"{label}: {category} · seguimiento mensual del modelo frente a la realidad")
+    fig.update_xaxes(title="Mes")
+    fig.update_yaxes(title="Multifatalidad (%)", rangemode="tozero")
+    table = monthly.assign(mes=monthly["mes"].dt.strftime("%Y-%m"))[
+        ["mes", "n", "multifatales", "observada_pct", "predicha_pct", "ci_inf_pct", "ci_sup_pct"]
+    ].round(2)
+    return _plot_layout(fig, height=420, legend=True), table
+
+
 def overview_page(manifest: dict[str, Any]) -> None:
     st.header("Panorama")
     metrics = manifest["reference_evaluation"]["metrics"]["calibrated"]
@@ -389,6 +494,41 @@ def overview_page(manifest: dict[str, Any]) -> None:
             "Las barras incluyen intervalos de Wilson al 95 %."
         )
         _table_fallback("multifatalidad observada por quintil de score", ordering_table, key="quintiles_score")
+
+        st.subheader("Elegí una categoría y mirá cómo predice el modelo")
+        st.write(
+            "La misma comparación, desagregada: para cada categoría del registro, la tasa multifatal que ocurrió en "
+            "2024–2025 frente a la probabilidad media que el modelo asignó. Solo se muestran categorías con al menos "
+            f"{MINIMUM_REGIONAL_SUPPORT} registros."
+        )
+        joined = cached_reference_with_features()
+        dimension_label = st.selectbox("Dimensión del registro", list(TRACKING_DIMENSIONS), index=0, key="tracking_dimension")
+        dimension_column = TRACKING_DIMENSIONS[dimension_label]
+        category_fig, category_table = _category_tracking_chart(joined, dimension_column, dimension_label)
+        st.plotly_chart(category_fig, width="stretch", config={"displayModeBar": False})
+        st.caption(
+            "Cuando el rombo naranja cae dentro del intervalo del punto negro, el modelo estimó bien esa categoría "
+            "sin haber visto sus etiquetas. Intervalos de Wilson al 95 %."
+        )
+        _table_fallback("predicho vs. observado por categoría", category_table, key="categoria_tracking")
+
+        if not category_table.empty:
+            drill_options = category_table.sort_values("n", ascending=False)["categoria"].tolist()
+            drill_category = st.selectbox(
+                f"Seguimiento mensual para una categoría de {dimension_label.lower()}",
+                drill_options,
+                index=0,
+                key="tracking_category",
+            )
+            drill_fig, drill_table = _category_monthly_chart(joined, dimension_column, drill_category, dimension_label)
+            if drill_fig is None:
+                st.info(
+                    f"«{drill_category}» no reúne suficientes meses con n ≥ {MINIMUM_REGIONAL_SUPPORT} para una serie mensual "
+                    "estable; la comparación agregada de arriba sigue siendo válida."
+                )
+            else:
+                st.plotly_chart(drill_fig, width="stretch", config={"displayModeBar": False})
+                _table_fallback("seguimiento mensual de la categoría", drill_table, key="categoria_mensual")
     except RuntimeArtifactError as exc:
         st.warning(f"No se pudo cargar la evidencia congelada para la demostración: {exc}")
 
@@ -534,13 +674,22 @@ def _location_picker() -> None:
             if (clicked_latitude, clicked_longitude) != (picked_latitude, picked_longitude):
                 st.session_state["input_latitude"] = clicked_latitude
                 st.session_state["input_longitude"] = clicked_longitude
+                matches = departments_for_point(clicked_latitude, clicked_longitude)
+                if matches:
+                    # Deterministic reverse lookup on the same versioned
+                    # polygons used by input validation; a border click keeps
+                    # the first match and validation re-checks on submit.
+                    st.session_state["input_department"] = matches[0]
                 st.session_state.pop("canonical_result", None)
                 st.rerun()
         if has_pick:
+            department_note = st.session_state.get("input_department")
+            department_suffix = f" Departamento deducido: {department_note}." if department_note else ""
             st.caption(
                 f"Seleccionado: {format_number_es(picked_latitude, digits=6)}, "
-                f"{format_number_es(picked_longitude, digits=6)}. Podés ajustar los valores a mano en el formulario; "
-                "la validación Perú–departamento se aplica al enviar."
+                f"{format_number_es(picked_longitude, digits=6)}.{department_suffix} "
+                "El resto de los campos (zona, tipo de vía, clima…) describe cómo el ONSV registró el siniestro y no puede "
+                "deducirse del mapa con honestidad; completalos según el registro. La validación Perú–departamento se aplica al enviar."
             )
 
 

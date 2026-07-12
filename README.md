@@ -78,7 +78,7 @@ No se debe ajustar arquitectura, calibrador o umbrales con 2024-2025: esas etiqu
 - Los campos requeridos comienzan vacíos; los opcionales usan `NO INFORMADO`.
 - **Cargar caso de demostración** completa explícitamente un registro real de validación.
 - La fecha se restringe al periodo documentado 2021-2025.
-- La ubicación puede elegirse con un clic en un mapa OpenStreetMap acotado al Perú (con carreteras, calles y límites departamentales); el clic completa latitud y longitud en el formulario. El mapa requiere internet para el fondo; sin conexión, los campos numéricos siguen operativos.
+- La ubicación puede elegirse con un clic en un mapa OpenStreetMap acotado al Perú (con carreteras, calles y límites departamentales); el clic completa latitud, longitud y deduce el departamento con los mismos polígonos versionados de la validación. Los campos de escena (zona, tipo de vía, clima) no se deducen del mapa porque describen cómo el ONSV registró el siniestro. El mapa requiere internet para el fondo; sin conexión, los campos numéricos siguen operativos.
 - Las coordenadas deben formar un par dentro del Perú y corresponder al departamento elegido.
 - El código de vía ofrece búsqueda sobre códigos conocidos y advierte cuando recibe uno nuevo con formato válido.
 - Los comparadores de subgrupo con soporte menor que 30 se enmascaran.
