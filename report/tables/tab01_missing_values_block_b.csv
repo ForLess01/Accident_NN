@@ -26,3 +26,15 @@ CAUSA_FACTOR,0.0
 CAUSA_ESPECIFICA,0.9007029876977152
 hora_entera,0.0
 target_multifatal,0.0
+n_vehiculos,0.0
+n_bus,0.0
+n_pesado_carga,0.0
+n_moto,0.0
+n_no_identificado,0.0
+n_interprovincial,0.0
+n_transporte_publico,0.0
+n_personas,0.0
+n_pasajeros,0.0
+n_peatones,0.0
+n_conductor_fugado,0.0
+edad_media_involucrados,3.372144112478032

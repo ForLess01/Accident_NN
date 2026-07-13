@@ -12,12 +12,13 @@ Proyecto académico de redes neuronales que estima la probabilidad de **dos o m�
 | Entrenamiento | 2021-2022: 4 872 registros |
 | Selección y calibración | 2023: 2 000 registros |
 | Referencia histórica | 2024-2025: 2 232 registros |
-| Entrada | 162 características sin variables de resultado |
-| Arquitectura | `MLP_64_32`, ReLU, dropout 0.35, L2, semilla 314 |
+| Bases companion (v2) | VEHICULOS (12 667 filas) y PERSONAS (25 412 filas), join 100% por código |
+| Entrada | 175 características sin variables de resultado ni desenlaces por persona |
+| Arquitectura | `MLP_32_16`, ReLU, dropout 0.25, L2, semilla 314 |
 | Calibración desplegada | Platt, seleccionada por Brier OOF en 2023 |
-| Umbral calibrado | 0.20, seleccionado con predicciones OOF de 2023 |
+| Umbral calibrado | 0.30, seleccionado con predicciones OOF de 2023 |
 
-La referencia 2024-2025 produjo PR-AUC **0.2249**, ROC-AUC **0.7482** y F1 multifatal **0.2958** en la escala calibrada. La MLP supera nominalmente a los baselines en métricas de ranking; la regresión logística conserva mayor F1 (**0.3183**). Por rigor, el proyecto **no afirma superioridad universal** de la red.
+La referencia 2024-2025 produjo PR-AUC **0.4416** [IC 95% 0.3785-0.5124], ROC-AUC **0.8841** [0.8613-0.9055] y F1 multifatal **0.5058** en la escala calibrada (Brier 0.0683, ECE 0.0169). La versión 1 del proyecto (solo registro de siniestros, 162 features) obtuvo PR-AUC 0.2249 y ROC-AUC 0.7482: la comparación v1→v2 demuestra que el techo era informacional y que los agregados de escena de las bases companion casi duplican la discriminación. El bootstrap pareado muestra ventaja **estadísticamente significativa** de la red sobre la regresión logística en ROC-AUC (Δ+0.026 [+0.012, +0.042]) y empate estadístico con el Random Forest; la evaluación v2 constituye la segunda consulta declarada a la referencia 2024-2025.
 
 ## Ejecución rápida en macOS
 
@@ -80,6 +81,7 @@ No se debe ajustar arquitectura, calibrador o umbrales con 2024-2025: esas etiqu
 - La fecha se restringe al periodo documentado 2021-2025.
 - La ubicación puede elegirse con un clic en un mapa OpenStreetMap acotado al Perú (con carreteras, calles y límites departamentales); el clic completa latitud, longitud y deduce el departamento con los mismos polígonos versionados de la validación. Los campos de escena (zona, tipo de vía, clima) no se deducen del mapa porque describen cómo el ONSV registró el siniestro. El mapa requiere internet para el fondo; sin conexión, los campos numéricos siguen operativos.
 - Las coordenadas deben formar un par dentro del Perú y corresponder al departamento elegido.
+- La sección de escena (v2) pide vehículos y personas involucradas: totales requeridos, desgloses opcionales con validación de coherencia, y edad media opcional. No se ingresa ningún desenlace por persona.
 - El código de vía ofrece búsqueda sobre códigos conocidos y advierte cuando recibe uno nuevo con formato válido.
 - Los comparadores de subgrupo con soporte menor que 30 se enmascaran.
 
@@ -89,7 +91,8 @@ No se debe ajustar arquitectura, calibrador o umbrales con 2024-2025: esas etiqu
 app/streamlit_app.py              interfaz profesional
 src/block_b_dataset_audit.py      limpieza reproducible de la fuente ONSV
 src/block_c_eda.py                análisis exploratorio
-src/model_protocol.py             corte cronológico y 162 características
+src/model_protocol.py             corte cronológico y 175 características
+src/final_paired_comparison.py    bootstrap pareado vs logística y Random Forest
 src/block_e_modeling.py           búsqueda y selección de la MLP
 src/final_model_bundle.py         calibración, evaluación, hashes e inferencia
 src/final_evaluation_figures.py   figuras de selección y comparación

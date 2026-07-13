@@ -44,12 +44,12 @@ def run_block_g_check(run_apptest: bool = True) -> dict[str, object]:
     checklist: list[dict[str, object]] = [
         {
             "check": "canonical_manifest_loaded",
-            "passed": manifest["model_version"] == "canonical-1.0.0",
+            "passed": manifest["model_version"] == "canonical-2.0.0",
             "detail": str(manifest["model_version"]),
         },
         {
             "check": "model_schema_feature_alignment",
-            "passed": int(runtime.model.input_shape[-1]) == int(schema["processed_feature_count"]) == 162,
+            "passed": int(runtime.model.input_shape[-1]) == int(schema["processed_feature_count"]) == 175,
             "detail": f'model={runtime.model.input_shape[-1]}; schema={schema["processed_feature_count"]}',
         },
         {
@@ -60,8 +60,8 @@ def run_block_g_check(run_apptest: bool = True) -> dict[str, object]:
         {
             "check": "probability_scales_are_explicit",
             "passed": bool(
-                float(thresholds["raw"]["value"]) == 0.65
-                and float(thresholds["calibrated"]["value"]) == 0.20
+                float(thresholds["raw"]["value"]) == 0.8
+                and float(thresholds["calibrated"]["value"]) == 0.3
                 and "raw_probability" in predictions
                 and "calibrated_probability" in predictions
             ),

@@ -7,7 +7,7 @@ H4: La comparación por día de semana (fig05) muestra que la cantidad de sinies
 H5: La clase de siniestro más frecuente fue CHOQUE con 3260 casos (fig06), mientras que la mayor tasa multifatal fue DESPISTE con 17.7% (fig07). Esto anticipa que la clase de siniestro debe ser una variable dominante.
 H6: LIMA concentra la mayor cantidad de siniestros fatales (1917) (fig08), pero HUANCAVELICA lidera la tasa multifatal con 28.0% entre departamentos con al menos 30 casos (fig09). El ranking por volumen no equivale al ranking por letalidad.
 H7: El código de carretera con mayor número de siniestros fue PE-1N con 1032 registros (fig10). Esto respalda el uso de frecuencia de vía como feature, calculada solo en train para evitar fuga.
-H8: Las condiciones iniciales separan el riesgo (fig11): zona rural 15.1% vs urbana 3.6%, y clima lluvioso 17.6% vs despejado 9.8%. Estas variables aportan contexto relevante para el modelo.
+H8: Las condiciones pre-impacto separan el riesgo (fig11): zona rural 15.1% vs urbana 3.6%, y clima lluvioso 17.6% vs despejado 9.8%. Estas variables aportan contexto relevante para el modelo.
 H9: El mapa mes × hora (fig12) evidencia patrones combinados de temporalidad. Por eso no basta con incluir fecha u hora cruda: se derivan mes, franja y codificación cíclica.
 H10: La columna con mayor porcentaje de faltantes en la base limpia fue SENAL_HORIZONTAL con 77.9% (fig13). Las señales viales se excluyen del modelo por ese motivo; el resto admite imputación simple con flags.
 H11: El scatter geográfico (fig23) muestra los siniestros siguiendo los corredores viales del país, con eventos multifatales distribuidos en todas las regiones. Las coordenadas aportan señal espacial continua que complementa al departamento.

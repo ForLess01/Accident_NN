@@ -92,8 +92,8 @@ def test_persisted_explainability_schema_values_and_hashes() -> None:
         "mean_signed_grouped_shap", "positive_contribution_share", "average_direction", "importance_share",
     }
     assert required_group_columns.issubset(groups.columns)
-    assert len(features) == manifest["feature_count"] == 162
-    assert groups["processed_feature_count"].sum() == 162
+    assert len(features) == manifest["feature_count"] == 175
+    assert groups["processed_feature_count"].sum() == 175
     assert np.isfinite(groups.select_dtypes(include="number").to_numpy()).all()
     assert np.isfinite(features.select_dtypes(include="number").to_numpy()).all()
     assert provenance["background_partition"] == "training_2021_2022_only"
@@ -113,7 +113,7 @@ def test_ui_loader_returns_hash_verified_validation_only_evidence() -> None:
     app_inference.load_explainability_artifacts.cache_clear()
     evidence = app_inference.load_explainability_artifacts()
     assert not evidence["groups"].empty
-    assert len(evidence["features"]) == 162
+    assert len(evidence["features"]) == 175
     assert evidence["provenance"]["explanation_partition"] == "validation_2023_only"
     assert evidence["figure"].name == "final_explainability_global.png"
 

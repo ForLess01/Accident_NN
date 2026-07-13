@@ -1,6 +1,6 @@
 \section{Ingeniería de características}\label{sec:ingenieria}
 
-Se construyeron 162 características a partir de información disponible al registrar inicialmente un siniestro ya fatal. No se agregaron variables externas inventadas ni proxies del desenlace.
+El contrato canónico de la versión 2 tiene 175 características construidas a partir de información disponible al registrar inicialmente un siniestro ya fatal. No se agregaron variables externas inventadas ni proxies del desenlace.
 
 \begin{longtable}{p{3.3cm}p{3.2cm}p{3.4cm}p{4.2cm}}
 \caption{Familias principales del contrato canónico.}\label{tab:features-principales}\\
@@ -16,12 +16,13 @@ Temporal & Cíclica + indicadores & mes, día semanal, hora, nocturnidad, fin de
 Geográfica & Escalado + \emph{one-hot} & latitud, longitud, departamento, región natural & Contexto territorial sin usar el resultado \\
 Vía & Frecuencia + categorías & código, prefijo, red, tipo, zona & Maneja cardinalidad y códigos nuevos \\
 Escena inicial & Categorías cerradas & clase, clima, geometría, perfil, superficie & Disponible después de la notificación \\
+Escena agregada (v2) & Conteos escalados & vehículos, buses, pesados, motos, interprovincial, personas, pasajeros, peatones, fugados, edad media & Exposición y composición vehicular del evento, sin desenlaces por persona \\
 Interacciones & Productos predeclarados & noche$\times$rural, lluvia$\times$curva, tipo$\times$zona, red$\times$clase & Permite relaciones no aditivas defendibles \\
-Faltantes & Indicadores explícitos & hora faltante, coordenadas faltantes & Evita imputación silenciosa \\
+Faltantes & Indicadores explícitos & hora faltante, coordenadas faltantes, edad faltante & Evita imputación silenciosa \\
 \bottomrule
 \end{longtable}
 
-La expansión principal del contrato proviene de ciclos cronológicos, región natural e interacciones estructuradas. El modelo final incluye, entre otras, 18 combinaciones tipo de vía$\times$zona y 30 combinaciones red vial$\times$clase. La selección no se hizo mirando 2024--2025: el contrato se congeló antes de reportar ese periodo.
+La versión 1 del contrato tenía 162 características; la versión 2 agrega los doce agregados de escena de las bases companion más el indicador de edad faltante. Los conteos se estandarizan con estadísticos de entrenamiento 2021--2022 y la edad media se imputa con la mediana de entrenamiento acompañada de su indicador. El contrato se congeló antes de la evaluación de referencia de la versión 2.
 
 \subsection{Disponibilidad y alcance}
-Fecha, hora, ubicación y vía pueden conocerse al despacho o geocodificarse; zona, clima y geometría pueden provenir del registro inicial; la clase del evento se conoce después de la notificación. En cambio, fallecidos, lesionados, daños y causas de investigación se excluyen. Esta auditoría respalda la afirmación precisa: el modelo prioriza registros posteriores al evento, no previene siniestros antes de que ocurran.
+Fecha, hora, ubicación y vía pueden conocerse al despacho o geocodificarse; zona, clima, geometría y los agregados de vehículos y personas provienen de la caracterización inicial del evento; la clase se conoce después de la notificación. En cambio, fallecidos, lesionados, daños, gravedad por persona, dosajes y causas de investigación se excluyen. Esta auditoría respalda la afirmación precisa: el modelo prioriza registros posteriores al evento, no previene siniestros antes de que ocurran.

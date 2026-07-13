@@ -50,6 +50,19 @@ EXPLANATION_RAW_COLUMNS = [
     "CARACTERISTICA_VIA",
     "PERFIL_VIA",
     "SUPERFICIE",
+    # v2 scene aggregates; per-person outcome columns never enter this list.
+    "n_vehiculos",
+    "n_bus",
+    "n_pesado_carga",
+    "n_moto",
+    "n_no_identificado",
+    "n_interprovincial",
+    "n_transporte_publico",
+    "n_personas",
+    "n_pasajeros",
+    "n_peatones",
+    "n_conductor_fugado",
+    "edad_media_involucrados",
 ]
 
 
@@ -133,6 +146,12 @@ def feature_group(feature: str) -> str:
         return "TIPO_VIA × ZONA"
     if feature.startswith("road_network_class_"):
         return "RED_VIAL × CLASE"
+    if feature in {"n_vehiculos", "n_bus", "n_pesado_carga", "n_moto", "n_no_identificado", "n_interprovincial", "n_transporte_publico"}:
+        return "VEHICULOS INVOLUCRADOS"
+    if feature in {"n_personas", "n_pasajeros", "n_peatones", "n_conductor_fugado"}:
+        return "PERSONAS INVOLUCRADAS"
+    if feature in {"edad_media_involucrados", "edad_faltante"}:
+        return "EDAD INVOLUCRADOS"
     raise ValueError(f"Processed feature has no interpretable group: {feature}")
 
 

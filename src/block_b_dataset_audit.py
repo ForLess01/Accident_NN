@@ -19,6 +19,34 @@ XLSX_PATH = RAW_DIR / XLSX_NAME
 SHEET_NAME = "SINIESTROS"
 HEADER_ROW = 4
 
+VEHICLES_PATH = RAW_DIR / "BBDD_ONSV_VEHICULOS_2021-2025.xlsx"
+PERSONS_PATH = RAW_DIR / "BBDD_ONSV_PERSONAS_2021-2025.xlsx"
+COMPANION_HEADER_ROW = 4
+
+# Scene-level aggregates derived from the companion tables. Per-person outcome
+# columns (GRAVEDAD, lugar de atencion/defuncion) and post-investigation tests
+# (dosaje etilico) are banned: they encode the target or arrive later.
+COMPANION_FEATURES = [
+    "n_vehiculos",
+    "n_bus",
+    "n_pesado_carga",
+    "n_moto",
+    "n_no_identificado",
+    "n_interprovincial",
+    "n_transporte_publico",
+    "n_personas",
+    "n_pasajeros",
+    "n_peatones",
+    "n_conductor_fugado",
+    "edad_media_involucrados",
+]
+HEAVY_PASSENGER_TYPES = {"ÓMNIBUS", "OMNIBUS", "MINIBUS", "MICROBUS", "MICROBÚS"}
+HEAVY_CARGO_TYPES = {
+    "CAMIÓN", "CAMION", "REMOLCADOR", "REMOLCADOR-SEMIREMOLQUE", "SEMIREMOLQUE",
+    "REMOLQUE", "TRACTO CAMION", "VOLQUETE", "CISTERNA",
+}
+LIGHT_TWO_THREE_WHEEL_TYPES = {"MOTOCICLETA", "TRIMOTO PASAJERO", "TRIMOTO CARGA", "BICICLETA", "BICIMOTO"}
+
 SEED = 42
 
 # ONSV column -> canonical column. Post-outcome columns (lesionados, vehiculos
@@ -91,6 +119,43 @@ def load_raw_dataset() -> pd.DataFrame:
     return raw
 
 
+def companion_aggregates() -> pd.DataFrame:
+    """Per-crash scene aggregates from the vehicles and persons companion tables."""
+    vehicles = pd.read_excel(VEHICLES_PATH, sheet_name=0, header=COMPANION_HEADER_ROW, dtype=str)
+    persons = pd.read_excel(PERSONS_PATH, sheet_name=0, header=COMPANION_HEADER_ROW, dtype=str)
+    vehicles.columns = [str(column).strip() for column in vehicles.columns]
+    persons.columns = [str(column).strip() for column in persons.columns]
+
+    vehicles["code"] = vehicles["CÓDIGO SINIESTRO"].astype("string").str.strip()
+    vehicles["tipo"] = vehicles["VEHÍCULO"].fillna("").str.strip().str.upper()
+    vehicles["modalidad"] = vehicles["MODALIDAD DE TRANSPORTE"].fillna("").str.strip().str.upper()
+    vehicle_aggregates = vehicles.dropna(subset=["code"]).groupby("code").agg(
+        n_vehiculos=("code", "size"),
+        n_bus=("tipo", lambda values: int(values.isin(HEAVY_PASSENGER_TYPES).sum())),
+        n_pesado_carga=("tipo", lambda values: int(values.isin(HEAVY_CARGO_TYPES).sum())),
+        n_moto=("tipo", lambda values: int(values.isin(LIGHT_TWO_THREE_WHEEL_TYPES).sum())),
+        n_no_identificado=("tipo", lambda values: int((values == "VEHICULO NO IDENTIFICADO").sum())),
+        n_interprovincial=("modalidad", lambda values: int(values.str.contains("INTERPROVINCIAL", na=False).sum())),
+        n_transporte_publico=(
+            "modalidad",
+            lambda values: int(values.str.contains("PUBLICO|PASAJEROS|TAXI", na=False, regex=True).sum()),
+        ),
+    )
+
+    persons["code"] = persons["CÓDIGO SINIESTRO"].astype("string").str.strip()
+    persons["tipo_persona"] = persons["TIPO PERSONA"].fillna("").str.strip().str.upper()
+    persons["edad_numerica"] = pd.to_numeric(persons["EDAD"], errors="coerce")
+    persons.loc[~persons["edad_numerica"].between(0, 110), "edad_numerica"] = np.nan
+    person_aggregates = persons.dropna(subset=["code"]).groupby("code").agg(
+        n_personas=("code", "size"),
+        n_pasajeros=("tipo_persona", lambda values: int(values.isin({"PASAJERO", "OCUPANTE"}).sum())),
+        n_peatones=("tipo_persona", lambda values: int((values == "PEATÓN").sum())),
+        n_conductor_fugado=("tipo_persona", lambda values: int((values == "CONDUCTOR FUGADO").sum())),
+        edad_media_involucrados=("edad_numerica", "mean"),
+    )
+    return vehicle_aggregates.join(person_aggregates, how="outer")
+
+
 def audit_and_clean() -> dict[str, Any]:
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
     TABLES_DIR.mkdir(parents=True, exist_ok=True)
@@ -153,6 +218,17 @@ def audit_and_clean() -> dict[str, Any]:
     # Reframed target: within fatal crashes, flag multiple-fatality events.
     df["target_multifatal"] = (df["FALLECIDOS"] >= 2).astype("int8")
 
+    aggregates = companion_aggregates()
+    joined = aggregates.reindex(df["CODIGO_SINIESTRO"].astype("string").str.strip().values)
+    joined.index = df.index
+    companion_coverage = float(joined["n_vehiculos"].notna().mean())
+    companion_person_coverage = float(joined["n_personas"].notna().mean())
+    for column in COMPANION_FEATURES:
+        if column == "edad_media_involucrados":
+            df[column] = joined[column].astype("float64")
+        else:
+            df[column] = joined[column].fillna(0).astype("int64")
+
     final_shape = df.shape
     multifatal_count = int(df["target_multifatal"].sum())
     single_fatal_count = int((df["target_multifatal"] == 0).sum())
@@ -188,6 +264,25 @@ def audit_and_clean() -> dict[str, Any]:
         "single_fatal_count": single_fatal_count,
         "multifatal_percentage": multifatal_percentage,
         "target_definition": "target_multifatal = 1 si FALLECIDOS >= 2, 0 si FALLECIDOS == 1",
+        "companion_files": [
+            str(VEHICLES_PATH.relative_to(ROOT)),
+            str(PERSONS_PATH.relative_to(ROOT)),
+        ],
+        "companion_features": COMPANION_FEATURES,
+        "companion_vehicle_coverage": companion_coverage,
+        "companion_person_coverage": companion_person_coverage,
+        "companion_banned_columns": [
+            "GRAVEDAD",
+            "LUGAR ATENCIÓN LESIONADO",
+            "LUGAR DE DEFUNCIÓN",
+            "DOSAJE ETÍLICO (todas las variantes)",
+            "SITUACIÓN DE PERSONA",
+        ],
+        "companion_rationale": (
+            "Los agregados de escena (vehiculos y personas involucradas) son hechos "
+            "disponibles al caracterizar la notificacion, con el mismo estatus que CLASE. "
+            "Las columnas de desenlace por persona y los dosajes posteriores quedan vetados."
+        ),
         "leakage_exclusions": [
             "LESIONADOS",
             "VEHICULOS_DANADOS",

@@ -39,6 +39,10 @@ def _canonical_record() -> pd.DataFrame:
             "TIPO_VIA": "CARRETERA", "CLIMA": "DESPEJADO",
             "CARACTERISTICA_VIA": "TRAMO RECTO", "PERFIL_VIA": "PLANA",
             "SUPERFICIE": "ASFALTADA",
+            "n_vehiculos": 2, "n_bus": 1, "n_pesado_carga": 0, "n_moto": 0,
+            "n_no_identificado": 0, "n_interprovincial": 1, "n_transporte_publico": 0,
+            "n_personas": 4, "n_pasajeros": 2, "n_peatones": 0,
+            "n_conductor_fugado": 0, "edad_media_involucrados": 35.0,
         }]
     )
 
@@ -49,8 +53,8 @@ def test_canonical_runtime_schema_and_outputs_align() -> None:
     runtime = inference.load_prediction_stack()
     result = inference.predict_records(_canonical_record())
 
-    assert manifest["feature_count"] == schema["processed_feature_count"] == 162
-    assert int(runtime.model.input_shape[-1]) == 162
+    assert manifest["feature_count"] == schema["processed_feature_count"] == 175
+    assert int(runtime.model.input_shape[-1]) == 175
     assert runtime.encoders["feature_list"] == schema["processed_feature_order"]
     assert np.isfinite(result[["raw_probability", "calibrated_probability"]].to_numpy()).all()
     assert result["calibrated_probability"].between(0, 1).all()
@@ -68,8 +72,8 @@ def test_user_decision_uses_calibrated_scale_not_raw_scale() -> None:
             )
 
     thresholds = {
-        "raw": {"value": 0.65, "probability_scale": "raw_mlp_sigmoid"},
-        "calibrated": {"value": 0.20, "probability_scale": "platt_calibrated_probability"},
+        "raw": {"value": 0.8, "probability_scale": "raw_mlp_sigmoid"},
+        "calibrated": {"value": 0.3, "probability_scale": "platt_calibrated_probability"},
     }
     with (
         patch.object(inference, "load_prediction_stack", return_value=FakeRuntime()),
@@ -79,8 +83,8 @@ def test_user_decision_uses_calibrated_scale_not_raw_scale() -> None:
 
     assert result["raw_prediction"] == 1
     assert result["priority_decision"] == "PRIORIDAD ESTÁNDAR"
-    assert result["calibrated_threshold"] == 0.20
-    assert result["raw_threshold"] == 0.65
+    assert result["calibrated_threshold"] == 0.3
+    assert result["raw_threshold"] == 0.8
 
 
 def test_input_contract_rejects_partial_coordinates_and_missing_fields() -> None:
@@ -188,8 +192,8 @@ def test_app_sources_are_read_only_and_use_canonical_evidence() -> None:
 def test_manifest_threshold_scales_are_distinct() -> None:
     thresholds = json.loads((ROOT / "models" / "final" / "thresholds.json").read_text(encoding="utf-8"))
     assert thresholds["raw"]["probability_scale"] != thresholds["calibrated"]["probability_scale"]
-    assert thresholds["raw"]["value"] == 0.65
-    assert thresholds["calibrated"]["value"] == 0.20
+    assert thresholds["raw"]["value"] == 0.8
+    assert thresholds["calibrated"]["value"] == 0.3
 
 
 def test_schema_options_use_valid_raw_representatives() -> None:

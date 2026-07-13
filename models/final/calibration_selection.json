@@ -12,28 +12,28 @@
   "selected_method": "platt",
   "methods": {
     "platt": {
-      "oof_brier": 0.08049874108802833,
-      "oof_ece_10_bins": 0.0085318969434784,
-      "oof_pr_auc": 0.24984711923173955,
-      "oof_roc_auc": 0.7744892302819132,
+      "oof_brier": 0.06516464818158108,
+      "oof_ece_10_bins": 0.008581700154160418,
+      "oof_pr_auc": 0.4748676952446679,
+      "oof_roc_auc": 0.8909113534549075,
       "calibrated_threshold": {
-        "threshold": 0.2,
-        "f1": 0.32637571157495254,
-        "precision": 0.2598187311178248,
-        "recall": 0.4387755102040816,
+        "threshold": 0.3,
+        "f1": 0.5111561866125761,
+        "precision": 0.42424242424242425,
+        "recall": 0.6428571428571429,
         "selection_policy": "max validation F1; ties: recall, precision, higher threshold"
       }
     },
     "isotonic": {
-      "oof_brier": 0.0808756853518349,
-      "oof_ece_10_bins": 0.007400300278567529,
-      "oof_pr_auc": 0.2345857561912998,
-      "oof_roc_auc": 0.7658731729942532,
+      "oof_brier": 0.06580249663325417,
+      "oof_ece_10_bins": 0.011911868892121744,
+      "oof_pr_auc": 0.4432277926522239,
+      "oof_roc_auc": 0.8835453527308927,
       "calibrated_threshold": {
-        "threshold": 0.2,
-        "f1": 0.3432203389830508,
-        "precision": 0.29347826086956524,
-        "recall": 0.413265306122449,
+        "threshold": 0.25,
+        "f1": 0.5217391304347826,
+        "precision": 0.45454545454545453,
+        "recall": 0.6122448979591837,
         "selection_policy": "max validation F1; ties: recall, precision, higher threshold"
       }
     }
@@ -41,10 +41,10 @@
   "threshold_source": "selected method OOF calibrated validation predictions",
   "final_fit": "selected calibrator refit on all 2023 raw validation predictions",
   "selected_calibrated_threshold": {
-    "threshold": 0.2,
-    "f1": 0.32637571157495254,
-    "precision": 0.2598187311178248,
-    "recall": 0.4387755102040816,
+    "threshold": 0.3,
+    "f1": 0.5111561866125761,
+    "precision": 0.42424242424242425,
+    "recall": 0.6428571428571429,
     "selection_policy": "max validation F1; ties: recall, precision, higher threshold"
   }
 }

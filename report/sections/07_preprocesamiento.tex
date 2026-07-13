@@ -1,7 +1,7 @@
 \section{Preprocesamiento}\label{sec:preprocesamiento}
 
 \subsection{Contrato anti-fuga}
-El target es \texttt{target\_multifatal}=1 cuando \texttt{FALLECIDOS}$\geq2$. Por ser resultado directo, \texttt{FALLECIDOS} no entra a $X$. También se excluyen \texttt{LESIONADOS}, \texttt{VEHICULOS\_DANADOS}, causas post-investigación y señalización con faltantes dependientes del periodo. La clase del siniestro sí está disponible después de la notificación; esto limita el uso a priorización posterior al hecho y descarta cualquier interpretación preventiva.
+El target es \texttt{target\_multifatal}=1 cuando \texttt{FALLECIDOS}$\geq2$. Por ser resultado directo, \texttt{FALLECIDOS} no entra a $X$. También se excluyen \texttt{LESIONADOS}, \texttt{VEHICULOS\_DANADOS}, causas post-investigación y señalización con faltantes dependientes del periodo. De las bases companion se excluyen la gravedad por persona, los lugares de atención y defunción y los dosajes etílicos; solo entran conteos y atributos de escena. La clase del siniestro y los agregados de vehículos\slash personas están disponibles después de la notificación; esto limita el uso a priorización posterior al hecho y descarta cualquier interpretación preventiva.
 
 \subsection{Corte cronológico}
 Las fechas determinan tres bloques sin solapamiento: 2021--2022 para entrenamiento, 2023 para validación y calibración, y 2024--2025 para referencia histórica. El escalador, las categorías, el mapa de frecuencias de vía y cualquier imputación se ajustan únicamente con entrenamiento. Los transformadores no vuelven a ajustarse al procesar periodos posteriores.
@@ -10,14 +10,14 @@ Las fechas determinan tres bloques sin solapamiento: 2021--2022 para entrenamien
 Las categorías se normalizan a vocabularios cerrados con una categoría explícita \texttt{DESCONOCIDO}. Los códigos de carretera no vistos reciben frecuencia cero. Latitud y longitud se convierten a numérico; el \emph{bundle} final exige el par completo para inferencia y la interfaz no inventa ubicaciones. Las continuas se estandarizan con estadísticos 2021--2022; las variables cíclicas permanecen en $[-1,1]$ y las categóricas se codifican \emph{one-hot}.
 
 \subsection{Contrato persistido}
-\path{models/final/} contiene \path{feature_list.json}, \path{feature_schema.json}, escalador, codificadores, modelo, calibrador, umbrales y manifiesto. El manifiesto registra hashes SHA-256 y el cargador de inferencia los verifica antes de predecir. El vector final tiene exactamente 162 columnas y el orden es parte del contrato.
+\path{models/final/} contiene \path{feature_list.json}, \path{feature_schema.json}, escalador, codificadores, modelo, calibrador, umbrales y manifiesto. El manifiesto registra hashes SHA-256 y el cargador de inferencia los verifica antes de predecir. El vector final tiene exactamente 175 columnas y el orden es parte del contrato.
 
 \subsection{Pruebas de frontera}
 Las pruebas automatizadas verifican que:
 \begin{itemize}
   \item las particiones temporales no se solapen;
   \item validación, no la referencia, seleccione umbrales y calibración;
-  \item el modelo, el esquema y la lista tengan 162 entradas en el mismo orden;
+  \item el modelo, el esquema y la lista tengan 175 entradas en el mismo orden;
   \item las escalas cruda y calibrada conserven umbrales distintos;
   \item el par de coordenadas sea obligatorio en la inferencia final;
   \item una entrada inválida elimine cualquier resultado previo de la interfaz.

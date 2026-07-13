@@ -1,20 +1,20 @@
 \section{Modelo neuronal}\label{sec:modelo}
 
 \subsection{Búsqueda cerrada y reproducible}
-Se definieron tres arquitecturas regularizadas y tres semillas antes de consultar el periodo de referencia 2024--2025. Cada corrida usó el mismo entrenamiento 2021--2022 y validación 2023. La configuración se eligió por mediana de PR-AUC entre semillas; F1 mediana y menor dispersión actuaron como desempates.
+Se definieron tres arquitecturas regularizadas y tres semillas antes de consultar el periodo de referencia 2024--2025. Cada corrida usó el mismo entrenamiento 2021--2022 y validación 2023, con entropía cruzada binaria, pesos de clase, Adam, reducción de tasa de aprendizaje y parada temprana por PR-AUC. La configuración se eligió por mediana de PR-AUC entre semillas; F1 mediana y menor dispersión actuaron como desempates. La misma búsqueda se ejecutó íntegra para la versión 2 con las 175 características.
 
 \begin{table}[H]
 \centering
-\caption{Robustez de configuraciones en validación 2023.}
+\caption{Robustez de configuraciones en validación 2023 (contrato v2 de 175 características).}
 \label{tab:robustez-config}
 \small
 \begin{tabular}{lccc}
 \toprule
 Configuración & PR-AUC mediana & F1 mediana & IQR PR-AUC \\
 \midrule
-\textbf{MLP\_64\_32: 64--32} & \textbf{0.2538} & 0.3295 & 0.0108 \\
-MLP\_32\_16: 32--16 & 0.2471 & \textbf{0.3437} & 0.0097 \\
-MLP\_32: 32 & 0.2397 & 0.3323 & \textbf{0.0020} \\
+\textbf{MLP\_32\_16: 32--16} & \textbf{0.4806} & 0.5093 & 0.0058 \\
+MLP\_64\_32: 64--32 & 0.4682 & \textbf{0.5154} & \textbf{0.0047} \\
+MLP\_32: 32 & 0.4656 & 0.5118 & 0.0080 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -22,18 +22,18 @@ MLP\_32: 32 & 0.2397 & 0.3323 & \textbf{0.0020} \\
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.92\textwidth]{figures/final_seed_robustness.png}
-  \caption{PR-AUC de validación por configuración y semilla. \texttt{MLP\_64\_32} presenta la mayor mediana; la variación entre semillas se conserva como evidencia, no se oculta.}
+  \caption{PR-AUC de validación por configuración y semilla. \texttt{MLP\_32\_16} presenta la mayor mediana; la variación entre semillas se conserva como evidencia, no se oculta. Nótese que la arquitectura ganadora de la versión 1 (\texttt{MLP\_64\_32}) deja de serlo con el contrato v2: la regla predeclarada decide, no la preferencia.}
   \label{fig:robustez-semillas}
 \end{figure}
 
 \subsection{Arquitectura congelada}
-La MLP canónica es \texttt{MLP\_64\_32} con semilla 314: entrada de 162 variables, capas densas de 64 y 32 neuronas con ReLU, \emph{dropout} 0.35, L2 de $3\times10^{-4}$, Adam con $5\times10^{-4}$ y lote 64. Se entrenó con pesos de clase y parada temprana por PR-AUC. El modelo final conserva exactamente el hash del artefacto modelo seleccionado; materializar \path{models/final/} no reentrena ni vuelve a buscar pesos.
+La MLP canónica es \texttt{MLP\_32\_16} con semilla 314: entrada de 175 variables, capas densas de 32 y 16 neuronas con ReLU, \emph{dropout} 0.25, L2 de $1\times10^{-4}$, Adam con $1\times10^{-3}$ y lote 64. El modelo final conserva exactamente el hash del artefacto seleccionado; materializar \path{models/final/} no reentrena ni vuelve a buscar pesos.
 
 \subsection{Comparadores y política de umbral}
-El clasificador constante por prevalencia, la regresión logística balanceada y el Random Forest balanceado se entrenaron con las mismas particiones; los dos modelos aprendidos recibieron las mismas 162 variables. Para cada modelo, el umbral se escogió solo en validación con la misma regla: máximo F1; empates por \emph{recall}, precisión y mayor umbral. Para la MLP cruda se obtuvo 0.65.
+El clasificador constante por prevalencia, la regresión logística balanceada y el Random Forest balanceado se entrenaron con las mismas particiones; los dos modelos aprendidos recibieron las mismas 175 variables. Para cada modelo, el umbral se escogió solo en validación con la misma regla: máximo F1; empates por \emph{recall}, precisión y mayor umbral. Para la MLP cruda se obtuvo 0.80.
 
 \subsection{Calibración Platt OOF}
-Sobre los scores de validación 2023 se generaron predicciones OOF con cinco particiones estratificadas. En esa selección, Platt obtuvo Brier OOF 0.0804987 frente a 0.0808757 de isotónica y quedó seleccionado. El umbral 0.20 se eligió sobre probabilidades OOF calibradas. Estos valores pertenecen exclusivamente a validación; el Brier 0.0831 informado en resultados corresponde a la referencia histórica 2024--2025 después de ajustar Platt con toda la validación. El procedimiento separa selección y referencia, y evita usar las etiquetas 2024--2025 para elegir el calibrador~\cite{scikit_learn_2024}.
+Sobre los scores de validación 2023 se generaron predicciones OOF con cinco particiones estratificadas. En esa selección, Platt obtuvo Brier OOF 0.0652 (ECE 0.0086) y quedó seleccionado frente a la isotónica. El umbral calibrado 0.30 se eligió sobre probabilidades OOF calibradas. Estos valores pertenecen exclusivamente a validación; el Brier 0.0683 informado en resultados corresponde a la referencia histórica 2024--2025 después de ajustar Platt con toda la validación. El procedimiento separa selección y referencia, y evita usar las etiquetas 2024--2025 para elegir el calibrador~\cite{scikit_learn_2024}.
 
 \subsection{Artefactos canónicos}
 El directorio \path{models/final/} contiene:
@@ -43,4 +43,4 @@ El directorio \path{models/final/} contiene:
   \item \path{calibrator.joblib} y \path{thresholds.json};
   \item \path{calibration_selection.json} y \path{manifest.json}.
 \end{itemize}
-Los hashes permiten demostrar que la aplicación ejecuta el mismo stack que sustenta el informe.
+Los hashes permiten demostrar que la aplicación ejecuta el mismo stack que sustenta el informe. La versión del bundle es \texttt{canonical-2.0.0}; la versión 1 permanece íntegra en la historia de Git.

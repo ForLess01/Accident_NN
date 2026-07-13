@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "model_version": "canonical-1.0.0",
+  "model_version": "canonical-2.0.0",
   "method": "Gradient SHAP (shap.GradientExplainer)",
   "shap_version": "0.52.0",
   "tensorflow_version": "2.19.1",
@@ -29,7 +29,19 @@
     "CLIMA",
     "CARACTERISTICA_VIA",
     "PERFIL_VIA",
-    "SUPERFICIE"
+    "SUPERFICIE",
+    "n_vehiculos",
+    "n_bus",
+    "n_pesado_carga",
+    "n_moto",
+    "n_no_identificado",
+    "n_interprovincial",
+    "n_transporte_publico",
+    "n_personas",
+    "n_pasajeros",
+    "n_peatones",
+    "n_conductor_fugado",
+    "edad_media_involucrados"
   ],
   "source_predicate": "FECHA < 2024-01-01 (Parquet predicate pushdown)",
   "labels_loaded": false,
@@ -41,5 +53,5 @@
   "association_not_causality": true,
   "local_explanations_generated": false,
   "limitations": "Global associations describe this frozen model and sample only. They do not identify causes, interventions, or feature effects for an individual case.",
-  "generator_sha256": "c15d08b8413c635b8fe38374610201df5ff961e80c264dfd3c750df7e34fb556"
+  "generator_sha256": "0d96a07afcbc1eb63f52c65380977d701e76df4028f601d139db1390e7678759"
 }

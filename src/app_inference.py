@@ -63,7 +63,7 @@ def _read_json(path: Path, label: str) -> dict[str, Any]:
 @lru_cache(maxsize=1)
 def load_manifest() -> dict[str, Any]:
     manifest = _read_json(FINAL_MODEL_DIR / "manifest.json", "el manifiesto canónico")
-    if manifest.get("model_version") != "canonical-1.0.0":
+    if manifest.get("model_version") != "canonical-2.0.0":
         raise RuntimeArtifactError(
             "La versión del bundle no es compatible con esta interfaz. Regenerá el bundle fuera de la app."
         )
@@ -398,6 +398,38 @@ def _validate_records(records: pd.DataFrame) -> pd.DataFrame:
             "El código de vía debe usar un formato como PE-1N, PE-3S o AM-103; "
             "dejalo como NO INFORMADO si no está disponible."
         )
+    scene_counts = [
+        "n_vehiculos", "n_bus", "n_pesado_carga", "n_moto", "n_no_identificado",
+        "n_interprovincial", "n_transporte_publico", "n_personas", "n_pasajeros",
+        "n_peatones", "n_conductor_fugado",
+    ]
+    for column in scene_counts:
+        values = pd.to_numeric(clean[column], errors="coerce")
+        required_count = column in {"n_vehiculos", "n_personas"}
+        if required_count and values.isna().any():
+            raise InputContractError(
+                "Ingresá la cantidad de vehículos y de personas involucradas; son hechos de la escena requeridos."
+            )
+        values = values.fillna(0)
+        if (values < 0).any() or (values != values.round()).any():
+            raise InputContractError(f"El campo {column} debe ser un entero mayor o igual a 0.")
+        clean[column] = values.astype("int64")
+    if (clean["n_vehiculos"] < 1).any():
+        raise InputContractError("Debe haber al menos un vehículo involucrado.")
+    if (clean["n_personas"] < 1).any():
+        raise InputContractError("Debe haber al menos una persona involucrada.")
+    vehicle_breakdown = clean[["n_bus", "n_pesado_carga", "n_moto", "n_no_identificado"]].sum(axis=1)
+    if (vehicle_breakdown > clean["n_vehiculos"]).any():
+        raise InputContractError("El detalle por tipo de vehículo no puede superar el total de vehículos involucrados.")
+    person_breakdown = clean[["n_pasajeros", "n_peatones"]].sum(axis=1)
+    if (person_breakdown > clean["n_personas"]).any():
+        raise InputContractError("Pasajeros y peatones no pueden superar el total de personas involucradas.")
+    ages = pd.to_numeric(clean["edad_media_involucrados"], errors="coerce")
+    provided_age = clean["edad_media_involucrados"].notna()
+    if (provided_age & (ages.isna() | ~ages.between(0, 110))).any():
+        raise InputContractError("La edad media de involucrados debe estar entre 0 y 110, o quedar como NO INFORMADO.")
+    clean["edad_media_involucrados"] = ages
+
     for row in clean.itertuples(index=False):
         validate_peru_location(float(row.LATITUD), float(row.LONGITUD), str(row.DEPARTAMENTO))
     return clean

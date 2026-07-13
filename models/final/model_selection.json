@@ -1,24 +1,24 @@
 {
+  "reference_period_used_during_selection": false,
   "selected_config": {
-    "config_id": "MLP_64_32",
+    "config_id": "MLP_32_16",
     "hidden_units": [
-      64,
-      32
+      32,
+      16
     ],
-    "dropout": 0.35,
-    "l2": 0.0003,
-    "learning_rate": 0.0005,
+    "dropout": 0.25,
+    "l2": 0.0001,
+    "learning_rate": 0.001,
     "batch_size": 64
   },
   "selected_seed": 314,
   "selected_threshold": {
-    "threshold": 0.65,
-    "f1": 0.32974910394265233,
-    "precision": 0.2541436464088398,
-    "recall": 0.46938775510204084,
+    "threshold": 0.8,
+    "f1": 0.5093457943925234,
+    "precision": 0.4698275862068966,
+    "recall": 0.5561224489795918,
     "selection_policy": "max validation F1; ties: recall, precision, higher threshold"
   },
   "selection_rule": "median validation PR-AUC across seeds, then median F1, then lower PR-AUC IQR",
-  "threshold_policy": "max validation F1; ties: recall, precision, higher threshold",
-  "reference_period_used_during_selection": false
+  "threshold_policy": "max validation F1; ties: recall, precision, higher threshold"
 }

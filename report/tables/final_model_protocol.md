@@ -1,4 +1,4 @@
-# Protocolo del modelo canónico canonical-1.0.0
+# Protocolo del modelo canónico canonical-2.0.0
 
 ## Alcance
 La salida estima multifatalidad (2 o más fallecidos) condicionada a un siniestro ya fatal. Su uso defendible es priorización posterior a la notificación; no predice que un siniestro cualquiera vaya a ser fatal ni demuestra causalidad.
@@ -11,7 +11,7 @@ La salida estima multifatalidad (2 o más fallecidos) condicionada a un siniestr
 - Referencia 2024--2025: sus etiquetas ya fueron observadas. Se conserva como referencia histórica y NO puede usarse para nuevos ajustes.
 
 ## Artefacto congelado
-La arquitectura y los pesos no se reentrenan ni se vuelven a buscar al materializar `models/final/`. Los umbrales crudo (0.65) y calibrado (0.20) pertenecen a escalas distintas y nunca deben intercambiarse.
+La arquitectura y los pesos no se reentrenan ni se vuelven a buscar al materializar `models/final/`. Los umbrales crudo (0.80) y calibrado (0.30) pertenecen a escalas distintas y nunca deben intercambiarse.
 
 ## Lectura honesta
-En la referencia 2024--2025 la MLP tiene PR-AUC 0.2249 y ROC-AUC 0.7482. Sus métricas de ranking son nominalmente mayores que las de los baselines declarados, pero la regresión logística conserva mayor F1; esto no prueba superioridad universal ni estadística de la red.
+En la referencia 2024--2025 la MLP tiene PR-AUC 0.4416 y ROC-AUC 0.8841. Sus métricas de ranking son nominalmente mayores que las de los baselines declarados, pero la regresión logística conserva mayor F1; esto no prueba superioridad universal ni estadística de la red.

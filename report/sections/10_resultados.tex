@@ -1,7 +1,7 @@
 \section{Resultados}\label{sec:resultados}
 
 \subsection{Estatus de la evaluación}
-Los 2\,232 registros de 2024--2025 contienen 222 casos multifatales (prevalencia 0.0995). Sus etiquetas ya fueron observadas; en consecuencia, los resultados son una \textbf{referencia histórica definitiva} y no un periodo nuevo. Arquitectura, pesos, calibrador y umbrales no se modificaron después de observarlo.
+Los 2\,232 registros de 2024--2025 contienen 222 casos multifatales (prevalencia 0.0995). Sus etiquetas ya fueron observadas por la versión 1; en consecuencia, los resultados de la versión 2 constituyen la \textbf{segunda evaluación predeclarada} sobre esa referencia histórica y se divulgan como tal. Todo el diseño de la versión 2 (contrato de 175 características, grilla, semillas, reglas de selección, calibración y umbrales) se congeló usando exclusivamente 2021--2023, antes de volver a consultar la referencia; después de observarla no se modificó nada.
 
 \subsection{MLP cruda y calibrada}
 \begin{table}[H]
@@ -11,72 +11,104 @@ Los 2\,232 registros de 2024--2025 contienen 222 casos multifatales (prevalencia
 \small
 \begin{tabular}{lcc}
 \toprule
-Métrica & Score crudo, $t=0.65$ & Platt, $t=0.20$ \\
+Métrica & Score crudo, $t=0.80$ & Platt, $t=0.30$ \\
 \midrule
-F1 multifatal & 0.3030 [0.2512, 0.3480] & 0.2958 [0.2446, 0.3405] \\
-Precisión multifatal & 0.2346 [0.1896, 0.2753] & 0.2359 [0.1898, 0.2791] \\
-\emph{Recall} multifatal & 0.4279 [0.3592, 0.4933] & 0.3964 [0.3318, 0.4619] \\
-PR-AUC & 0.2249 [0.1865, 0.2722] & 0.2249 [0.1865, 0.2722] \\
-ROC-AUC & 0.7482 [0.7138, 0.7776] & 0.7482 [0.7138, 0.7776] \\
-Brier & 0.1817 [0.1736, 0.1902] & 0.0831 [0.0739, 0.0912] \\
-ECE, 10 bins & 0.2623 [0.2484, 0.2763] & 0.0085 [0.0048, 0.0221] \\
+F1 multifatal & 0.4957 [0.4413, 0.5470] & 0.5058 [0.4512, 0.5566] \\
+Precisión multifatal & 0.4715 [0.4106, 0.5323] & 0.4452 [0.3879, 0.5000] \\
+\emph{Recall} multifatal & 0.5225 [0.4561, 0.5872] & 0.5856 [0.5194, 0.6489] \\
+PR-AUC & 0.4416 [0.3785, 0.5124] & 0.4416 [0.3785, 0.5124] \\
+ROC-AUC & 0.8841 [0.8613, 0.9055] & 0.8841 [0.8613, 0.9055] \\
+Brier & 0.1081 & 0.0683 [0.0609, 0.0756] \\
+ECE, 10 bins & 0.1044 & 0.0169 [0.0115, 0.0297] \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-La calibración transforma la escala, no el orden: PR-AUC y ROC-AUC son idénticos. Su aporte aparece donde corresponde, en Brier y ECE. El Brier calibrado 0.0831 mejora al predictor constante de prevalencia, cuyo Brier es aproximadamente $0.0995(1-0.0995)=0.0896$.
+La calibración transforma la escala, no el orden: PR-AUC y ROC-AUC son idénticos. Su aporte aparece donde corresponde, en Brier y ECE. El Brier calibrado 0.0683 mejora con claridad al predictor constante de prevalencia, cuyo Brier es aproximadamente $0.0995(1-0.0995)=0.0896$.
 
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=\textwidth]{figures/final_model_evidence.png}
-  \caption{Comparación de PR-AUC, ROC-AUC y F1 entre la MLP definitiva y las líneas base en la referencia histórica. La MLP lidera el ranking; la regresión logística conserva el mayor F1.}
-  \label{fig:evidencia-canonica}
-\end{figure}
+Con el umbral calibrado, la matriz contiene 1\,848 verdaderos negativos, 162 falsos positivos, 92 falsos negativos y 130 verdaderos positivos. El modelo identifica el 58.6\,\% de los multifatales y el 44.5\,\% de sus alertas son verdaderas: 4.5 veces la prevalencia base.
 
-Con el umbral calibrado, la matriz contiene 1\,725 verdaderos negativos, 285 falsos positivos, 134 falsos negativos y 88 verdaderos positivos. El modelo identifica 39.6\,\% de los multifatales y solo 23.6\,\% de las alertas son verdaderas. Por ello sirve como apoyo de priorización, no como regla autónoma.
+\subsection{Comparación entre versiones: el techo informacional, demostrado}
+La versión 1 usaba únicamente el registro de siniestros (162 características). La versión 2 agrega los agregados de escena de las bases companion de vehículos y personas. Todo lo demás ---particiones, reglas de selección, calibración OOF, política de umbral--- es idéntico. La \autoref{tab:v1-v2} muestra el efecto.
+
+\begin{table}[H]
+\centering
+\caption{Versión 1 vs.\ versión 2 sobre la misma referencia 2024--2025 (escala calibrada).}
+\label{tab:v1-v2}
+\small
+\begin{tabular}{lccc}
+\toprule
+ & Versión 1 & Versión 2 & Cambio \\
+\midrule
+Características & 162 & 175 & +12 agregados de escena +1 indicador \\
+Arquitectura seleccionada & \texttt{MLP\_64\_32} & \texttt{MLP\_32\_16} & regla predeclarada, semilla 314 \\
+PR-AUC & 0.2249 & \textbf{0.4416} & $\times$1.96 (prevalencia 0.0995) \\
+ROC-AUC & 0.7482 & \textbf{0.8841} & +0.136 \\
+F1 multifatal & 0.2958 & \textbf{0.5058} & +0.210 \\
+Precisión & 0.2359 & \textbf{0.4452} & alertas verdaderas: de 1 de 4 a casi 1 de 2 \\
+\emph{Recall} & 0.3964 & \textbf{0.5856} & FN: de 134 a 92 \\
+Brier / ECE & 0.0831 / 0.0085 & 0.0683 / 0.0169 & ambas escalas calibradas y honestas \\
+Grupo SHAP dominante & clase del siniestro & personas involucradas (43.7\,\%) & la variable nueva domina \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Esta comparación es el hallazgo central del proyecto: la versión 1 diagnosticó un techo informacional (empate estadístico con la regresión logística, discriminación moderada); la versión 2 lo puso a prueba incorporando la variable mecánica faltante ---cuántas personas y qué vehículos estaban involucrados--- y la discriminación prácticamente se duplicó. El salto no proviene de más capas ni de más épocas: proviene de mejor información, incorporada con las mismas reglas anti-fuga.
 
 \subsection{Comparación honesta con líneas base}
 \begin{table}[H]
 \centering
-\caption{Comparación en la misma referencia temporal y con umbrales seleccionados solo en validación.}
+\caption{Comparación en la misma referencia temporal y con umbrales seleccionados solo en validación (contrato v2 compartido).}
 \label{tab:comparacion-canonica}
 \small
 \begin{tabular}{lccccc}
 \toprule
 Modelo / escala & F1 & Precisión & Recall & PR-AUC & ROC-AUC \\
 \midrule
-MLP cruda & 0.3030 & 0.2346 & 0.4279 & \textbf{0.2249} & \textbf{0.7482} \\
-MLP Platt & 0.2958 & 0.2359 & 0.3964 & \textbf{0.2249} & \textbf{0.7482} \\
+MLP cruda & 0.4957 & \textbf{0.4715} & 0.5225 & 0.4416 & 0.8841 \\
+MLP Platt & \textbf{0.5058} & 0.4452 & \textbf{0.5856} & 0.4416 & 0.8841 \\
 Constante por prevalencia & 0.1809 & 0.0995 & 1.0000 & 0.0995 & 0.5000 \\
-Regresión logística & \textbf{0.3183} & 0.2161 & \textbf{0.6036} & 0.2054 & 0.7395 \\
-Random Forest & 0.2545 & \textbf{0.2569} & 0.2523 & 0.2179 & 0.7439 \\
+Regresión logística & 0.4896 & 0.4230 & 0.5811 & 0.4334 & 0.8580 \\
+Random Forest & 0.4943 & 0.4300 & 0.5811 & \textbf{0.4704} & \textbf{0.8937} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-La MLP tiene PR-AUC y ROC-AUC nominalmente mayores en esta muestra fija; la logística conserva mayor F1 y \emph{recall}. Para cuantificar esa diferencia se ejecutó un \textbf{bootstrap pareado} sobre las predicciones congeladas de la referencia (2\,000 remuestreos de registros, semilla 42, IC percentil; diagnóstico posterior que no altera ninguna decisión de selección). La \autoref{tab:bootstrap-pareado} resume el resultado: ninguna diferencia es significativa al 5\,\%. La lectura defendible es simétrica: no hay evidencia de superioridad de la red sobre la logística, pero tampoco de lo contrario; en ranking (PR-AUC), el 95.8\,\% de los remuestreos favorece a la MLP, una tendencia consistente que no alcanza significación. La MLP aprende señal por encima de la prevalencia y su ranking cronológico es competitivo, pero el techo informacional sigue siendo bajo.
+Para cuantificar las diferencias se ejecutó un \textbf{bootstrap pareado} sobre las predicciones congeladas (2\,000 remuestreos de registros, semilla 42, IC percentil; los dos baselines se reajustan con la receta exacta publicada y el script aborta si no reproducen las métricas del bundle). La \autoref{tab:bootstrap-pareado} resume el resultado.
 
 \begin{table}[H]
 \centering
-\caption{Bootstrap pareado MLP vs.\ regresión logística sobre la referencia 2024--2025 (\texttt{final\_paired\_bootstrap\_2024\_2025.csv}). $\Delta$ = MLP $-$ logística; umbrales crudos seleccionados en validación (0.65 y 0.60).}
+\caption{Bootstrap pareado de la MLP contra cada baseline sobre la referencia 2024--2025 (\texttt{final\_paired\_bootstrap\_2024\_2025.csv}). $\Delta$ = MLP $-$ baseline, escala cruda con umbrales de validación.}
 \label{tab:bootstrap-pareado}
 \small
-\begin{tabular}{lccccc}
+\begin{tabular}{llcccc}
 \toprule
-Métrica & MLP & Logística & $\Delta$ & IC 95\,\% de $\Delta$ & $P(\Delta > 0)$ \\
+Baseline & Métrica & $\Delta$ & IC 95\,\% de $\Delta$ & $P(\Delta > 0)$ & Significativa \\
 \midrule
-PR-AUC & 0.2249 & 0.2054 & $+0.0194$ & $[-0.0032,\ +0.0433]$ & 0.958 \\
-ROC-AUC & 0.7482 & 0.7395 & $+0.0087$ & $[-0.0030,\ +0.0209]$ & 0.925 \\
-F1 multifatal & 0.3030 & 0.3183 & $-0.0153$ & $[-0.0504,\ +0.0173]$ & 0.185 \\
+Logística & PR-AUC & $+0.0082$ & $[-0.0184,\ +0.0362]$ & 0.717 & No \\
+Logística & ROC-AUC & $+0.0261$ & $[+0.0122,\ +0.0417]$ & 1.000 & \textbf{Sí} \\
+Logística & F1 & $+0.0062$ & $[-0.0311,\ +0.0419]$ & 0.623 & No \\
+Random Forest & PR-AUC & $-0.0288$ & $[-0.0727,\ +0.0138]$ & 0.089 & No \\
+Random Forest & ROC-AUC & $-0.0096$ & $[-0.0234,\ +0.0028]$ & 0.072 & No \\
+Random Forest & F1 & $+0.0015$ & $[-0.0378,\ +0.0390]$ & 0.522 & No \\
 \bottomrule
 \end{tabular}
 \end{table}
 
+La lectura honesta tiene dos caras. Contra la regresión logística, la red ahora muestra una ventaja \textbf{estadísticamente significativa} en ROC-AUC: con las variables de escena, la no linealidad (interacciones entre composición vehicular, personas y contexto) aporta capacidad que el modelo lineal no captura. Contra el Random Forest, el bosque presenta mejor ranking nominal y la diferencia no es significativa en ninguna métrica: en tabulares medianos los ensambles de árboles siguen siendo competidores de primer nivel, y este informe lo reporta en lugar de ocultarlo. La consigna del curso ---una red neuronal correctamente construida y evaluada--- se cumple con una red que ya no es meramente equivalente al baseline lineal.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{figures/final_model_evidence.png}
+  \caption{Comparación de PR-AUC, ROC-AUC y F1 entre la MLP definitiva y las líneas base en la referencia histórica.}
+  \label{fig:evidencia-canonica}
+\end{figure}
+
 \subsection{Análisis de errores}
-Los falsos negativos calibrados (134) son el principal límite para un sistema de priorización. Varios casos quedan apenas por debajo de 0.20; por ejemplo, los primeros registros de Cusco y Arequipa tienen probabilidades 0.1998 y 0.1994. Esto demuestra que el umbral convierte diferencias pequeñas en decisiones distintas y que debe mostrarse la probabilidad, no solo una etiqueta. Los 285 falsos positivos implican carga de revisión: alrededor de tres de cada cuatro alertas no son multifatales. Sin ocupantes, velocidad, tipo de vehículo, cinturón/casco y exposición vial, el contexto disponible no permite resolver esos casos con certeza.
+Los 92 falsos negativos calibrados son el principal límite restante. Varios quedan apenas por debajo del umbral crudo: los primeros ejemplos (Apurímac, Cajamarca, febrero--marzo 2024) tienen scores 0.746--0.756 frente al corte 0.80. Esto demuestra que el umbral convierte diferencias pequeñas en decisiones distintas y que debe mostrarse la probabilidad, no solo la etiqueta. Los 162 falsos positivos implican carga de revisión, pero la precisión de 0.445 la vuelve manejable frente a la versión 1 (0.236). Las variables aún ausentes ---velocidad, uso de cinturón\slash casco, antigüedad del vehículo, exposición--- fijan el techo actual.
 
 \subsection{Explicabilidad global}
-La explicación canónica usa Gradient SHAP sobre la sigmoide cruda. El fondo contiene 256 registros de entrenamiento 2021--2022; se explican 512 registros de validación 2023 con 200 muestras SHAP y semilla 20260709. No se cargaron etiquetas ni datos 2024--2025. Las 162 variables procesadas se sumaron en 17 grupos.
+La explicación canónica usa Gradient SHAP sobre la sigmoide cruda. El fondo contiene 256 registros de entrenamiento 2021--2022; se explican 512 registros de validación 2023 con 200 muestras SHAP y semilla 20260709. No se cargaron etiquetas ni datos 2024--2025. Las 175 variables procesadas se sumaron en 20 grupos interpretables.
 
 \begin{figure}[H]
   \centering
@@ -87,20 +119,20 @@ La explicación canónica usa Gradient SHAP sobre la sigmoide cruda. El fondo co
 
 \begin{table}[H]
 \centering
-\caption{Cinco grupos con mayor importancia SHAP global.}
+\caption{Cinco grupos con mayor importancia SHAP global (contrato v2).}
 \label{tab:shap-grupos}
 \small
 \begin{tabular}{lrrl}
 \toprule
 Grupo & Features agrupadas & Participación & Dirección media \\
 \midrule
-Clase del siniestro & 6 & 19.01\,\% & Reduce score crudo \\
-Red vial $\times$ clase & 30 & 13.73\,\% & Reduce score crudo \\
-Tipo de vía $\times$ zona & 18 & 10.90\,\% & Aumenta score crudo \\
-Zona & 3 & 8.53\,\% & Reduce score crudo \\
-Red vial & 5 & 7.35\,\% & Reduce score crudo \\
+Personas involucradas & 4 & 43.75\,\% & Aumenta score crudo \\
+Vehículos involucrados & 7 & 7.68\,\% & Reduce score crudo \\
+Clase del siniestro & 6 & 6.62\,\% & Reduce score crudo \\
+Red vial $\times$ clase & 30 & 6.04\,\% & Reduce score crudo \\
+Departamento / región natural & 29 & 4.97\,\% & Aumenta score crudo \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Las direcciones medias no significan que toda categoría de un grupo actúe igual. Tampoco autorizan afirmaciones del tipo ``cambiar la vía causa una reducción de riesgo'': SHAP describe asociaciones del modelo congelado y de la muestra de validación. No se generaron explicaciones locales para casos individuales.
+El grupo de personas involucradas domina la explicación con el 43.75\,\% de la importancia: exactamente la variable cuya ausencia diagnosticó la versión 1. Las direcciones medias no significan que toda categoría de un grupo actúe igual, ni autorizan afirmaciones causales: SHAP describe asociaciones del modelo congelado y de la muestra de validación. No se generaron explicaciones locales para casos individuales.

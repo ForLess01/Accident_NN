@@ -43,8 +43,8 @@ def test_manifest_schema_artifacts_and_hashes_are_valid() -> None:
         "reference_evaluation",
     }
     assert required.issubset(manifest)
-    assert manifest["model_version"] == "canonical-1.0.0"
-    assert manifest["feature_count"] == 162
+    assert manifest["model_version"] == "canonical-2.0.0"
+    assert manifest["feature_count"] == 175
     assert manifest["architecture"]["weights_frozen"] is True
     assert manifest["architecture"]["architecture_search_rerun"] is False
     assert manifest["reference_evaluation"]["used_for_model_selection"] is False
@@ -309,7 +309,7 @@ def test_final_feature_contract_excludes_endpoint_and_post_event_leakage() -> No
         "required": True,
         "nullable": False,
     }
-    assert schema["processed_feature_count"] == len(features) == 162
+    assert schema["processed_feature_count"] == len(features) == 175
     assert not (features & set(EXCLUDED_COLUMNS))
     assert {"FALLECIDOS", "LESIONADOS", "CAUSA_FACTOR", "CAUSA_ESPECIFICA"}.issubset(
         set(schema["excluded_leakage_columns"])

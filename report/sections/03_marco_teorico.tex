@@ -14,12 +14,12 @@ La pérdida es entropía cruzada binaria ponderada:
 \[
 \mathcal{L}=-\frac{1}{N}\sum_{i=1}^{N}\left[w_1 y_i\log\hat{y}_i+w_0(1-y_i)\log(1-\hat{y}_i)\right].
 \]
-Se usó Adam con tasa inicial $5\times10^{-4}$, lotes de 64, pesos de clase, \emph{dropout} 0.35, regularización L2 de $3\times10^{-4}$ y parada temprana por PR-AUC de validación~\cite{kingma_adam_2014}.
+Se usó Adam con tasa inicial $1\times10^{-3}$, lotes de 64, pesos de clase, \emph{dropout} 0.25, regularización L2 de $1\times10^{-4}$ y parada temprana por PR-AUC de validación~\cite{kingma_adam_2014}.
 
 \subsection{Evaluación bajo desbalance}
 La clase multifatal representa alrededor del 10\,\%, por lo que la exactitud aislada es insuficiente. Se reportan precisión, \emph{recall}, F1, PR-AUC, ROC-AUC, matriz de confusión e intervalos bootstrap. PR-AUC debe leerse contra la prevalencia: un clasificador sin capacidad de ordenamiento obtiene aproximadamente la tasa positiva.
 
-El umbral transforma scores en clases. La política canónica maximiza F1 en validación y desempata por \emph{recall}, precisión y mayor umbral. La salida cruda y la calibrada pertenecen a escalas distintas: el umbral 0.65 solo corresponde al score sigmoide, mientras que 0.20 solo corresponde a la probabilidad Platt.
+El umbral transforma scores en clases. La política canónica maximiza F1 en validación y desempata por \emph{recall}, precisión y mayor umbral. La salida cruda y la calibrada pertenecen a escalas distintas: el umbral 0.80 solo corresponde al score sigmoide, mientras que 0.30 solo corresponde a la probabilidad Platt.
 
 \subsection{Calibración probabilística}
 La calibración pregunta si, entre casos con probabilidad predicha cercana a $p$, la frecuencia observada también se aproxima a $p$. Se evalúa con Brier, ECE y curva de confiabilidad. Platt aplica una regresión logística al score; isotónica aprende una función monótona por tramos. Ambos métodos se compararon con predicciones \emph{out-of-fold} de cinco particiones exclusivamente en validación 2023, siguiendo implementaciones reproducibles de scikit-learn~\cite{scikit_learn_2024}. La calibración puede mejorar Brier y ECE, pero, si conserva el orden, no cambia PR-AUC ni ROC-AUC.
@@ -34,23 +34,23 @@ Se aplicaron tres barreras:
 Semillas, versiones, hashes, esquema y artefactos se registran en el manifiesto canónico \texttt{manifest.json}.
 
 \subsection{Interpretabilidad con Gradient SHAP}
-SHAP distribuye el cambio del score entre las variables respecto de un fondo~\cite{lundberg_shap_2017}. Se aplicó \texttt{shap.GradientExplainer} al score crudo de la MLP con 256 registros de fondo de entrenamiento 2021--2022 y 512 registros explicados de validación 2023. Las 162 características procesadas se agregaron en 17 grupos interpretables. La contribución firmada media no es un efecto monotónico, una recomendación de intervención ni evidencia causal.
+SHAP distribuye el cambio del score entre las variables respecto de un fondo~\cite{lundberg_shap_2017}. Se aplicó \texttt{shap.GradientExplainer} al score crudo de la MLP con 256 registros de fondo de entrenamiento 2021--2022 y 512 registros explicados de validación 2023. Las 175 características procesadas se agregaron en 20 grupos interpretables. La contribución firmada media no es un efecto monotónico, una recomendación de intervención ni evidencia causal.
 
 \begin{figure}[H]
   \centering
   \footnotesize
   \setlength{\fboxsep}{5pt}
   \begin{tabular}{@{}c@{\hspace{0.2em}}c@{\hspace{0.2em}}c@{\hspace{0.2em}}c@{\hspace{0.2em}}c@{\hspace{0.2em}}c@{\hspace{0.2em}}c@{\hspace{0.2em}}c@{\hspace{0.2em}}c@{}}
-    \fbox{\begin{minipage}{0.105\textwidth}\centering\textbf{Entrada}\\162 features\\contexto\end{minipage}}
+    \fbox{\begin{minipage}{0.105\textwidth}\centering\textbf{Entrada}\\175 features\\contexto\end{minipage}}
     & $\rightarrow$ &
-    \fbox{\begin{minipage}{0.105\textwidth}\centering\textbf{Oculta 1}\\Dense(64)\\ReLU + L2\end{minipage}}
+    \fbox{\begin{minipage}{0.105\textwidth}\centering\textbf{Oculta 1}\\Dense(32)\\ReLU + L2\end{minipage}}
     & $\rightarrow$ &
-    \fbox{\begin{minipage}{0.105\textwidth}\centering\textbf{Dropout}\\$p=0.35$\\control\end{minipage}}
+    \fbox{\begin{minipage}{0.105\textwidth}\centering\textbf{Dropout}\\$p=0.25$\\control\end{minipage}}
     & $\rightarrow$ &
-    \fbox{\begin{minipage}{0.105\textwidth}\centering\textbf{Oculta 2}\\Dense(32)\\ReLU + L2\end{minipage}}
+    \fbox{\begin{minipage}{0.105\textwidth}\centering\textbf{Oculta 2}\\Dense(16)\\ReLU + L2\end{minipage}}
     & $\rightarrow$ &
     \fbox{\begin{minipage}{0.105\textwidth}\centering\textbf{Salida}\\Dense(1)\\sigmoide\end{minipage}}
   \end{tabular}
-  \caption{Arquitectura canónica \texttt{MLP\_64\_32}. La salida cruda se calibra después con Platt; la calibración no cambia los pesos.}
+  \caption{Arquitectura canónica \texttt{MLP\_32\_16}. La salida cruda se calibra después con Platt; la calibración no cambia los pesos.}
   \label{fig:arquitectura}
 \end{figure}

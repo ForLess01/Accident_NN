@@ -1,7 +1,7 @@
 \section{Interfaz gráfica}\label{sec:interfaz}
 
 \subsection{Arquitectura de información}
-La interfaz Streamlit es un consumidor de solo lectura. No entrena, calibra, reescribe tablas ni modifica artefactos. Al iniciar, carga \path{models/final/manifest.json}, verifica hashes y comprueba que modelo, esquema y lista coincidan en 162 entradas.
+La interfaz Streamlit es un consumidor de solo lectura. No entrena, calibra, reescribe tablas ni modifica artefactos. Al iniciar, carga \path{models/final/manifest.json}, verifica hashes y comprueba que modelo, esquema y lista coincidan en 175 entradas.
 
 \begin{table}[H]
 \centering
@@ -15,7 +15,7 @@ Componente & Flujo & Responsabilidad \\
 Formulario validado & $\rightarrow$ & Campos requeridos vacíos, opcionales como \texttt{NO INFORMADO} y caso demo explícito \\
 \texttt{app\_inference} & $\rightarrow$ & Valida periodo 2021--2025, código vial, par geográfico Perú--departamento y contrato de entrada \\
 Bundle canónico & $\rightarrow$ & Verifica hashes; calcula score crudo y probabilidad Platt sin escribir archivos \\
-Umbrales separados & $\rightarrow$ & 0.20 para decisión visible calibrada; 0.65 solo para diagnóstico crudo \\
+Umbrales separados & $\rightarrow$ & 0.30 para decisión visible calibrada; 0.80 solo para diagnóstico crudo \\
 Presentación & $\rightarrow$ & Prioridad, contexto histórico, evidencia e incertidumbre con trazabilidad \\
 \bottomrule
 \end{tabularx}
@@ -25,7 +25,7 @@ Presentación & $\rightarrow$ & Prioridad, contexto histórico, evidencia e ince
 La navegación se sincroniza con el parámetro \texttt{?section=}; por ello cada página posee una URL compartible y el estado de navegación no queda oculto en pestañas internas.
 \begin{enumerate}
   \item \textbf{Panorama}: propósito en lenguaje llano, funcionamiento en tres pasos y tres demostraciones sobre la referencia 2024--2025: la serie mensual de tasa observada vs.\ probabilidad media predicha, la multifatalidad real por quintil de score (que crece monotónicamente con el score del modelo) y una comparación interactiva predicho vs.\ observado por categoría (clase, zona, clima, red vial, tipo de vía o departamento) con seguimiento mensual de la categoría elegida; todo con soporte mínimo de 30 e intervalos de Wilson.
-  \item \textbf{Estimar}: inicia sin valores plausibles precargados, ofrece \emph{Cargar caso de demostración}, exige fecha, hora, clase, departamento y coordenadas, y muestra un gauge Platt. La ubicación puede seleccionarse con un clic sobre un mapa OpenStreetMap (Folium/Leaflet) acotado al Perú con los límites departamentales superpuestos; el clic completa los campos numéricos de latitud y longitud (la entrada canónica validada) y deduce el departamento mediante búsqueda point-in-polygon sobre los mismos polígonos versionados de la validación. Los campos de escena (zona, tipo de vía, clima) no se deducen del mapa: describen cómo el ONSV registró el siniestro y la interfaz lo declara.
+  \item \textbf{Estimar}: inicia sin valores plausibles precargados, ofrece \emph{Cargar caso de demostración}, exige fecha, hora, clase, departamento y coordenadas, y muestra un gauge Platt. La ubicación puede seleccionarse con un clic sobre un mapa OpenStreetMap (Folium/Leaflet) acotado al Perú con los límites departamentales superpuestos; el clic completa los campos numéricos de latitud y longitud (la entrada canónica validada) y deduce el departamento mediante búsqueda point-in-polygon sobre los mismos polígonos versionados de la validación. Los campos de escena (zona, tipo de vía, clima) no se deducen del mapa: describen cómo el ONSV registró el siniestro y la interfaz lo declara. En la versión 2 el formulario agrega la sección de vehículos y personas involucradas (totales requeridos, desgloses por tipo, servicio interprovincial\slash público, conductores fugados y edad media opcional), con validación de coherencia (los desgloses no superan los totales) y sin ingresar ningún desenlace por persona.
   \item \textbf{Explorar datos}: gráficos Plotly responsivos del target, serie mensual, tasas por clase y condiciones, mapa de puntos y matriz mes$\times$hora. No reutiliza capturas EDA estáticas.
   \item \textbf{Patrones regionales}: mapa, ranking y tabla departamental con intervalos de Wilson. Las tasas con soporte menor de 30 se enmascaran en lugar de presentarse como estimaciones estables.
   \item \textbf{Evidencia del modelo}: comparación MLP/logística/Random Forest, confiabilidad, matriz de confusión, curvas PR/ROC y Gradient SHAP canónico. La matriz y las curvas incluyen tablas descargables como alternativa accesible.
@@ -35,10 +35,10 @@ La navegación se sincroniza con el parámetro \texttt{?section=}; por ello cada
 La fecha se restringe al periodo cubierto por la evidencia, del 1 de enero de 2021 al 31 de diciembre de 2025. Un algoritmo geométrico puro sobre el GeoJSON versionado admite polígonos, multipolígonos y puntos de frontera; exige que las coordenadas pertenezcan al Perú y al departamento seleccionado. El código vial se busca entre los códigos persistidos y admite un código nuevo con formato oficial, mostrando que su frecuencia canónica será cero. Los campos de escena opcionales comienzan en \texttt{NO INFORMADO}. El subgrupo histórico coincidente se presenta únicamente con $n\geq30$.
 
 \subsection{Decisión y contexto en escalas distintas}
-La decisión pública se calcula únicamente con la probabilidad Platt y el umbral 0.20. El score sigmoide y el umbral 0.65 aparecen en un panel separado para auditoría. Las tasas históricas incluyen soporte e intervalo de Wilson; son comparadores descriptivos y no se superponen conceptualmente con una probabilidad individual.
+La decisión pública se calcula únicamente con la probabilidad Platt y el umbral 0.30. El score sigmoide y el umbral 0.80 aparecen en un panel separado para auditoría. Las tasas históricas incluyen soporte e intervalo de Wilson; son comparadores descriptivos y no se superponen conceptualmente con una probabilidad individual.
 
 \subsection{Validación funcional}
-\path{src/block_g_app_check.py} ejecuta comprobaciones de manifiesto, alineación de 162 variables, finitud, separación de escalas, ausencia de escrituras y latencia en caliente. Además, \texttt{streamlit.testing.AppTest} recorre las cinco URLs, verifica campos vacíos, carga demo explícita, resultado válido, coherencia geográfica, limpieza de estado obsoleto y alternativas tabulares. Las pruebas unitarias cubren fechas fuera de dominio, coordenadas interiores, exteriores, fronterizas y departamentalmente incoherentes, códigos viales conocidos y nuevos, separación de umbrales y soporte $n=29/30$.
+\path{src/block_g_app_check.py} ejecuta comprobaciones de manifiesto, alineación de 175 variables, finitud, separación de escalas, ausencia de escrituras y latencia en caliente. Además, \texttt{streamlit.testing.AppTest} recorre las cinco URLs, verifica campos vacíos, carga demo explícita, resultado válido, coherencia geográfica, limpieza de estado obsoleto y alternativas tabulares. Las pruebas unitarias cubren fechas fuera de dominio, coordenadas interiores, exteriores, fronterizas y departamentalmente incoherentes, códigos viales conocidos y nuevos, separación de umbrales y soporte $n=29/30$.
 
 El gate \texttt{check\_release.py} unifica pruebas directas, AppTest, hashes, paridad de 2232 inferencias, lectura segura de explicabilidad, escaneo de notebooks e imports, referencias obsoletas, vigencia del PDF y estado de Git. El modo local informa artefactos aún no versionados; el modo estricto los convierte en fallo de entrega.
 

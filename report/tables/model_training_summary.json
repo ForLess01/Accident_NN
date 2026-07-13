@@ -4,9 +4,9 @@
     "validation": 2000,
     "reference": 2232
   },
-  "feature_count": 162,
-  "selected_config": "MLP_64_32",
-  "selected_threshold": 0.65,
-  "reference_period_used_for_selection": false,
-  "selected_seed": 314
+  "feature_count": 175,
+  "selected_config": "MLP_32_16",
+  "selected_seed": 314,
+  "selected_threshold": 0.8,
+  "reference_period_used_for_selection": false
 }

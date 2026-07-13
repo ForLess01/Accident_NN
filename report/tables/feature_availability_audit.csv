@@ -3,6 +3,7 @@ source_fields,availability,post_incident_prioritization,prevention,decision
 "DEPARTAMENTO, coordenadas, red/tipo de vía",Location and road inventory,yes,yes when geocoded,Location and road context
 "ZONA, CLIMA, geometría, superficie",Initial scene/inventory observation,yes,partly,Scene and infrastructure context
 CLASE,Event classification,yes after notification,no,Post-incident prioritization only
+"Vehiculos/personas involucradas (conteos, tipo, edad)",Scene facts from companion tables,yes after notification,no,v2 aggregates; per-person outcomes stay banned
 "FALLECIDOS, LESIONADOS, VEHICULOS_DANADOS",Outcome/count after event,no,no,Excluded: direct outcome leakage
 "CAUSA_FACTOR, CAUSA_ESPECIFICA",Investigation conclusion,no,no,Excluded: post-investigation leakage
 "SENAL_VERTICAL, SENAL_HORIZONTAL",Sparse recording field,not reliable,not reliable,Excluded: missingness is period-dependent

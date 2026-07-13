@@ -102,6 +102,90 @@
       "required": true,
       "nullable": true,
       "role": "runtime_input"
+    },
+    {
+      "name": "n_vehiculos",
+      "training_dtype": "int64",
+      "required": true,
+      "nullable": false,
+      "role": "runtime_input"
+    },
+    {
+      "name": "n_bus",
+      "training_dtype": "int64",
+      "required": true,
+      "nullable": false,
+      "role": "runtime_input"
+    },
+    {
+      "name": "n_pesado_carga",
+      "training_dtype": "int64",
+      "required": true,
+      "nullable": false,
+      "role": "runtime_input"
+    },
+    {
+      "name": "n_moto",
+      "training_dtype": "int64",
+      "required": true,
+      "nullable": false,
+      "role": "runtime_input"
+    },
+    {
+      "name": "n_no_identificado",
+      "training_dtype": "int64",
+      "required": true,
+      "nullable": false,
+      "role": "runtime_input"
+    },
+    {
+      "name": "n_interprovincial",
+      "training_dtype": "int64",
+      "required": true,
+      "nullable": false,
+      "role": "runtime_input"
+    },
+    {
+      "name": "n_transporte_publico",
+      "training_dtype": "int64",
+      "required": true,
+      "nullable": false,
+      "role": "runtime_input"
+    },
+    {
+      "name": "n_personas",
+      "training_dtype": "int64",
+      "required": true,
+      "nullable": false,
+      "role": "runtime_input"
+    },
+    {
+      "name": "n_pasajeros",
+      "training_dtype": "int64",
+      "required": true,
+      "nullable": false,
+      "role": "runtime_input"
+    },
+    {
+      "name": "n_peatones",
+      "training_dtype": "int64",
+      "required": true,
+      "nullable": false,
+      "role": "runtime_input"
+    },
+    {
+      "name": "n_conductor_fugado",
+      "training_dtype": "int64",
+      "required": true,
+      "nullable": false,
+      "role": "runtime_input"
+    },
+    {
+      "name": "edad_media_involucrados",
+      "training_dtype": "float64",
+      "required": true,
+      "nullable": true,
+      "role": "runtime_input"
     }
   ],
   "runtime_constraints": {
@@ -128,12 +212,24 @@
     "ZONIFICACION",
     "target_multifatal"
   ],
-  "processed_feature_count": 162,
+  "processed_feature_count": 175,
   "processed_feature_dtype": "float32",
   "processed_feature_order": [
     "LATITUD",
     "LONGITUD",
     "via_freq",
+    "n_vehiculos",
+    "n_bus",
+    "n_pesado_carga",
+    "n_moto",
+    "n_no_identificado",
+    "n_interprovincial",
+    "n_transporte_publico",
+    "n_personas",
+    "n_pasajeros",
+    "n_peatones",
+    "n_conductor_fugado",
+    "edad_media_involucrados",
     "mes_sin",
     "mes_cos",
     "dia_semana_sin",
@@ -146,6 +242,7 @@
     "coord_faltante",
     "night_rural",
     "rain_curve",
+    "edad_faltante",
     "departamento_amazonas",
     "departamento_ancash",
     "departamento_apurimac",

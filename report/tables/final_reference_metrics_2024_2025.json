@@ -5,26 +5,26 @@
     "n": 2232,
     "positives": 222,
     "class_rate": 0.09946236559139784,
-    "threshold": 0.65,
-    "f1_multifatal": 0.30303030303030304,
-    "precision_multifatal": 0.2345679012345679,
-    "recall_multifatal": 0.42792792792792794,
-    "pr_auc": 0.22488456244372435,
-    "roc_auc": 0.7481914750571468,
-    "brier": 0.18168342113494873,
-    "ece_10_bins": 0.2623002306394627
+    "threshold": 0.8,
+    "f1_multifatal": 0.49572649572649574,
+    "precision_multifatal": 0.4715447154471545,
+    "recall_multifatal": 0.5225225225225225,
+    "pr_auc": 0.44161244798359095,
+    "roc_auc": 0.8841020124602215,
+    "brier": 0.10807232558727264,
+    "ece_10_bins": 0.10435607660550117
   },
   "calibrated": {
     "n": 2232,
     "positives": 222,
     "class_rate": 0.09946236559139784,
-    "threshold": 0.2,
-    "f1_multifatal": 0.2957983193277311,
-    "precision_multifatal": 0.2359249329758713,
-    "recall_multifatal": 0.3963963963963964,
-    "pr_auc": 0.22488456244372435,
-    "roc_auc": 0.7481914750571468,
-    "brier": 0.08306565514471038,
-    "ece_10_bins": 0.008530335292795411
+    "threshold": 0.3,
+    "f1_multifatal": 0.5058365758754864,
+    "precision_multifatal": 0.4452054794520548,
+    "recall_multifatal": 0.5855855855855856,
+    "pr_auc": 0.44161244798359095,
+    "roc_auc": 0.8841020124602215,
+    "brier": 0.0683364848239811,
+    "ece_10_bins": 0.016882211985580226
   }
 }

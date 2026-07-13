@@ -456,7 +456,7 @@ def overview_page(manifest: dict[str, Any]) -> None:
     steps = st.columns(3)
     step_cards = [
         ("① Se notifica un siniestro fatal", "El registro trae fecha, hora, lugar, tipo de siniestro, vía y clima: nada del desenlace posterior."),
-        ("② La red neuronal lo evalúa", "Una MLP entrenada con los siniestros de 2021–2022 convierte ese contexto en 162 señales y produce un score."),
+        ("② La red neuronal lo evalúa", "Una MLP entrenada con los siniestros de 2021–2022 convierte ese contexto en 175 señales y produce un score."),
         ("③ Se obtiene una probabilidad honesta", "El score se calibra para que 20 % signifique realmente 20 %. Si supera el umbral, el caso se prioriza para revisión."),
     ]
     for column, (title, copy) in zip(steps, step_cards):
@@ -728,6 +728,18 @@ def estimate_page() -> None:
                 "input_surface": demo["SUPERFICIE"],
                 "input_latitude": float(demo["LATITUD"]),
                 "input_longitude": float(demo["LONGITUD"]),
+                "input_n_vehiculos": int(demo["n_vehiculos"]),
+                "input_n_bus": int(demo["n_bus"]),
+                "input_n_pesado_carga": int(demo["n_pesado_carga"]),
+                "input_n_moto": int(demo["n_moto"]),
+                "input_n_no_identificado": int(demo["n_no_identificado"]),
+                "input_n_interprovincial": int(demo["n_interprovincial"]),
+                "input_n_transporte_publico": int(demo["n_transporte_publico"]),
+                "input_n_personas": int(demo["n_personas"]),
+                "input_n_pasajeros": int(demo["n_pasajeros"]),
+                "input_n_peatones": int(demo["n_peatones"]),
+                "input_n_conductor_fugado": int(demo["n_conductor_fugado"]),
+                "input_edad_media": float(demo["edad_media_involucrados"]) if pd.notna(demo["edad_media_involucrados"]) else None,
             }
             st.session_state.update(widget_values)
             st.session_state.pop("canonical_result", None)
@@ -801,6 +813,39 @@ def estimate_page() -> None:
         with coordinate_columns[1]:
             longitude = st.number_input("Longitud", min_value=-180.0, max_value=180.0, value=None, format="%.6f", placeholder="Ej.: -77.042793…", key="input_longitude")
         st.caption("Ingresá ambas coordenadas. El esquema canónico exige ubicación para la inferencia final; la app no imputa una localización silenciosamente.")
+
+        st.markdown("#### Vehículos y personas involucradas (hechos de la escena)")
+        scene_top = st.columns(4)
+        with scene_top[0]:
+            n_vehiculos = st.number_input("Vehículos involucrados", min_value=1, max_value=10, value=None, step=1, placeholder="Ej.: 2", key="input_n_vehiculos")
+        with scene_top[1]:
+            n_personas = st.number_input("Personas involucradas", min_value=1, max_value=120, value=None, step=1, placeholder="Ej.: 4", key="input_n_personas")
+        with scene_top[2]:
+            n_pasajeros = st.number_input("De ellas, pasajeros/ocupantes", min_value=0, max_value=120, value=0, step=1, key="input_n_pasajeros")
+        with scene_top[3]:
+            n_peatones = st.number_input("De ellas, peatones", min_value=0, max_value=120, value=0, step=1, key="input_n_peatones")
+        scene_bottom = st.columns(4)
+        with scene_bottom[0]:
+            n_bus = st.number_input("Buses / minibuses", min_value=0, max_value=10, value=0, step=1, key="input_n_bus")
+        with scene_bottom[1]:
+            n_pesado_carga = st.number_input("Pesados de carga", min_value=0, max_value=10, value=0, step=1, key="input_n_pesado_carga")
+        with scene_bottom[2]:
+            n_moto = st.number_input("Motos / trimotos / bicis", min_value=0, max_value=10, value=0, step=1, key="input_n_moto")
+        with scene_bottom[3]:
+            n_no_identificado = st.number_input("Vehículos no identificados", min_value=0, max_value=10, value=0, step=1, key="input_n_no_identificado")
+        scene_extra = st.columns(4)
+        with scene_extra[0]:
+            n_interprovincial = st.number_input("Servicio interprovincial", min_value=0, max_value=10, value=0, step=1, key="input_n_interprovincial")
+        with scene_extra[1]:
+            n_transporte_publico = st.number_input("Transporte público / taxi", min_value=0, max_value=10, value=0, step=1, key="input_n_transporte_publico")
+        with scene_extra[2]:
+            n_conductor_fugado = st.number_input("Conductores fugados", min_value=0, max_value=10, value=0, step=1, key="input_n_conductor_fugado")
+        with scene_extra[3]:
+            edad_media = st.number_input("Edad media involucrados (opcional)", min_value=0.0, max_value=110.0, value=None, step=1.0, placeholder="NO INFORMADO", key="input_edad_media")
+        st.caption(
+            "Conteos observables al caracterizar la notificación: cuántos vehículos y personas estaban involucrados y de qué tipo. "
+            "No se ingresa ningún desenlace (fallecidos o lesionados por persona)."
+        )
         submitted = st.form_submit_button("Estimar prioridad", type="primary")
 
     if submitted:
@@ -822,6 +867,18 @@ def estimate_page() -> None:
                 "CARACTERISTICA_VIA": characteristic,
                 "PERFIL_VIA": profile,
                 "SUPERFICIE": surface,
+                "n_vehiculos": n_vehiculos,
+                "n_bus": n_bus,
+                "n_pesado_carga": n_pesado_carga,
+                "n_moto": n_moto,
+                "n_no_identificado": n_no_identificado,
+                "n_interprovincial": n_interprovincial,
+                "n_transporte_publico": n_transporte_publico,
+                "n_personas": n_personas,
+                "n_pasajeros": n_pasajeros,
+                "n_peatones": n_peatones,
+                "n_conductor_fugado": n_conductor_fugado,
+                "edad_media_involucrados": edad_media,
             }]
         )
         try:

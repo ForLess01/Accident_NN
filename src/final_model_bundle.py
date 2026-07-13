@@ -55,7 +55,7 @@ from src.model_protocol import (
 BASE_PATH = ROOT / "data" / "processed" / "base_limpia.parquet"
 FINAL_MODEL_DIR = ROOT / "models" / "final"
 TABLES_DIR = ROOT / "report" / "tables"
-MODEL_VERSION = "canonical-1.0.0"
+MODEL_VERSION = "canonical-2.0.0"
 CALIBRATION_FOLDS = 5
 CALIBRATION_SEED = 20260709
 BOOTSTRAP_ITERATIONS = 1000
@@ -236,8 +236,12 @@ def _input_schema(base: pd.DataFrame, feature_list: list[str]) -> dict[str, Any]
         "FECHA", "HORA", "DEPARTAMENTO", "CODIGO_VIA", "LATITUD", "LONGITUD",
         "CLASE", "ZONA", "RED_VIAL", "TIPO_VIA", "CLIMA", "CARACTERISTICA_VIA",
         "PERFIL_VIA", "SUPERFICIE",
+        # v2 scene aggregates from the companion tables.
+        "n_vehiculos", "n_bus", "n_pesado_carga", "n_moto", "n_no_identificado",
+        "n_interprovincial", "n_transporte_publico", "n_personas", "n_pasajeros",
+        "n_peatones", "n_conductor_fugado", "edad_media_involucrados",
     ]
-    non_nullable_runtime_fields = {"LATITUD", "LONGITUD"}
+    non_nullable_runtime_fields = {"LATITUD", "LONGITUD", "n_vehiculos", "n_personas"}
     fields = []
     for column in required:
         fields.append(
