@@ -22,6 +22,7 @@ DIRECT_CHECKS = [
     "tests/test_final_model_bundle.py",
     "tests/test_final_explainability.py",
     "tests/test_app_inference.py",
+    "tests/test_validation_design_audit.py",
     "src/block_g_app_check.py",
 ]
 INVENTORY_PATH = ROOT / "scripts" / "release_inventory.json"
@@ -35,6 +36,7 @@ FORBIDDEN_REFERENCES = (
     "calibration_posthoc",
 )
 TEXT_SUFFIXES = {".py", ".md", ".tex", ".json", ".toml", ".txt", ".csv", ".bib"}
+STALE_NOTEBOOK_CLAIMS = ("tres arquitecturas", "no abre el periodo de referencia")
 
 
 def announce(message: str) -> None:
@@ -132,6 +134,27 @@ def verify_notebooks_and_python() -> None:
         raise RuntimeError("Imports no resolubles en el entorno: " + ", ".join(unresolved))
 
 
+def find_stale_notebook_claims(root: Path = ROOT) -> list[str]:
+    """Return obsolete methodological claims found in notebook markdown cells."""
+    hits: list[str] = []
+    for path in sorted((root / "notebooks").glob("*.ipynb")):
+        notebook = json.loads(path.read_text(encoding="utf-8"))
+        for index, cell in enumerate(notebook.get("cells", [])):
+            if cell.get("cell_type") != "markdown":
+                continue
+            source = "".join(cell.get("source", [])).lower()
+            for claim in STALE_NOTEBOOK_CLAIMS:
+                if claim in source:
+                    hits.append(f"{path.relative_to(root)}:cell-{index} -> {claim}")
+    return hits
+
+
+def verify_notebook_claims() -> None:
+    hits = find_stale_notebook_claims()
+    if hits:
+        raise RuntimeError("Afirmaciones metodológicas obsoletas en notebooks:\n" + "\n".join(hits))
+
+
 def scan_forbidden_references() -> None:
     hits: list[str] = []
     roots = [ROOT / "app", ROOT / "src", ROOT / "tests", ROOT / "report", ROOT / "docs"]
@@ -194,6 +217,8 @@ def main() -> int:
         run([str(PYTHON), relative])
     verify_notebooks_and_python()
     announce("notebooks, sintaxis e imports verificados")
+    verify_notebook_claims()
+    announce("afirmaciones metodológicas de notebooks verificadas")
     scan_forbidden_references()
     announce("sin referencias obsoletas")
     verify_pdf_freshness()

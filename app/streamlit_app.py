@@ -27,6 +27,7 @@ from src.app_inference import (
     load_clean_dataset,
     load_demo_cases,
     load_explainability_artifacts,
+    load_feature_schema,
     load_input_options,
     load_known_road_codes,
     load_manifest,
@@ -47,7 +48,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-ORANGE = "#C94F16"
+ORANGE = "#A63F12"
 INK = "#202522"
 MUTED = "#5F6965"
 BLUE = "#496B7C"
@@ -60,7 +61,7 @@ INFERENCE_DATE_MIN = date(2021, 1, 1)
 INFERENCE_DATE_MAX = date(2025, 12, 31)
 SECTION_SLUGS = {
     "Panorama": "panorama",
-    "Estimar": "estimar",
+    "Probar la red": "estimar",
     "Explorar datos": "explorar",
     "Patrones regionales": "regiones",
     "Evidencia del modelo": "evidencia",
@@ -72,7 +73,7 @@ APP_CSS = """
   --ink: #202522;
   --muted: #5F6965;
   --surface: #F7F3EB;
-  --accent: #C94F16;
+  --accent: #A63F12;
   --rule: #D9DED9;
 }
 html { scroll-behavior: smooth; }
@@ -110,13 +111,29 @@ code { color: #7D3213; background: #F4E9DE; border-radius: .25rem; }
 }
 .decision-title { color: var(--ink); font-size: 1.35rem; font-weight: 800; margin: .3rem 0; }
 .decision-copy { color: var(--muted); font-size: .92rem; }
+.nn-pipeline {
+  display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .55rem;
+  margin: .8rem 0 1.4rem; align-items: stretch;
+}
+.nn-stage {
+  position: relative; border: 1px solid var(--rule); border-top: 4px solid var(--ink);
+  background: #FFFFFF; padding: .8rem; min-width: 0;
+}
+.nn-stage.accent { border-top-color: var(--accent); background: #FFF9F2; }
+.nn-stage.external { border-top-color: #4F806A; background: #F4FAF6; }
+.nn-stage:not(:last-child)::after {
+  content: "→"; position: absolute; right: -.48rem; top: 42%; z-index: 2;
+  color: var(--accent); font-weight: 900; background: #FCFBF7;
+}
+.nn-stage strong { display: block; font-size: .88rem; line-height: 1.2; }
+.nn-stage span { display: block; color: var(--muted); font-size: .76rem; margin-top: .35rem; line-height: 1.35; }
 .mono-value { font-variant-numeric: tabular-nums; }
 [data-testid="stMetricValue"] { font-variant-numeric: tabular-nums; }
 [data-testid="stForm"] { border: 1px solid var(--rule); background: #FFFFFF; padding: 1rem; }
 [data-testid="stRadio"] [role="radiogroup"] { gap: .35rem; border-bottom: 1px solid var(--rule); padding-bottom: .45rem; }
 [data-testid="stRadio"] label { min-height: 44px; padding: .35rem .65rem; }
 button:focus-visible, a:focus-visible, input:focus-visible, [role="radio"]:focus-visible {
-  outline: 3px solid rgba(201,79,22,.42) !important; outline-offset: 2px;
+  outline: 3px solid rgba(166,63,18,.52) !important; outline-offset: 2px;
 }
 .stButton button, [data-testid="stFormSubmitButton"] button { min-height: 44px; }
 .stDownloadButton button { min-height: 44px; }
@@ -124,6 +141,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, [role="radio"]:focus
   .main .block-container { padding-left: 1rem; padding-right: 1rem; }
   .evidence-card { min-height: auto; margin-bottom: .5rem; }
   .scope-strip { padding: .8rem; }
+  .nn-pipeline { grid-template-columns: 1fr; }
+  .nn-stage:not(:last-child)::after { content: "↓"; right: 50%; top: auto; bottom: -.72rem; }
 }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
@@ -163,6 +182,75 @@ def format_number_es(value: float | int, *, digits: int = 0, suffix: str = "") -
     rendered = f"{float(value):,.{digits}f}"
     rendered = rendered.replace(",", "\u0000").replace(".", ",").replace("\u0000", ".")
     return f"{rendered}{suffix}"
+
+
+def _compact_decimal_es(value: float, *, precision: int = 8) -> str:
+    """Render an artifact decimal without inventing insignificant trailing zeros."""
+    return np.format_float_positional(float(value), precision=precision, trim="-").replace(".", ",")
+
+
+def overview_provenance(manifest: dict[str, Any]) -> dict[str, str]:
+    """Derive visible overview claims from the canonical manifest only."""
+    metrics = manifest["reference_evaluation"]["metrics"]["calibrated"]
+    class_rate = float(metrics["class_rate"])
+    if not 0 < class_rate <= 1:
+        raise RuntimeArtifactError("La prevalencia canónica debe estar en el intervalo (0, 1].")
+    reference_count = int(metrics["n"])
+    split_reference_count = int(manifest["splits"]["reference"]["count"])
+    if reference_count != split_reference_count:
+        raise RuntimeArtifactError("El tamaño de referencia no coincide entre las métricas y las particiones.")
+    learning_rate = float(manifest["architecture"]["learning_rate"])
+    if learning_rate <= 0:
+        raise RuntimeArtifactError("La tasa de aprendizaje canónica debe ser positiva.")
+    return {
+        "class_rate_shorthand": f"1 de cada {max(1, round(1 / class_rate))}",
+        "learning_rate": _compact_decimal_es(learning_rate),
+        "reference_count": format_number_es(reference_count),
+    }
+
+
+STRATEGY_PRESENTATION = {
+    "single_seed314_frozen": ("1 MLP congelada", ORANGE),
+    "ensemble_mean_3_seeds": ("Ensemble 3 semillas", BLUE),
+    "multibranch_162_context_13_companion_mean_3_seeds": ("Multirrama 162+13", "#7E9187"),
+}
+
+
+def strategy_presentation_table(strategies: pd.DataFrame) -> pd.DataFrame:
+    """Join strategy labels/colors by stable artifact key, never by CSV row order."""
+    if strategies["strategy"].duplicated().any() or set(strategies["strategy"]) != set(STRATEGY_PRESENTATION):
+        raise RuntimeArtifactError("Las estrategias de diseño no coinciden con el contrato canónico.")
+    ordered = strategies.set_index("strategy").loc[list(STRATEGY_PRESENTATION)].reset_index()
+    ordered["label"] = ordered["strategy"].map(lambda key: STRATEGY_PRESENTATION[str(key)][0])
+    ordered["color"] = ordered["strategy"].map(lambda key: STRATEGY_PRESENTATION[str(key)][1])
+    return ordered
+
+
+def strategy_ci_zero_summary(strategy_ci: pd.DataFrame) -> dict[str, int | str]:
+    """Count intervals crossing zero directly from their persisted bounds."""
+    required_metrics = ["pr_auc", "roc_auc", "f1_multifatal"]
+    if strategy_ci["metric"].duplicated().any() or set(strategy_ci["metric"]) != set(required_metrics):
+        raise RuntimeArtifactError("Los intervalos de estrategia no coinciden con el contrato canónico.")
+    includes_zero = strategy_ci["ci_2_5"].le(0) & strategy_ci["ci_97_5"].ge(0)
+    count = int(includes_zero.sum())
+    total = int(len(strategy_ci))
+    noun = "intervalo incluye" if total == 1 else "intervalos incluyen"
+    return {"including_zero": count, "total": total, "copy": f"{count} de {total} {noun} 0"}
+
+
+def person_strategy_labels(persons: pd.DataFrame, audit: dict[str, Any]) -> dict[str, str]:
+    """Derive the count-rule label from the frozen validation-only threshold."""
+    indexed = persons.set_index("model")
+    required = {"regla_n_personas", "MLP_canónica_cruda"}
+    if indexed.index.duplicated().any() or set(indexed.index) != required:
+        raise RuntimeArtifactError("La comparación con n_personas no coincide con el contrato canónico.")
+    threshold = float(audit["n_personas_rule_selected_on_validation"])
+    if not np.isclose(float(indexed.loc["regla_n_personas", "threshold"]), threshold):
+        raise RuntimeArtifactError("El umbral de n_personas no coincide entre las evidencias de diseño.")
+    return {
+        "regla_n_personas": f"Regla n_personas ≥ {format_number_es(threshold)}",
+        "MLP_canónica_cruda": "MLP canónica cruda",
+    }
 
 
 def format_date_es(value: date | pd.Timestamp) -> str:
@@ -254,15 +342,78 @@ def load_reference_artifacts() -> dict[str, Any]:
         raise RuntimeArtifactError(f"No se pudieron leer las evidencias canónicas: {exc}") from exc
 
 
+@st.cache_data(show_spinner=False)
+def load_design_artifacts() -> dict[str, pd.DataFrame | dict[str, Any]]:
+    """Load validation-only design evidence and verify every persisted hash."""
+    tables = ROOT / "report" / "tables"
+    required = {
+        "audit": tables / "design_validation_audit.json",
+        "regularization": tables / "design_regularization_summary.csv",
+        "strategies": tables / "design_network_strategy_validation.csv",
+        "strategy_bootstrap": tables / "design_network_strategy_bootstrap.csv",
+        "persons": tables / "design_n_personas_reference_comparison.csv",
+        "persons_bootstrap": tables / "design_n_personas_paired_bootstrap.csv",
+        "annual": tables / "design_annual_stability_2024_2025.csv",
+    }
+    expected = load_manifest().get("design_evidence_artifact_hashes", {})
+    for path in required.values():
+        if not path.exists() or expected.get(path.name) != sha256_file(path):
+            raise RuntimeArtifactError(f"La evidencia de diseño {path.name} falta o no coincide con el manifiesto.")
+    return {
+        "audit": json.loads(required["audit"].read_text(encoding="utf-8")),
+        **{key: pd.read_csv(path) for key, path in required.items() if key != "audit"},
+    }
+
+
+@st.cache_data(show_spinner=False)
+def load_selection_runs() -> pd.DataFrame:
+    """Load the frozen configuration-by-seed grid with manifest verification."""
+    path = ROOT / "report" / "tables" / "model_selection_seed_grid_validation.csv"
+    expected = load_manifest().get("selection_artifact_hashes", {}).get(path.name)
+    if not path.is_file() or not expected or sha256_file(path) != expected:
+        raise RuntimeArtifactError("La grilla de selección no coincide con el manifiesto canónico.")
+    return pd.read_csv(path)
+
+
+def canonical_design_summary(
+    manifest: dict[str, Any],
+    schema: dict[str, Any],
+    selection_runs: pd.DataFrame,
+) -> dict[str, Any]:
+    """Derive every visible network count from frozen canonical artifacts."""
+    raw_input_fields = len(schema["required_raw_fields"])
+    processed_features = int(schema["processed_feature_count"])
+    hidden_units = [int(value) for value in manifest["architecture"]["hidden_units"]]
+    if processed_features != int(manifest["feature_count"]) or not hidden_units:
+        raise RuntimeArtifactError("El esquema y la arquitectura canónica no coinciden.")
+    widths = [processed_features, *hidden_units, 1]
+    trainable_parameters = sum((left + 1) * right for left, right in zip(widths, widths[1:]))
+    configuration_count = int(selection_runs["config_id"].nunique())
+    seed_count = int(selection_runs["seed"].nunique())
+    run_count = int(len(selection_runs[["config_id", "seed"]].drop_duplicates()))
+    if run_count != configuration_count * seed_count:
+        raise RuntimeArtifactError("La grilla configuración×semilla está incompleta.")
+    return {
+        "raw_input_fields": raw_input_fields,
+        "processed_features": processed_features,
+        "hidden_units": hidden_units,
+        "hidden_layer_count": len(hidden_units),
+        "dense_layer_count": len(hidden_units) + 1,
+        "trainable_parameters": trainable_parameters,
+        "configuration_count": configuration_count,
+        "seed_count": seed_count,
+        "run_count": run_count,
+    }
+
+
 def app_header(manifest: dict[str, Any]) -> None:
     st.markdown(APP_CSS, unsafe_allow_html=True)
     st.markdown('<a class="skip-link" href="#main-content">Saltar al contenido principal</a><div id="main-content"></div>', unsafe_allow_html=True)
     st.markdown('<div class="eyebrow">Observatorio académico · Seguridad vial · Perú</div>', unsafe_allow_html=True)
     st.title("Multifatalidad en siniestros viales ya fatales")
     st.markdown(
-        '<div class="scope-strip"><strong>¿Qué hace este sistema?</strong> Cuando se notifica un siniestro vial fatal en el Perú, '
-        'una red neuronal estima la probabilidad de que haya dejado <strong>dos o más fallecidos</strong>, usando solo la '
-        'información disponible al registrar el evento. Fuente: ONSV 2021–2025.</div>',
+        '<div class="scope-strip"><strong>¿Qué hace este sistema?</strong> Clasifica retrospectivamente un siniestro vial fatal registrado en Perú '
+        'como <strong>1 fallecido</strong> o <strong>2+ fallecidos</strong> y muestra la probabilidad calibrada, la evidencia y sus límites. Fuente: ONSV 2021–2025.</div>',
         unsafe_allow_html=True,
     )
 
@@ -442,35 +593,55 @@ def _category_monthly_chart(joined: pd.DataFrame, column: str, category: str, la
 def overview_page(manifest: dict[str, Any]) -> None:
     st.header("Panorama")
     metrics = manifest["reference_evaluation"]["metrics"]["calibrated"]
+    provenance = overview_provenance(manifest)
     columns = st.columns(3)
     overview_cards = [
         ("Siniestros fatales estudiados", format_number_es(manifest["dataset"]["row_count"]), "Registro oficial ONSV, 2021–2025"),
-        ("¿Cuántos son multifatales?", "1 de cada 10", f'{_percent(metrics["class_rate"])} de los siniestros fatales deja 2+ fallecidos'),
-        ("¿El modelo ordena bien el riesgo?", "ROC-AUC 0,75", "Verificado en 2024–2025, un periodo que la red nunca vio al entrenar"),
+        ("¿Cuántos son multifatales?", provenance["class_rate_shorthand"], f'{_percent(metrics["class_rate"])} de los siniestros fatales deja 2+ fallecidos'),
+        ("¿El modelo separa las clases?", f'ROC-AUC {format_number_es(metrics["roc_auc"], digits=3)}', "Referencia histórica 2024–2025; segunda consulta declarada"),
     ]
     for column, card in zip(columns, overview_cards):
         with column:
             _card(*card)
 
-    st.subheader("Cómo funciona, en tres pasos")
-    steps = st.columns(3)
-    step_cards = [
-        ("① Se notifica un siniestro fatal", "El registro trae fecha, hora, lugar, tipo de siniestro, vía y clima: nada del desenlace posterior."),
-        ("② La red neuronal lo evalúa", "Una MLP entrenada con los siniestros de 2021–2022 convierte ese contexto en 175 señales y produce un score."),
-        ("③ Se obtiene una probabilidad honesta", "El score se calibra para que 20 % signifique realmente 20 %. Si supera el umbral, el caso se prioriza para revisión."),
-    ]
-    for column, (title, copy) in zip(steps, step_cards):
-        with column:
-            st.markdown(
-                f'<div class="evidence-card"><div class="evidence-value" style="font-size:1.05rem">{title}</div>'
-                f'<div class="evidence-detail">{copy}</div></div>',
-                unsafe_allow_html=True,
-            )
+    st.subheader("Cómo funciona la red neuronal")
+    architecture = manifest["architecture"]
+    design = canonical_design_summary(manifest, load_feature_schema(), load_selection_runs())
+    hidden_units = design["hidden_units"]
+    threshold = manifest["thresholds"]["calibrated"]["value"]
+    st.markdown(
+        f"""
+        <div class="nn-pipeline" role="img" aria-label="Flujo de {design['raw_input_fields']} campos crudos a una clasificación multifatal">
+          <div class="nn-stage"><strong>{design['raw_input_fields']} campos</strong><span>Evento, ubicación, vía, entorno, vehículos y personas</span></div>
+          <div class="nn-stage"><strong>{design['processed_features']} features</strong><span>Escalado, ciclos temporales, categorías e interacciones</span></div>
+          <div class="nn-stage accent"><strong>Dense {hidden_units[0]} + ReLU</strong><span>L2 {architecture['l2']:.0e} · Dropout {architecture['dropout']:.2f} durante entrenamiento</span></div>
+          <div class="nn-stage accent"><strong>Dense {hidden_units[1]} + ReLU</strong><span>L2 {architecture['l2']:.0e} · Dropout {architecture['dropout']:.2f} durante entrenamiento</span></div>
+          <div class="nn-stage external"><strong>Platt externo</strong><span>σ(a·logit(s)+b); calibra el score congelado</span></div>
+          <div class="nn-stage"><strong>Clase estimada</strong><span>1 fallecido / 2+ fallecidos · umbral {threshold:.2f}</span></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.caption(
+        f"La MLP tiene {design['hidden_layer_count']} capas ocultas, {design['dense_layer_count']} capas densas entrenables "
+        f"y {format_number_es(design['trainable_parameters'])} parámetros. La búsqueda comparó "
+        f"{design['configuration_count']} configuraciones completas × {design['seed_count']} semillas = "
+        f"{design['run_count']} corridas y congeló {architecture['config_id']}, semilla {architecture['seed']}."
+    )
+    technique_table = pd.DataFrame([
+        {"Fase": "Representación", "Técnica": "Escalado + one-hot + codificación cíclica", "Decisión": "Ajustada solo con 2021–2022"},
+        {"Fase": "Red", "Técnica": "ReLU, L2 y dropout", "Decisión": "Capacidad compacta; evidencia de ablación en 2023"},
+        {"Fase": "Optimización", "Técnica": "BCE ponderada + Adam", "Decisión": f"Pesos de clase; LR inicial {provenance['learning_rate']}"},
+        {"Fase": "Control", "Técnica": "Early stopping + ReduceLROnPlateau", "Decisión": "Monitor PR-AUC de validación"},
+        {"Fase": "Postproceso", "Técnica": "Platt OOF", "Decisión": "Externa a la NN; no es stacking"},
+    ])
+    _table_fallback("técnicas por fase", technique_table, key="tecnicas_por_fase")
 
     st.subheader("La demostración")
     st.write(
-        "Estas dos lecturas usan los 2 232 siniestros de 2024–2025, un periodo posterior a todo el entrenamiento. "
-        "Si el modelo no sirviera, la línea punteada ignoraría a la línea sólida y los cinco grupos tendrían la misma tasa."
+        f"Estas lecturas usan los {provenance['reference_count']} siniestros de 2024–2025 como referencia histórica ya consultada. "
+        "Como expectativa promedio, una calibración útil acerca la probabilidad media a la frecuencia observada; "
+        "cada mes puede apartarse por variabilidad muestral, especialmente cuando reúne pocos registros."
     )
     try:
         probabilities = load_reference_artifacts()["probabilities"]
@@ -478,7 +649,7 @@ def overview_page(manifest: dict[str, Any]) -> None:
         st.plotly_chart(tracking_fig, width="stretch", config={"displayModeBar": False})
         st.caption(
             "Cada punto de la línea sólida es la tasa multifatal realmente observada ese mes; la línea punteada es la "
-            "probabilidad media que el modelo asignó a esos mismos registros. Que se muevan juntas es la calibración funcionando. "
+            "probabilidad media que el modelo asignó a esos mismos registros. Su cercanía agregada es compatible con buena calibración; no garantiza coincidencia punto a punto. "
             f"Las barras verticales son intervalos de Wilson al 95 %: los meses con pocos registros oscilan dentro de ese margen. "
             f"Se muestran los meses con al menos {MINIMUM_REGIONAL_SUPPORT} registros; el cierre de 2025 es preliminar."
         )
@@ -490,7 +661,7 @@ def overview_page(manifest: dict[str, Any]) -> None:
         bottom = ordering_table.iloc[0]
         st.caption(
             f"El quintil de mayor score concentra una tasa multifatal de {format_number_es(top['observada_pct'], digits=1, suffix=' %')} "
-            f"frente a {format_number_es(bottom['observada_pct'], digits=1, suffix=' %')} en el de menor score: el modelo separa el riesgo en datos que nunca vio. "
+            f"frente a {format_number_es(bottom['observada_pct'], digits=1, suffix=' %')} en el de menor score: el modelo separa las clases en esta referencia histórica. "
             "Las barras incluyen intervalos de Wilson al 95 %."
         )
         _table_fallback("multifatalidad observada por quintil de score", ordering_table, key="quintiles_score")
@@ -507,8 +678,8 @@ def overview_page(manifest: dict[str, Any]) -> None:
         category_fig, category_table = _category_tracking_chart(joined, dimension_column, dimension_label)
         st.plotly_chart(category_fig, width="stretch", config={"displayModeBar": False})
         st.caption(
-            "Cuando el rombo naranja cae dentro del intervalo del punto negro, el modelo estimó bien esa categoría "
-            "sin haber visto sus etiquetas. Intervalos de Wilson al 95 %."
+            "Cuando el rombo naranja cae dentro del intervalo del punto negro, existe compatibilidad visual entre promedio predicho y frecuencia observada. "
+            "No es una prueba de calibración puntual. Intervalos de Wilson al 95 %."
         )
         _table_fallback("predicho vs. observado por categoría", category_table, key="categoria_tracking")
 
@@ -536,7 +707,7 @@ def overview_page(manifest: dict[str, Any]) -> None:
         protocol = pd.DataFrame(
             [
                 {"Etapa": "Entrenamiento", "Periodo": "2021–2022", "n": manifest["splits"]["train"]["count"], "Uso": "Ajuste de pesos y preprocesamiento"},
-                {"Etapa": "Selección", "Periodo": "2023", "n": manifest["splits"]["validation"]["count"], "Uso": "Arquitectura, calibración y umbrales"},
+                {"Etapa": "Selección", "Periodo": "2023", "n": manifest["splits"]["validation"]["count"], "Uso": "Configuración completa, semilla, calibración y umbrales"},
                 {"Etapa": "Referencia histórica", "Periodo": "2024–2025", "n": manifest["splits"]["reference"]["count"], "Uso": "Evaluación descriptiva; sin ajustes"},
             ]
         )
@@ -544,9 +715,9 @@ def overview_page(manifest: dict[str, Any]) -> None:
         st.markdown(
             f"""
             - **Sin fuga de resultado:** el modelo nunca ve fallecidos, lesionados, vehículos dañados ni causas de la investigación posterior.
-            - **Orden cronológico real:** se entrena con el pasado y se evalúa con el futuro, como operaría de verdad.
+            - **Orden cronológico real:** se entrena con el pasado y se describe el desempeño en periodos posteriores.
             - **Trazabilidad:** versión `{manifest["model_version"]}` con hashes verificados; la interfaz es de solo lectura y no reentrena nada.
-            - **Alcance:** estimación académica dentro del universo ONSV de siniestros fatales notificados; la sección Evidencia documenta métricas, incertidumbre y comparación con modelos clásicos.
+            - **Alcance:** clasificación académica retrospectiva dentro del universo ONSV de siniestros fatales registrados. La disponibilidad de todos los campos al momento exacto de notificación no fue demostrada porque la fuente no incluye timestamps por variable.
             """
         )
 
@@ -694,8 +865,8 @@ def _location_picker() -> None:
 
 
 def estimate_page() -> None:
-    st.header("Estimar prioridad")
-    st.caption("Completá los campos requeridos o cargá el caso de demostración y enviá el formulario.")
+    st.header("Probar la red neuronal")
+    st.caption("Completá un registro o elegí uno de los 5 escenarios académicos. La salida es una probabilidad calibrada de multifatalidad y una clase estimada.")
     options = load_input_options()
     thresholds = load_thresholds()
     known_road_codes = load_known_road_codes()
@@ -706,13 +877,27 @@ def estimate_page() -> None:
     def optional_values(field: str) -> list[str | None]:
         return [None, *[value for value in options[field] if value is not None]]
 
-    demo_clicked = st.button("Cargar caso de demostración", key="load_demo_case")
+    def number_default(key: str, default: int | float | None) -> int | float | None:
+        """Avoid Streamlit's session-state/default conflict after loading a demo."""
+        return None if key in st.session_state else default
+
+    demos = load_demo_cases()
+    demo_options = demos["caso_id"].tolist() if not demos.empty else []
+    demo_labels = dict(zip(demos["caso_id"], demos["descripcion"])) if not demos.empty else {}
+    demo_choice = st.selectbox(
+        "Escenario de demostración",
+        demo_options,
+        format_func=lambda value: demo_labels.get(value, value),
+        placeholder="Elegí uno de los 5 escenarios…",
+        index=None,
+        key="demo_scenario",
+    )
+    demo_clicked = st.button("Cargar escenario", key="load_demo_case", disabled=demo_choice is None)
     if demo_clicked:
-        demos = load_demo_cases()
         if demos.empty:
             st.error("No se encontró el caso de demostración canónico.")
         else:
-            demo = demos.iloc[0]
+            demo = demos.loc[demos["caso_id"].eq(demo_choice)].iloc[0]
             widget_values = {
                 "input_date": pd.Timestamp(demo["FECHA"]).date(),
                 "input_time": pd.Timestamp(str(demo["HORA"])).time(),
@@ -743,12 +928,13 @@ def estimate_page() -> None:
             }
             st.session_state.update(widget_values)
             st.session_state.pop("canonical_result", None)
-            st.toast("Caso de demostración cargado.")
+            st.toast("Escenario cargado. Modificá un campo por vez para observar la respuesta del modelo; el cambio no implica causalidad.")
 
+    st.subheader("Ubicación")
     _location_picker()
 
     with st.form("canonical_estimate_form", clear_on_submit=False):
-        st.subheader("Registro notificado")
+        st.subheader("Evento y ubicación")
         top = st.columns(4)
         with top[0]:
             incident_date = st.date_input(
@@ -772,9 +958,17 @@ def estimate_page() -> None:
                 key="input_department",
             )
         with top[3]:
+            road_code_options: list[str | None] = [None, *known_road_codes]
+            loaded_road_code = normalize_road_code(st.session_state.get("input_road_code"))
+            if loaded_road_code != "DESCONOCIDO" and loaded_road_code not in known_road_codes:
+                # Streamlit validates session state against widget options even
+                # with accept_new_options=True. Preserve an unseen demo/user
+                # value explicitly so it renders and reaches the canonical
+                # frequency-zero path instead of raising ValueError.
+                road_code_options.append(loaded_road_code)
             road_code = st.selectbox(
                 "Código de vía (opcional)",
-                [None, *known_road_codes],
+                road_code_options,
                 index=0,
                 placeholder="Buscá o escribí un código…",
                 format_func=option_label,
@@ -786,6 +980,7 @@ def estimate_page() -> None:
             if normalized_road_code != "DESCONOCIDO" and normalized_road_code not in set(known_road_codes):
                 st.warning("Código no observado en entrenamiento: el modelo conservará el mapeo canónico con frecuencia 0.")
 
+        st.markdown("#### Vía y entorno")
         middle = st.columns(4)
         with middle[0]:
             crash_class = st.selectbox("Clase de siniestro", options["CLASE"], index=None, placeholder="Seleccioná una clase…", format_func=option_label, key="input_class")
@@ -806,7 +1001,7 @@ def estimate_page() -> None:
         with bottom[3]:
             surface = st.selectbox("Superficie", optional_values("SUPERFICIE"), index=0, format_func=option_label, key="input_surface")
 
-        st.markdown("#### Ubicación precisa (requerida)")
+        st.markdown("#### Coordenadas (requeridas)")
         coordinate_columns = st.columns(2)
         with coordinate_columns[0]:
             latitude = st.number_input("Latitud", min_value=-90.0, max_value=90.0, value=None, format="%.6f", placeholder="Ej.: -12.046374…", key="input_latitude")
@@ -814,39 +1009,39 @@ def estimate_page() -> None:
             longitude = st.number_input("Longitud", min_value=-180.0, max_value=180.0, value=None, format="%.6f", placeholder="Ej.: -77.042793…", key="input_longitude")
         st.caption("Ingresá ambas coordenadas. El esquema canónico exige ubicación para la inferencia final; la app no imputa una localización silenciosamente.")
 
-        st.markdown("#### Vehículos y personas involucradas (hechos de la escena)")
+        st.markdown("#### Vehículos y personas")
         scene_top = st.columns(4)
         with scene_top[0]:
             n_vehiculos = st.number_input("Vehículos involucrados", min_value=1, max_value=10, value=None, step=1, placeholder="Ej.: 2", key="input_n_vehiculos")
         with scene_top[1]:
             n_personas = st.number_input("Personas involucradas", min_value=1, max_value=120, value=None, step=1, placeholder="Ej.: 4", key="input_n_personas")
         with scene_top[2]:
-            n_pasajeros = st.number_input("De ellas, pasajeros/ocupantes", min_value=0, max_value=120, value=0, step=1, key="input_n_pasajeros")
+            n_pasajeros = st.number_input("De ellas, pasajeros/ocupantes", min_value=0, max_value=120, value=number_default("input_n_pasajeros", 0), step=1, key="input_n_pasajeros")
         with scene_top[3]:
-            n_peatones = st.number_input("De ellas, peatones", min_value=0, max_value=120, value=0, step=1, key="input_n_peatones")
+            n_peatones = st.number_input("De ellas, peatones", min_value=0, max_value=120, value=number_default("input_n_peatones", 0), step=1, key="input_n_peatones")
         scene_bottom = st.columns(4)
         with scene_bottom[0]:
-            n_bus = st.number_input("Buses / minibuses", min_value=0, max_value=10, value=0, step=1, key="input_n_bus")
+            n_bus = st.number_input("Buses / minibuses", min_value=0, max_value=10, value=number_default("input_n_bus", 0), step=1, key="input_n_bus")
         with scene_bottom[1]:
-            n_pesado_carga = st.number_input("Pesados de carga", min_value=0, max_value=10, value=0, step=1, key="input_n_pesado_carga")
+            n_pesado_carga = st.number_input("Pesados de carga", min_value=0, max_value=10, value=number_default("input_n_pesado_carga", 0), step=1, key="input_n_pesado_carga")
         with scene_bottom[2]:
-            n_moto = st.number_input("Motos / trimotos / bicis", min_value=0, max_value=10, value=0, step=1, key="input_n_moto")
+            n_moto = st.number_input("Motos / trimotos / bicis", min_value=0, max_value=10, value=number_default("input_n_moto", 0), step=1, key="input_n_moto")
         with scene_bottom[3]:
-            n_no_identificado = st.number_input("Vehículos no identificados", min_value=0, max_value=10, value=0, step=1, key="input_n_no_identificado")
+            n_no_identificado = st.number_input("Vehículos no identificados", min_value=0, max_value=10, value=number_default("input_n_no_identificado", 0), step=1, key="input_n_no_identificado")
         scene_extra = st.columns(4)
         with scene_extra[0]:
-            n_interprovincial = st.number_input("Servicio interprovincial", min_value=0, max_value=10, value=0, step=1, key="input_n_interprovincial")
+            n_interprovincial = st.number_input("Servicio interprovincial", min_value=0, max_value=10, value=number_default("input_n_interprovincial", 0), step=1, key="input_n_interprovincial")
         with scene_extra[1]:
-            n_transporte_publico = st.number_input("Transporte público / taxi", min_value=0, max_value=10, value=0, step=1, key="input_n_transporte_publico")
+            n_transporte_publico = st.number_input("Transporte público / taxi", min_value=0, max_value=10, value=number_default("input_n_transporte_publico", 0), step=1, key="input_n_transporte_publico")
         with scene_extra[2]:
-            n_conductor_fugado = st.number_input("Conductores fugados", min_value=0, max_value=10, value=0, step=1, key="input_n_conductor_fugado")
+            n_conductor_fugado = st.number_input("Conductores fugados", min_value=0, max_value=10, value=number_default("input_n_conductor_fugado", 0), step=1, key="input_n_conductor_fugado")
         with scene_extra[3]:
             edad_media = st.number_input("Edad media involucrados (opcional)", min_value=0.0, max_value=110.0, value=None, step=1.0, placeholder="NO INFORMADO", key="input_edad_media")
         st.caption(
-            "Conteos observables al caracterizar la notificación: cuántos vehículos y personas estaban involucrados y de qué tipo. "
-            "No se ingresa ningún desenlace (fallecidos o lesionados por persona)."
+            "Conteos registrados en las tablas complementarias. La fuente no permite probar que todos estuvieran disponibles en el instante de la notificación; "
+            "por eso la demostración se interpreta retrospectivamente. No se ingresa ningún desenlace por persona."
         )
-        submitted = st.form_submit_button("Estimar prioridad", type="primary")
+        submitted = st.form_submit_button("Calcular clase estimada", type="primary")
 
     if submitted:
         st.session_state.pop("canonical_result", None)
@@ -900,7 +1095,7 @@ def estimate_page() -> None:
     comparison = result["comparison"]
     calibrated_probability = float(prediction["calibrated_probability"])
     calibrated_threshold = float(prediction["calibrated_threshold"])
-    priority = calibrated_probability >= calibrated_threshold
+    multifatal_class = calibrated_probability >= calibrated_threshold
 
     st.subheader("Resultado")
     left, right = st.columns([1.15, .85])
@@ -908,12 +1103,13 @@ def estimate_page() -> None:
         st.plotly_chart(probability_gauge(calibrated_probability, calibrated_threshold), width="stretch", config={"displayModeBar": False})
         st.caption(f"La línea marca el umbral calibrado de {_percent(calibrated_threshold, 0)}. Esta escala es la única usada para la decisión visible.")
     with right:
-        symbol = "▲" if priority else "●"
+        symbol = "2+" if multifatal_class else "1"
+        estimated_class = "2+ fallecidos" if multifatal_class else "1 fallecido"
         st.markdown(
-            f'<div class="decision-panel"><div class="evidence-label">Decisión de apoyo</div>'
-            f'<div class="decision-title">{symbol} {prediction["priority_decision"]}</div>'
-            '<div class="decision-copy">Clasificación académica obtenida con la probabilidad Platt y el umbral '
-            'seleccionado en validación 2023.</div></div>',
+            f'<div class="decision-panel"><div class="evidence-label">Clase estimada</div>'
+            f'<div class="decision-title">{symbol} · {estimated_class}</div>'
+            '<div class="decision-copy">Clasificación académica de multifatalidad obtenida con Platt y el umbral '
+            'seleccionado exclusivamente en validación 2023. No es una explicación causal del caso.</div></div>',
             unsafe_allow_html=True,
         )
     st.subheader("Contexto histórico")
@@ -930,7 +1126,7 @@ def estimate_page() -> None:
         )
         diagnostics = pd.DataFrame(
             [
-                {"Escala": "Calibrada (decisión pública)", "Score": calibrated_probability, "Umbral": calibrated_threshold, "Clase": int(calibrated_probability >= calibrated_threshold)},
+                {"Escala": "Calibrada (clase visible)", "Score": calibrated_probability, "Umbral": calibrated_threshold, "Clase": int(calibrated_probability >= calibrated_threshold)},
                 {"Escala": "Cruda (diagnóstico)", "Score": float(prediction["raw_probability"]), "Umbral": float(prediction["raw_threshold"]), "Clase": int(prediction["raw_prediction"])},
             ]
         )
@@ -1149,6 +1345,33 @@ def _ci_lookup(ci: pd.DataFrame, metric: str) -> tuple[float, float, float]:
     return float(row["estimate"]), float(row["ci_2_5"]), float(row["ci_97_5"])
 
 
+def _model_comparison_table(baseline: pd.DataFrame, calibration_method: str) -> pd.DataFrame:
+    names = {
+        "MLP_definitiva": "MLP canónica",
+        "LogisticRegression_balanced": "Regresión logística",
+        "RandomForest_balanced": "Random Forest",
+    }
+    comparison = baseline[
+        ((baseline["model"] == "MLP_definitiva") & (baseline["probability_scale"] == calibration_method))
+        | baseline["model"].isin(["LogisticRegression_balanced", "RandomForest_balanced"])
+    ].copy()
+    comparison["Modelo"] = comparison["model"].map(names)
+    if len(comparison) != 3 or comparison["Modelo"].isna().any() or comparison["Modelo"].nunique() != 3:
+        raise RuntimeArtifactError("La comparación canónica debe contener exactamente la MLP, la regresión logística y el Random Forest.")
+    comparison["F1"] = comparison["f1_multifatal"]
+    comparison["PR-AUC"] = comparison["pr_auc"]
+    comparison["ROC-AUC"] = comparison["roc_auc"]
+    return comparison
+
+
+def _model_leadership_text(comparison: pd.DataFrame) -> str:
+    leaders = [
+        f"{metric}: {comparison.loc[comparison[metric].idxmax(), 'Modelo']} ({comparison[metric].max():.4f})"
+        for metric in ("PR-AUC", "ROC-AUC", "F1")
+    ]
+    return "Liderazgos nominales en esta referencia: " + "; ".join(leaders) + ". No se afirma superioridad universal."
+
+
 def evidence_page(manifest: dict[str, Any]) -> None:
     st.header("Evidencia del modelo")
     evidence = load_reference_artifacts()
@@ -1169,17 +1392,65 @@ def evidence_page(manifest: dict[str, Any]) -> None:
             _card(label, format_number_es(estimate, digits=3), f"IC bootstrap 95 %: {format_number_es(lower, digits=3)}–{format_number_es(upper, digits=3)}")
     st.caption(f'Prevalencia de la clase positiva: {_percent(metrics["class_rate"])}. PR-AUC debe leerse contra esta referencia, no contra 0.50.')
 
+    st.subheader("¿La red necesita más regularización o más de una red?")
+    design = load_design_artifacts()
+    regularization = design["regularization"].copy()  # type: ignore[union-attr]
+    strategies = design["strategies"].copy()  # type: ignore[union-attr]
+    strategy_ci = design["strategy_bootstrap"].copy()  # type: ignore[union-attr]
+    audit = design["audit"]  # type: ignore[assignment]
+    strategy_display = strategy_presentation_table(strategies)
+
+    reg_fig = go.Figure(go.Bar(
+        x=regularization["median_pr_auc"], y=regularization["audit_id"], orientation="h",
+        marker_color=[ORANGE, BLUE, "#7E9187", "#B6AAA0"],
+        error_x=dict(type="data", array=regularization["iqr_pr_auc"] / 2, color=MUTED),
+        customdata=regularization[["median_roc_auc", "median_f1_multifatal", "seeds"]],
+        hovertemplate="<b>%{y}</b><br>PR-AUC mediana: %{x:.4f}<br>ROC-AUC mediana: %{customdata[0]:.4f}<br>F1 mediana: %{customdata[1]:.4f}<br>Semillas: %{customdata[2]:.0f}<extra></extra>",
+    ))
+    reg_fig.update_layout(title="Ablación validation-only: L2 y dropout")
+    reg_fig.update_xaxes(title="PR-AUC mediana en 2023", range=[0, max(.55, float(regularization["median_pr_auc"].max()) * 1.12)])
+    reg_fig.update_yaxes(title=None, autorange="reversed")
+    st.plotly_chart(_plot_layout(reg_fig, height=390), width="stretch", config={"displayModeBar": False})
+    st.caption(
+        "La configuración canónica ofrece el mejor compromiso de ROC-AUC mediana y baja dispersión, pero la ablación no demuestra que cada regularizador sea indispensable por separado: "
+        "solo dropout tiene una PR-AUC mediana apenas mayor. Se conserva la configuración predeclarada; no se ajusta el modelo con esta auditoría posterior."
+    )
+
+    strategy_fig = go.Figure(go.Bar(
+        x=strategy_display["label"],
+        y=strategy_display["pr_auc"], marker_color=strategy_display["color"],
+        text=[format_number_es(value, digits=3) for value in strategy_display["pr_auc"]], textposition="outside",
+        customdata=strategy_display[["roc_auc", "f1_multifatal", "threshold_validation"]],
+        hovertemplate="<b>%{x}</b><br>PR-AUC: %{y:.4f}<br>ROC-AUC: %{customdata[0]:.4f}<br>F1: %{customdata[1]:.4f}<br>Umbral 2023: %{customdata[2]:.2f}<extra></extra>",
+    ))
+    strategy_fig.update_layout(title="Una red frente a alternativas más complejas · validación 2023")
+    strategy_fig.update_yaxes(title="PR-AUC", range=[0, .58])
+    st.plotly_chart(_plot_layout(strategy_fig, height=390), width="stretch", config={"displayModeBar": False})
+
+    ci_order = strategy_ci.set_index("metric").loc[["pr_auc", "roc_auc", "f1_multifatal"]].reset_index()
+    forest = go.Figure(go.Scatter(
+        x=ci_order["delta"], y=["PR-AUC", "ROC-AUC", "F1"], mode="markers",
+        marker=dict(color=ORANGE, size=11, symbol="diamond"),
+        error_x=dict(type="data", array=ci_order["ci_97_5"] - ci_order["delta"], arrayminus=ci_order["delta"] - ci_order["ci_2_5"], color=BLUE, thickness=2, width=5),
+        customdata=ci_order[["ci_2_5", "ci_97_5"]],
+        hovertemplate="%{y}<br>Δ ensemble−1 red: %{x:+.4f}<br>IC 95%%: [%{customdata[0]:+.4f}, %{customdata[1]:+.4f}]<extra></extra>",
+    ))
+    forest.add_vline(x=0, line_color=INK, line_width=1)
+    forest.update_layout(title="Bootstrap pareado: ensemble − MLP congelada")
+    forest.update_xaxes(title="Diferencia en validación 2023")
+    forest.update_yaxes(title=None)
+    st.plotly_chart(_plot_layout(forest, height=330), width="stretch", config={"displayModeBar": False})
+    ci_zero = strategy_ci_zero_summary(strategy_ci)
+    st.info(
+        f"{ci_zero['copy']}. El ensemble mejora nominalmente, pero no hay evidencia suficiente para sustituir la única MLP canónica. "
+        "Sería una hipótesis futura que exige un nuevo holdout y calibración independiente."
+    )
+    _table_fallback("ablación de regularización", regularization.round(5), key="ablacion_regularizacion")
+    _table_fallback("estrategias de una o varias redes", strategies.round(5), key="estrategias_redes")
+
     st.subheader("Comparación honesta con baselines")
     baseline = evidence["baseline"].copy()
-    comparison = baseline[
-        ((baseline["model"] == "MLP_canonical") & (baseline["probability_scale"] == "platt"))
-        | baseline["model"].isin(["LogisticRegression_balanced", "RandomForest_balanced"])
-    ].copy()
-    names = {"MLP_canonical": "MLP canónica", "LogisticRegression_balanced": "Regresión logística", "RandomForest_balanced": "Random Forest"}
-    comparison["Modelo"] = comparison["model"].map(names)
-    comparison["F1"] = comparison["f1_multifatal"]
-    comparison["PR-AUC"] = comparison["pr_auc"]
-    comparison["ROC-AUC"] = comparison["roc_auc"]
+    comparison = _model_comparison_table(baseline, str(manifest["calibration"]["method"]))
     model_fig = go.Figure()
     for metric, color, symbol in [("F1", ORANGE, "diamond"), ("PR-AUC", BLUE, "circle"), ("ROC-AUC", "#7A8A91", "square")]:
         model_fig.add_trace(go.Scatter(
@@ -1191,11 +1462,39 @@ def evidence_page(manifest: dict[str, Any]) -> None:
     model_fig.update_xaxes(title="Valor", range=[0, 1])
     model_fig.update_yaxes(title=None)
     st.plotly_chart(_plot_layout(model_fig, height=390, legend=True), width="stretch", config={"displayModeBar": False})
-    st.info(
-        "La MLP presenta el mejor ranking nominal (PR-AUC y ROC-AUC) en esta muestra fija. La regresión logística conserva "
-        "un F1 mayor. No hay evidencia de superioridad universal o estadísticamente significativa de la red."
-    )
+    st.info(_model_leadership_text(comparison))
     _table_fallback("comparación de modelos", comparison[["Modelo", "F1", "PR-AUC", "ROC-AUC", "precision_multifatal", "recall_multifatal", "threshold"]].round(4), key="modelos")
+
+    st.subheader("¿La MLP aporta más que contar personas?")
+    persons = design["persons"].copy()  # type: ignore[union-attr]
+    persons_ci = design["persons_bootstrap"].copy()  # type: ignore[union-attr]
+    person_names = person_strategy_labels(persons, audit)
+    persons["Modelo"] = persons["model"].map(person_names)
+    persons_fig = go.Figure()
+    for metric, color, symbol in (("pr_auc", ORANGE, "diamond"), ("roc_auc", BLUE, "circle"), ("f1_multifatal", "#7E9187", "square")):
+        persons_fig.add_trace(go.Scatter(
+            x=persons[metric], y=persons["Modelo"], mode="markers", name=metric.replace("_multifatal", "").upper(),
+            marker=dict(color=color, symbol=symbol, size=12),
+            hovertemplate=f"<b>%{{y}}</b><br>{metric}: %{{x:.4f}}<extra></extra>",
+        ))
+    persons_fig.update_layout(title="Referencia histórica post-hoc · umbrales elegidos solo en 2023")
+    persons_fig.update_xaxes(title="Valor", range=[0, 1])
+    persons_fig.update_yaxes(title=None)
+    st.plotly_chart(_plot_layout(persons_fig, height=330, legend=True), width="stretch", config={"displayModeBar": False})
+    pr_delta = persons_ci.loc[persons_ci["metric"].eq("pr_auc")].iloc[0]
+    roc_delta = persons_ci.loc[persons_ci["metric"].eq("roc_auc")].iloc[0]
+    st.caption(
+        f"La MLP supera a la regla n_personas en ranking: ΔPR-AUC {pr_delta['delta']:+.4f} "
+        f"[IC 95 % {pr_delta['ci_2_5']:+.4f}, {pr_delta['ci_97_5']:+.4f}] y ΔROC-AUC {roc_delta['delta']:+.4f} "
+        f"[{roc_delta['ci_2_5']:+.4f}, {roc_delta['ci_97_5']:+.4f}]. Esta comparación de referencia es post-hoc; no reajusta la red."
+    )
+
+    st.subheader("Estabilidad temporal descriptiva")
+    annual = design["annual"].copy()  # type: ignore[union-attr]
+    annual_display = annual[["year", "n", "positives", "prevalence", "pr_auc", "roc_auc", "f1_multifatal", "precision_multifatal", "recall_multifatal"]].copy()
+    annual_display.columns = ["Año", "n", "Positivos", "Prevalencia", "PR-AUC", "ROC-AUC", "F1", "Precisión", "Recall"]
+    st.dataframe(annual_display.style.format({"Prevalencia": "{:.3f}", "PR-AUC": "{:.3f}", "ROC-AUC": "{:.3f}", "F1": "{:.3f}", "Precisión": "{:.3f}", "Recall": "{:.3f}"}), width="stretch", hide_index=True)
+    st.caption("2025 es parcial. La separación anual describe estabilidad; no se usó para elegir arquitectura, regularización, calibración ni umbral.")
 
     st.subheader("Calibración y clasificación")
     probabilities = evidence["probabilities"].copy()
@@ -1225,16 +1524,13 @@ def evidence_page(manifest: dict[str, Any]) -> None:
     confusion = evidence["confusion"]
     confusion = confusion[confusion["probability_scale"] == "calibrated"].pivot(index="actual", columns="predicted", values="count").reindex(index=[0, 1], columns=[0, 1])
     confusion_fig = go.Figure(go.Heatmap(
-        z=confusion.to_numpy(), x=["Prioridad estándar", "Priorizar revisión"], y=["1 fallecido", "2+ fallecidos"],
+        z=confusion.to_numpy(), x=["Estimado: 1 fallecido", "Estimado: 2+ fallecidos"], y=["Real: 1 fallecido", "Real: 2+ fallecidos"],
         colorscale=[[0, "#EEF2F1"], [1, BLUE]], text=confusion.to_numpy(), texttemplate="%{text:,}",
         hovertemplate="Real: %{y}<br>Decisión: %{x}<br>n=%{z:,}<extra></extra>", showscale=False,
     ))
     confusion_fig.update_layout(title="Matriz de confusión · umbral calibrado")
-    left, right = st.columns(2)
-    with left:
-        st.plotly_chart(_plot_layout(reliability_fig, height=440, legend=True), width="stretch", config={"displayModeBar": False})
-    with right:
-        st.plotly_chart(_plot_layout(confusion_fig, height=440), width="stretch", config={"displayModeBar": False})
+    st.plotly_chart(_plot_layout(reliability_fig, height=440, legend=True), width="stretch", config={"displayModeBar": False})
+    st.plotly_chart(_plot_layout(confusion_fig, height=400), width="stretch", config={"displayModeBar": False})
     _table_fallback("confiabilidad", reliability.round(4), key="confiabilidad")
     confusion_table = (
         evidence["confusion"]
@@ -1242,7 +1538,7 @@ def evidence_page(manifest: dict[str, Any]) -> None:
         .copy()
         .assign(
             Clase_real=lambda frame: frame["actual"].map({0: "1 fallecido", 1: "2+ fallecidos"}),
-            Decision=lambda frame: frame["predicted"].map({0: "Prioridad estándar", 1: "Priorizar revisión"}),
+            Decision=lambda frame: frame["predicted"].map({0: "1 fallecido", 1: "2+ fallecidos"}),
         )[["Clase_real", "Decision", "count"]]
         .rename(columns={"count": "Registros"})
     )
@@ -1367,7 +1663,7 @@ def main() -> None:
             st.query_params["section"] = selected_slug
         pages = {
             "Panorama": lambda: overview_page(manifest),
-            "Estimar": estimate_page,
+            "Probar la red": estimate_page,
             "Explorar datos": explore_page,
             "Patrones regionales": regional_page,
             "Evidencia del modelo": lambda: evidence_page(manifest),

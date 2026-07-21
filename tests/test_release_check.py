@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.check_release import find_missing_required_files, load_release_inventory
+from scripts.check_release import find_missing_required_files, find_stale_notebook_claims, load_release_inventory
 
 
 REPRESENTATIVE_REQUIRED_FILES = {
@@ -54,7 +54,23 @@ def test_representative_file_deletions_fail_completeness_check() -> None:
             candidate.touch()
 
 
+def test_notebook_markdown_scan_rejects_stale_methodology() -> None:
+    assert not find_stale_notebook_claims(ROOT)
+    with tempfile.TemporaryDirectory() as temporary_directory:
+        root = Path(temporary_directory)
+        notebook = root / "notebooks" / "stale.ipynb"
+        notebook.parent.mkdir(parents=True)
+        notebook.write_text(
+            '{"cells":[{"cell_type":"markdown","source":["Tres arquitecturas; no abre el periodo de referencia."]}],"nbformat":4,"nbformat_minor":5}',
+            encoding="utf-8",
+        )
+        hits = find_stale_notebook_claims(root)
+        assert len(hits) == 2
+        assert all("stale.ipynb" in hit for hit in hits)
+
+
 if __name__ == "__main__":
     test_explicit_inventory_is_complete_in_workspace()
     test_representative_file_deletions_fail_completeness_check()
+    test_notebook_markdown_scan_rejects_stale_methodology()
     print("release-check-ok")

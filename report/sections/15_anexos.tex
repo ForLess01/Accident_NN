@@ -53,7 +53,7 @@ Etapa & Decisión & Riesgo controlado & Evidencia \\
 \midrule
 \endhead
 Protocolo & Separar 2021--22, 2023 y 2024--25 por rol & Fuga y optimismo por mezcla cronológica & Protocolo final \\
-Selección & Comparar 3 arquitecturas $\times$ 3 semillas; congelar \texttt{MLP\_32\_16}, semilla 314 & Selección oportunista & Registro de selección \\
+Selección & Comparar 3 configuraciones completas $\times$ 3 semillas; congelar \texttt{MLP\_32\_16}, semilla 314 & Selección oportunista & Registro de selección \\
 Versión 2 & Incorporar bases companion (vehículos/personas) con desenlaces vetados; segunda evaluación divulgada & Fuga desde tablas enlazadas y multiplicidad silenciosa & Auditoría del join y \autoref{tab:v1-v2} \\
 Calibración & Elegir Platt mediante Brier OOF de 5 folds en 2023 & Ajustar y evaluar calibrador en los mismos casos & Registro de calibración \\
 Referencia & Tratar 2024--25 como periodo ya observado & Reutilizarlo para nuevos ajustes & Métricas finales \\
@@ -64,10 +64,13 @@ Interfaz & Bundle verificado, solo lectura, decisión en escala calibrada & Dive
 
 \subsection{A6. Reproducción y verificación}
 \begin{lstlisting}[language=bash]
-# Rebuild evidence without retraining the MLP
+# Canonical order: validation audit, manifest/protocol, figures, PDF
+.venv/bin/python src/validation_design_audit.py
 .venv/bin/python src/final_model_bundle.py
 .venv/bin/python src/final_evaluation_figures.py
 .venv/bin/python src/final_explainability.py
+cd report && latexmk -pdf -interaction=nonstopmode -halt-on-error main.tex
+cd ..
 
 # Contracts and GUI
 .venv/bin/python tests/test_model_protocol.py
@@ -79,8 +82,6 @@ Interfaz & Bundle verificado, solo lectura, decisión en escala calibrada & Dive
 # Interface
 streamlit run app/streamlit_app.py
 
-# Report
-cd report && latexmk -pdf -interaction=nonstopmode main.tex
 \end{lstlisting}
 
 Las versiones exactas usadas para el bundle constan en el manifiesto. La reproducción no autoriza reoptimizar el modelo con la referencia 2024--2025.

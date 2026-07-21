@@ -282,7 +282,16 @@ def generate_final_explainability(
     except (AttributeError, RuntimeError):
         pass
     model = tf.keras.models.load_model(final_dir / "model.keras")
-    explainer = shap.GradientExplainer(model, background.to_numpy(dtype="float32"))
+    # SHAP 0.52 invokes a single-input Keras model with a one-item list.
+    # Declare that list structure explicitly to avoid Keras structure-mismatch
+    # warnings while preserving the exact frozen forward computation.
+    shap_input = tf.keras.Input(shape=(len(feature_names),), name="shap_processed_features")
+    shap_model = tf.keras.Model(
+        inputs=[shap_input],
+        outputs=model(shap_input, training=False),
+        name="frozen_mlp_shap_wrapper",
+    )
+    explainer = shap.GradientExplainer(shap_model, background.to_numpy(dtype="float32"))
     shap_values = explainer.shap_values(
         validation.to_numpy(dtype="float32"), nsamples=shap_nsamples, rseed=seed
     )

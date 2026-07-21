@@ -1,20 +1,132 @@
 \section{Marco teórico}\label{sec:marco-teorico}
 
 \subsection{Seguridad vial y alcance condicional}
-La severidad vial es multifactorial: interactúan infraestructura, condiciones ambientales, vehículo, conductor y respuesta posterior. La base ONSV utilizada registra exclusivamente siniestros con al menos un fallecido; por ello, el modelo no estima ocurrencia ni fatalidad general. Su pregunta es condicional: \emph{dado un siniestro ya fatal y notificado, ¿el registro pertenece a la clase multifatal?} Esta restricción evita mezclar universos incompatibles y define un uso de priorización posterior a la notificación~\cite{onsv_siniestros_fatales_2021_2025,who_road_safety_2023}.
+La severidad vial es multifactorial: interactúan infraestructura, condiciones ambientales, vehículo, conductor y respuesta posterior. La base ONSV utilizada registra exclusivamente siniestros con al menos un fallecido; por ello, el modelo no estima ocurrencia ni fatalidad general. Su pregunta es condicional: \emph{dado un siniestro fatal ya registrado, ¿pertenece a la clase de uno o de dos o más fallecidos?} La extracción no contiene timestamps por variable que permitan afirmar disponibilidad operativa al instante de notificación; el alcance defendible es retrospectivo~\cite{onsv_siniestros_fatales_2021_2025,who_road_safety_2023}.
 
 \subsection{Perceptrón multicapa}
-Una neurona calcula $a=f(Wx+b)$. Un perceptrón multicapa (MLP) encadena capas densas y aprende relaciones no lineales mediante retropropagación~\cite{goodfellow_deep_learning_2016}. Para las dos capas ocultas del modelo canónico:
+Una neurona calcula $a=f(Wx+b)$. Un perceptrón multicapa (MLP) encadena capas densas y aprende relaciones no lineales mediante retropropagación~\cite{goodfellow_deep_learning_2016}. El artefacto canónico contiene \textbf{dos capas ocultas} y una capa de salida; durante inferencia, cuando \emph{dropout} está desactivado, su composición es:
 \[
 \hat{y}=\sigma\!\left(W_3 f(W_2 f(W_1x+b_1)+b_2)+b_3\right),
 \]
-donde $f$ es ReLU y $\sigma$ es sigmoide. La salida sigmoide es un \emph{score} crudo; no debe llamarse probabilidad operacional hasta evaluar su calibración.
+donde $f$ es ReLU y $\sigma$ es sigmoide. Durante entrenamiento se intercala \emph{dropout} después de \textbf{cada} capa oculta. La salida sigmoide es un \emph{score} crudo; no debe llamarse probabilidad operacional hasta evaluar su calibración.
 
-La pérdida es entropía cruzada binaria ponderada:
+En el paso hacia adelante, ReLU anula activaciones negativas y conserva las positivas; la sigmoide acota la salida entre cero y uno. En el paso hacia atrás, la regla de la cadena propaga el gradiente de la pérdida desde la salida hacia $W_3$, $W_2$ y $W_1$; Adam combina medias móviles del gradiente y de su cuadrado para actualizar cada parámetro. La función objetivo completa es entropía cruzada binaria ponderada más la penalización L2 de los dos kernels ocultos:
 \[
-\mathcal{L}=-\frac{1}{N}\sum_{i=1}^{N}\left[w_1 y_i\log\hat{y}_i+w_0(1-y_i)\log(1-\hat{y}_i)\right].
+\mathcal{J}=-\frac{1}{N}\sum_{i=1}^{N}\left[w_1 y_i\log\hat{y}_i+w_0(1-y_i)\log(1-\hat{y}_i)\right]
++\lambda\left(\lVert W_1\rVert_2^2+\lVert W_2\rVert_2^2\right),\qquad \lambda=10^{-4}.
 \]
-Se usó Adam con tasa inicial $1\times10^{-3}$, lotes de 64, pesos de clase, \emph{dropout} 0.25, regularización L2 de $1\times10^{-4}$ y parada temprana por PR-AUC de validación~\cite{kingma_adam_2014}.
+Se usó Adam con tasa inicial $1\times10^{-3}$, lotes de 64, pesos de clase, \emph{dropout} 0.25 después de ambas capas ocultas, regularización L2 de $1\times10^{-4}$ sobre sus kernels y parada temprana por PR-AUC de validación~\cite{kingma_adam_2014,srivastava_dropout_2014,prechelt_early_stopping_1998}. No se aplicó L2 a los sesgos ni a la capa de salida.
+
+\begin{figure}[H]
+  \centering
+  \definecolor{nnnavy}{HTML}{264A63}
+  \definecolor{nnbluefill}{HTML}{EAF1F5}
+  \definecolor{nnblueborder}{HTML}{4E7892}
+  \definecolor{nnamberfill}{HTML}{FFF4DF}
+  \definecolor{nnamberborder}{HTML}{B97720}
+  \definecolor{nngreenfill}{HTML}{E9F4EF}
+  \definecolor{nngreenborder}{HTML}{4F806A}
+  \definecolor{nngrayfill}{HTML}{F3F5F5}
+  \definecolor{nngrayborder}{HTML}{7B8588}
+  \begin{tikzpicture}[
+    node distance=2.0mm,
+    flow/.style={-{Latex[length=2.2mm,width=1.5mm]}, line width=0.75pt, draw=nnnavy},
+    block/.style={
+      rounded corners=2.5pt,
+      line width=0.7pt,
+      minimum height=9.5mm,
+      text width=0.76\textwidth,
+      align=left,
+      inner xsep=8pt,
+      inner ysep=4pt,
+      font=\sffamily\small
+    },
+    trainable/.style={block, fill=nnbluefill, draw=nnblueborder},
+    regularizer/.style={block, fill=nnamberfill, draw=nnamberborder},
+    data/.style={block, fill=nngrayfill, draw=nngrayborder},
+    external/.style={block, fill=nngreenfill, draw=nngreenborder},
+    boundary/.style={
+      draw=nnnavy,
+      rounded corners=4pt,
+      line width=0.9pt,
+      inner xsep=5mm,
+      inner ysep=4mm
+    }
+  ]
+    \node[
+      fill=nnnavy,
+      text=white,
+      rounded corners=2.5pt,
+      minimum height=9mm,
+      text width=0.76\textwidth,
+      align=left,
+      inner xsep=8pt,
+      font=\sffamily\small
+    ] (summary) {\textbf{Red canónica \texttt{MLP\_32\_16}}\hfill\textbf{Total entrenable: 6\,177}};
+
+    \node[data, below=of summary] (input) {\textbf{Entrada}\hfill\textbf{175 variables}\\[-1pt]
+      {\scriptsize Vector procesado $x\in\mathbb{R}^{175}$; no contiene parámetros.}};
+    \node[trainable, below=of input] (dense1) {\textbf{Capa entrenable 1 · Dense(32) + ReLU}\hfill\textbf{5\,632}\\[-1pt]
+      {\scriptsize Pesos y sesgos: $(175+1)\times32$; regularización L2 $=10^{-4}$ solo sobre el kernel.}};
+    \node[regularizer, below=of dense1] (dropout1) {\textbf{Dropout 1}\,·\,\textbf{Regularización $p=0.25$}\hfill\textbf{0 parámetros}\\[-1pt]
+      {\scriptsize Activo durante entrenamiento; desactivado automáticamente durante inferencia.}};
+    \node[trainable, below=of dropout1] (dense2) {\textbf{Capa entrenable 2 · Dense(16) + ReLU}\hfill\textbf{528}\\[-1pt]
+      {\scriptsize Pesos y sesgos: $(32+1)\times16$; regularización L2 $=10^{-4}$ solo sobre el kernel.}};
+    \node[regularizer, below=of dense2] (dropout2) {\textbf{Dropout 2}\,·\,\textbf{Regularización $p=0.25$}\hfill\textbf{0 parámetros}\\[-1pt]
+      {\scriptsize Segundo control de coadaptación; también se omite durante inferencia.}};
+    \node[trainable, below=of dropout2] (output) {\textbf{Capa entrenable 3 · Dense(1) + sigmoide}\hfill\textbf{17}\\[-1pt]
+      {\scriptsize Pesos y sesgo: $(16+1)\times1$; sin regularización L2.}};
+    \node[data, below=of output] (raw) {\textbf{Salida de la red neuronal}\hfill\textbf{Score crudo $s$}\\[-1pt]
+      {\scriptsize Resultado sigmoide de la MLP antes de calibración.}};
+
+    \draw[flow] (summary) -- (input);
+    \draw[flow] (input) -- (dense1);
+    \draw[flow] (dense1) -- (dropout1);
+    \draw[flow] (dropout1) -- (dense2);
+    \draw[flow] (dense2) -- (dropout2);
+    \draw[flow] (dropout2) -- (output);
+    \draw[flow] (output) -- (raw);
+
+    \begin{scope}[on background layer]
+      \node[boundary, fit=(summary)(raw)] (network) {};
+    \end{scope}
+
+    \node[external, below=7mm of network] (platt) {\textbf{Postproceso externo · Calibración Platt}\hfill\textbf{Probabilidad calibrada}\\[-1pt]
+      {\scriptsize Regresión logística aplicada al score congelado; no altera los pesos, no es \emph{stacking} ni una capa entrenable de la MLP.}};
+    \draw[flow, draw=nngreenborder] (raw.south) -- node[right, font=\sffamily\scriptsize, text=nngreenborder] {después de la NN} (platt.north);
+
+    \node[below=2.5mm of platt, text width=0.80\textwidth, align=center, font=\sffamily\scriptsize, text=darkslate] {
+      \textbf{Entrenamiento:} L2 y ambos \emph{dropout} activos.\\[-1pt]
+      \textbf{Inferencia:} mismos pesos, \emph{dropout} desactivado; Platt calibra al final.
+    };
+  \end{tikzpicture}
+  \caption{Arquitectura y flujo del modelo definitivo. Azul: capas con parámetros entrenables; ámbar: regularización exclusiva del entrenamiento; verde: calibración posterior y externa a la red.}
+  \label{fig:arquitectura}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\caption{Dimensiones y parámetros entrenables de la red canónica.}
+\label{tab:parametros-red}
+\small
+\begin{tabularx}{\textwidth}{lclXr}
+\toprule
+Elemento & Salida & Activación & Regularización & Parámetros \\
+\midrule
+Entrada & 175 & --- & --- & 0 \\
+Dense oculta 1 & 32 & ReLU & L2 kernel $10^{-4}$ & $(175+1)\times32=5\,632$ \\
+Dropout 1 & 32 & --- & tasa 0.25 & 0 \\
+Dense oculta 2 & 16 & ReLU & L2 kernel $10^{-4}$ & $(32+1)\times16=528$ \\
+Dropout 2 & 16 & --- & tasa 0.25 & 0 \\
+Dense de salida & 1 & Sigmoide & ninguna & $(16+1)\times1=17$ \\
+\midrule
+\multicolumn{4}{r}{\textbf{Total entrenable}} & \textbf{6\,177} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{Fundamento de la forma 32--16.}
+Con 4\,872 registros de entrenamiento y 175 entradas tabulares, una red compacta limita capacidad innecesaria y facilita regularización y auditoría. La forma decreciente 32--16 comprime gradualmente las variables y permite aprender interacciones no lineales antes de la decisión binaria; ReLU aporta una transformación eficiente y la sigmoide produce el score de la clase positiva. No se asumió que esta forma fuera universalmente óptima: perteneció a la configuración completa ganadora de una grilla cerrada de tres configuraciones y tres semillas, con 6\,177 parámetros entrenables, mediante la regla robusta declarada en la metodología.
 
 \subsection{Evaluación bajo desbalance}
 La clase multifatal representa alrededor del 10\,\%, por lo que la exactitud aislada es insuficiente. Se reportan precisión, \emph{recall}, F1, PR-AUC, ROC-AUC, matriz de confusión e intervalos bootstrap. PR-AUC debe leerse contra la prevalencia: un clasificador sin capacidad de ordenamiento obtiene aproximadamente la tasa positiva.
@@ -22,35 +134,16 @@ La clase multifatal representa alrededor del 10\,\%, por lo que la exactitud ais
 El umbral transforma scores en clases. La política canónica maximiza F1 en validación y desempata por \emph{recall}, precisión y mayor umbral. La salida cruda y la calibrada pertenecen a escalas distintas: el umbral 0.80 solo corresponde al score sigmoide, mientras que 0.30 solo corresponde a la probabilidad Platt.
 
 \subsection{Calibración probabilística}
-La calibración pregunta si, entre casos con probabilidad predicha cercana a $p$, la frecuencia observada también se aproxima a $p$. Se evalúa con Brier, ECE y curva de confiabilidad. Platt aplica una regresión logística al score; isotónica aprende una función monótona por tramos. Ambos métodos se compararon con predicciones \emph{out-of-fold} de cinco particiones exclusivamente en validación 2023, siguiendo implementaciones reproducibles de scikit-learn~\cite{scikit_learn_2024}. La calibración puede mejorar Brier y ECE, pero, si conserva el orden, no cambia PR-AUC ni ROC-AUC.
+La calibración pregunta si, entre grupos de casos con probabilidad predicha cercana a $p$, la frecuencia observada también se aproxima a $p$; no promete coincidencia caso por caso. Se evalúa con Brier, ECE y curva de confiabilidad. Platt transforma el score crudo $s$ como $p_{\mathrm{cal}}=\sigma\!\left(a\,\operatorname{logit}(s)+b\right)$; isotónica aprende una función monótona por tramos. Ambos métodos se compararon con predicciones \emph{out-of-fold} de cinco particiones exclusivamente en validación 2023, siguiendo implementaciones reproducibles de scikit-learn~\cite{scikit_learn_2024}. La calibración puede mejorar Brier y ECE, pero, si conserva el orden, no cambia PR-AUC ni ROC-AUC.
 
 \subsection{Control de fuga y reproducibilidad}
 Se aplicaron tres barreras:
 \begin{enumerate}
   \item Las columnas de resultado (fallecidos, lesionados y vehículos dañados), causa post-investigación y señales con faltantes dependientes del periodo no entran al modelo.
-  \item Escalador, codificadores y frecuencias de vía se ajustan solo con 2021--2022. Arquitectura, semilla, calibración y umbrales se seleccionan solo con 2023.
+  \item Escalador, codificadores y frecuencias de vía se ajustan solo con 2021--2022. Configuración completa, semilla, calibración y umbrales se seleccionan solo con 2023.
   \item Los resultados 2024--2025 ya fueron observados; quedan congelados como referencia histórica y no autorizan nuevos ajustes.
 \end{enumerate}
 Semillas, versiones, hashes, esquema y artefactos se registran en el manifiesto canónico \texttt{manifest.json}.
 
 \subsection{Interpretabilidad con Gradient SHAP}
 SHAP distribuye el cambio del score entre las variables respecto de un fondo~\cite{lundberg_shap_2017}. Se aplicó \texttt{shap.GradientExplainer} al score crudo de la MLP con 256 registros de fondo de entrenamiento 2021--2022 y 512 registros explicados de validación 2023. Las 175 características procesadas se agregaron en 20 grupos interpretables. La contribución firmada media no es un efecto monotónico, una recomendación de intervención ni evidencia causal.
-
-\begin{figure}[H]
-  \centering
-  \footnotesize
-  \setlength{\fboxsep}{5pt}
-  \begin{tabular}{@{}c@{\hspace{0.2em}}c@{\hspace{0.2em}}c@{\hspace{0.2em}}c@{\hspace{0.2em}}c@{\hspace{0.2em}}c@{\hspace{0.2em}}c@{\hspace{0.2em}}c@{\hspace{0.2em}}c@{}}
-    \fbox{\begin{minipage}{0.105\textwidth}\centering\textbf{Entrada}\\175 features\\contexto\end{minipage}}
-    & $\rightarrow$ &
-    \fbox{\begin{minipage}{0.105\textwidth}\centering\textbf{Oculta 1}\\Dense(32)\\ReLU + L2\end{minipage}}
-    & $\rightarrow$ &
-    \fbox{\begin{minipage}{0.105\textwidth}\centering\textbf{Dropout}\\$p=0.25$\\control\end{minipage}}
-    & $\rightarrow$ &
-    \fbox{\begin{minipage}{0.105\textwidth}\centering\textbf{Oculta 2}\\Dense(16)\\ReLU + L2\end{minipage}}
-    & $\rightarrow$ &
-    \fbox{\begin{minipage}{0.105\textwidth}\centering\textbf{Salida}\\Dense(1)\\sigmoide\end{minipage}}
-  \end{tabular}
-  \caption{Arquitectura canónica \texttt{MLP\_32\_16}. La salida cruda se calibra después con Platt; la calibración no cambia los pesos.}
-  \label{fig:arquitectura}
-\end{figure}

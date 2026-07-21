@@ -17,6 +17,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import src.app_inference as inference
+import app.streamlit_app as streamlit_app
 from src.app_inference import InputContractError, RuntimeArtifactError
 
 
@@ -61,6 +62,100 @@ def test_canonical_runtime_schema_and_outputs_align() -> None:
     assert result["raw_probability"].between(0, 1).all()
 
 
+def test_visible_network_counts_are_derived_from_frozen_artifacts() -> None:
+    manifest = inference.load_manifest()
+    schema = inference.load_feature_schema()
+    runs = streamlit_app.load_selection_runs()
+    summary = streamlit_app.canonical_design_summary(manifest, schema, runs)
+    assert summary == {
+        "raw_input_fields": len(schema["required_raw_fields"]),
+        "processed_features": manifest["feature_count"],
+        "hidden_units": manifest["architecture"]["hidden_units"],
+        "hidden_layer_count": 2,
+        "dense_layer_count": 3,
+        "trainable_parameters": 6177,
+        "configuration_count": runs["config_id"].nunique(),
+        "seed_count": runs["seed"].nunique(),
+        "run_count": len(runs[["config_id", "seed"]].drop_duplicates()),
+    }
+    overview_source = inspect.getsource(streamlit_app.overview_page)
+    assert "<strong>26 campos</strong>" not in overview_source
+    assert "<strong>175 features</strong>" not in overview_source
+    assert "6.177 parámetros" not in overview_source
+    assert "3 configuraciones completas × 3 semillas = 9" not in overview_source
+
+
+def test_overview_copy_is_derived_from_mutable_artifact_fixtures() -> None:
+    manifest = json.loads(json.dumps(inference.load_manifest()))
+    original = streamlit_app.overview_provenance(manifest)
+    assert original == {"class_rate_shorthand": "1 de cada 10", "learning_rate": "0,001", "reference_count": "2.232"}
+
+    manifest["reference_evaluation"]["metrics"]["calibrated"]["class_rate"] = 0.2
+    manifest["reference_evaluation"]["metrics"]["calibrated"]["n"] = 3456
+    manifest["splits"]["reference"]["count"] = 3456
+    manifest["architecture"]["learning_rate"] = 0.0025
+    changed = streamlit_app.overview_provenance(manifest)
+    assert changed == {"class_rate_shorthand": "1 de cada 5", "learning_rate": "0,0025", "reference_count": "3.456"}
+
+    overview_source = inspect.getsource(streamlit_app.overview_page)
+    assert '"1 de cada 10"' not in overview_source
+    assert "LR inicial 0,001" not in overview_source
+    assert "2 232 siniestros" not in overview_source
+
+
+def test_strategy_labels_metrics_and_interval_copy_are_key_driven() -> None:
+    design = streamlit_app.load_design_artifacts()
+    strategies = design["strategies"].sample(frac=1, random_state=7).reset_index(drop=True)
+    fixture_values = {
+        "single_seed314_frozen": 0.11,
+        "ensemble_mean_3_seeds": 0.22,
+        "multibranch_162_context_13_companion_mean_3_seeds": 0.33,
+    }
+    strategies["pr_auc"] = strategies["strategy"].map(fixture_values)
+    presented = streamlit_app.strategy_presentation_table(strategies)
+    assert presented["strategy"].tolist() == list(streamlit_app.STRATEGY_PRESENTATION)
+    assert presented["label"].tolist() == ["1 MLP congelada", "Ensemble 3 semillas", "Multirrama 162+13"]
+    assert presented["pr_auc"].tolist() == [0.11, 0.22, 0.33]
+
+    intervals = design["strategy_bootstrap"].sample(frac=1, random_state=9).reset_index(drop=True)
+    intervals.loc[intervals["metric"].eq("roc_auc"), ["ci_2_5", "ci_97_5"]] = [0.001, 0.02]
+    summary = streamlit_app.strategy_ci_zero_summary(intervals)
+    assert summary == {"including_zero": 2, "total": 3, "copy": "2 de 3 intervalos incluyen 0"}
+
+
+def test_person_rule_label_comes_from_validation_audit_threshold() -> None:
+    design = streamlit_app.load_design_artifacts()
+    persons = design["persons"].copy()
+    audit = dict(design["audit"])
+    persons.loc[persons["model"].eq("regla_n_personas"), "threshold"] = 5
+    audit["n_personas_rule_selected_on_validation"] = 5
+    labels = streamlit_app.person_strategy_labels(persons, audit)
+    assert labels["regla_n_personas"] == "Regla n_personas ≥ 5"
+    assert "Regla n_personas ≥ 4" not in inspect.getsource(streamlit_app.evidence_page)
+
+
+def test_all_five_demo_records_run_and_unseen_road_code_is_preserved() -> None:
+    demos = inference.load_demo_cases()
+    assert len(demos) == 5
+    assert demos.loc[demos["caso_id"].eq("demo_04_codigo_no_visto"), "CODIGO_VIA"].iloc[0] == "PE-999X"
+    predictions = inference.predict_records(demos)
+    assert len(predictions) == len(demos)
+    assert np.isfinite(predictions[["raw_probability", "calibrated_probability"]].to_numpy()).all()
+
+
+def test_small_accent_text_meets_wcag_aa_on_ui_surfaces() -> None:
+    def luminance(hex_color: str) -> float:
+        channels = [int(hex_color[index:index + 2], 16) / 255 for index in (1, 3, 5)]
+        linear = [value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4 for value in channels]
+        return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+    accent = luminance(streamlit_app.ORANGE)
+    for surface in ("#FFFFFF", "#FFF9F2", "#FCFBF7"):
+        background = luminance(surface)
+        ratio = (max(accent, background) + 0.05) / (min(accent, background) + 0.05)
+        assert ratio >= 4.5
+
+
 def test_user_decision_uses_calibrated_scale_not_raw_scale() -> None:
     class FakeRuntime:
         calibration_method = "platt"
@@ -82,7 +177,7 @@ def test_user_decision_uses_calibrated_scale_not_raw_scale() -> None:
         result = inference.predict_records(_canonical_record()).iloc[0]
 
     assert result["raw_prediction"] == 1
-    assert result["priority_decision"] == "PRIORIDAD ESTÁNDAR"
+    assert result["estimated_class"] == "1 fallecido"
     assert result["calibrated_threshold"] == 0.3
     assert result["raw_threshold"] == 0.8
 
@@ -175,18 +270,41 @@ def test_app_sources_are_read_only_and_use_canonical_evidence() -> None:
     assert "probability_gauge(calibrated_probability, calibrated_threshold)" in app_source
     assert 'st.session_state.pop("canonical_result", None)' in app_source
     assert 'st.query_params.get("section"' in app_source
-    assert '"Cargar caso de demostración"' in app_source
+    assert '"Cargar escenario"' in app_source
+    assert "design_network_strategy_bootstrap.csv" in app_source
+    assert "ROC-AUC 0,75" not in app_source
+    assert "PRIORIZAR REVISIÓN" not in app_source
     assert 'value=None' in app_source
     assert 'accept_new_options=True' in app_source
     assert '_table_fallback("matriz de confusión"' in app_source
     assert '_table_fallback("puntos de curvas PR y ROC"' in app_source
     assert "No usar para sancionar" not in app_source
     assert "no predice accidentes" not in app_source.lower()
+    assert "Si el modelo no sirviera" not in app_source
+    assert "#C94F16" not in app_source
 
     check_source = (ROOT / "src" / "block_g_app_check.py").read_text(encoding="utf-8")
     assert "run_apptest: bool = True" in check_source
     assert '"--skip-apptest" not in sys.argv' in check_source
     assert '"--apptest" in sys.argv' not in check_source
+
+
+def test_evidence_comparison_includes_canonical_mlp_and_derives_metric_leaders() -> None:
+    baseline = pd.read_csv(ROOT / "report" / "tables" / "final_reference_baseline_comparison_2024_2025.csv")
+    comparison = streamlit_app._model_comparison_table(baseline, "platt")
+    assert set(comparison["model"]) == {
+        "MLP_definitiva",
+        "LogisticRegression_balanced",
+        "RandomForest_balanced",
+    }
+    assert comparison["Modelo"].nunique() == 3
+    assert comparison[["F1", "PR-AUC", "ROC-AUC"]].notna().all().all()
+    mlp = comparison.loc[comparison["model"] == "MLP_definitiva"].iloc[0]
+    assert mlp["probability_scale"] == "platt"
+    leadership = streamlit_app._model_leadership_text(comparison)
+    assert "PR-AUC: Random Forest (0.4704)" in leadership
+    assert "ROC-AUC: Random Forest (0.8937)" in leadership
+    assert "F1: MLP canónica (0.5058)" in leadership
 
 
 def test_manifest_threshold_scales_are_distinct() -> None:
@@ -259,6 +377,12 @@ def test_matching_subgroup_is_masked_at_29_and_visible_at_30() -> None:
 
 if __name__ == "__main__":
     test_canonical_runtime_schema_and_outputs_align()
+    test_visible_network_counts_are_derived_from_frozen_artifacts()
+    test_overview_copy_is_derived_from_mutable_artifact_fixtures()
+    test_strategy_labels_metrics_and_interval_copy_are_key_driven()
+    test_person_rule_label_comes_from_validation_audit_threshold()
+    test_all_five_demo_records_run_and_unseen_road_code_is_preserved()
+    test_small_accent_text_meets_wcag_aa_on_ui_surfaces()
     test_user_decision_uses_calibrated_scale_not_raw_scale()
     test_input_contract_rejects_partial_coordinates_and_missing_fields()
     test_input_contract_rejects_out_of_window_dates()
@@ -267,6 +391,7 @@ if __name__ == "__main__":
     test_road_code_format_known_and_unseen_semantics()
     test_missing_bundle_fails_controlled_and_does_not_create_files()
     test_app_sources_are_read_only_and_use_canonical_evidence()
+    test_evidence_comparison_includes_canonical_mlp_and_derives_metric_leaders()
     test_manifest_threshold_scales_are_distinct()
     test_schema_options_use_valid_raw_representatives()
     test_final_schema_requires_latitude_and_runtime_requires_coordinate_pair()

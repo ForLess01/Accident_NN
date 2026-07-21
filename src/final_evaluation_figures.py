@@ -19,12 +19,33 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 TABLES_DIR = ROOT / "report" / "tables"
 FIGURES_DIR = ROOT / "report" / "figures"
-COLORS = {"MLP_32_16": "#8CA3A3", "MLP_64_32": "#C94F16", "MLP_32": "#496B7C"}
+COLORS = {"MLP_32_16": "#8CA3A3", "MLP_64_32": "#6F8090", "MLP_32": "#496B7C"}
+SELECTED_COLOR = "#C94F16"
+
+
+def selected_config_id() -> str:
+    selection = json.loads((ROOT / "models" / "final" / "model_selection.json").read_text(encoding="utf-8"))
+    return str(selection["selected_config"]["config_id"])
+
+
+def leadership_summary(frame: pd.DataFrame) -> str:
+    labels = {
+        "pr_auc": "PR-AUC",
+        "roc_auc": "ROC-AUC",
+        "f1_multifatal": "F1",
+    }
+    leaders = [f'{label}: {frame.loc[frame[metric].idxmax(), "label"]}' for metric, label in labels.items()]
+    return "Liderazgo nominal - " + "; ".join(leaders) + ". No se afirma superioridad universal."
 
 
 def generate_selection_robustness() -> Path:
     runs = pd.read_csv(TABLES_DIR / "model_selection_seed_grid_validation.csv")
-    labels = {"MLP_32_16": "32-16", "MLP_64_32": "64-32 (seleccionada)", "MLP_32": "32"}
+    selected = selected_config_id()
+    base_labels = {"MLP_32_16": "32-16", "MLP_64_32": "64-32", "MLP_32": "32"}
+    labels = {
+        config: f"{label} (seleccionada)" if config == selected else label
+        for config, label in base_labels.items()
+    }
     order = ["MLP_32_16", "MLP_64_32", "MLP_32"]
     fig, ax = plt.subplots(figsize=(9.4, 5.4))
     offsets = np.linspace(-0.18, 0.18, len(runs["seed"].unique()))
@@ -34,7 +55,7 @@ def generate_selection_robustness() -> Path:
             x + offsets,
             subset["pr_auc"],
             s=72,
-            color=COLORS[config],
+            color=SELECTED_COLOR if config == selected else COLORS[config],
             edgecolor="white",
             linewidth=0.9,
             zorder=3,
@@ -44,7 +65,7 @@ def generate_selection_robustness() -> Path:
         ax.text(x, median + 0.0022, f"mediana {median:.4f}", ha="center", fontsize=9)
     ax.set_xticks(range(len(order)), [labels[value] for value in order])
     ax.set_ylabel("PR-AUC en selección 2023")
-    ax.set_title("Robustez por arquitectura y semilla", loc="left", weight="bold")
+    ax.set_title("Robustez por configuración completa y semilla", loc="left", weight="bold")
     ax.grid(axis="y", color="#E1E5E2", linewidth=0.8)
     ax.set_axisbelow(True)
     ax.spines[["top", "right", "left"]].set_visible(False)
@@ -80,8 +101,8 @@ def generate_model_evidence() -> Path:
         ax.tick_params(axis="x", rotation=24, labelsize=8.5)
         for bar, value in zip(bars, raw[metric]):
             ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + ax.get_ylim()[1] * 0.025, f"{value:.3f}", ha="center", fontsize=9)
-    fig.suptitle("Evidencia histórica 2024-2025: comparación honesta", x=0.03, ha="left", weight="bold")
-    fig.text(0.03, 0.012, "La MLP lidera las métricas de ranking; la logística conserva el mayor F1. No se afirma superioridad universal.", fontsize=9, color="#5F6965")
+    fig.suptitle("Evidencia histórica 2024-2025: comparación en escala cruda", x=0.03, ha="left", weight="bold")
+    fig.text(0.03, 0.012, leadership_summary(raw), fontsize=8.7, color="#5F6965")
     fig.tight_layout(rect=(0, 0.06, 1, 0.92))
     path = FIGURES_DIR / "final_model_evidence.png"
     fig.savefig(path, dpi=180, facecolor="white")

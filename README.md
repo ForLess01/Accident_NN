@@ -1,6 +1,6 @@
 # Accident_NN - modelo definitivo de multifatalidad vial
 
-Proyecto académico de redes neuronales que estima la probabilidad de **dos o más fallecidos**, condicionada a que el registro corresponde a un siniestro vial fatal ya notificado. El repositorio conserva una sola implementación: la MLP definitiva, su evidencia reproducible, la interfaz Streamlit y el informe académico.
+Proyecto académico de redes neuronales que estima retrospectivamente la probabilidad de **dos o más fallecidos**, condicionada a un siniestro vial fatal registrado. El repositorio conserva una sola MLP definitiva, su evidencia reproducible, la interfaz Streamlit y el informe académico. La fuente no aporta timestamps por campo para demostrar operatividad al instante de notificación.
 
 ## Resultado principal
 
@@ -13,12 +13,14 @@ Proyecto académico de redes neuronales que estima la probabilidad de **dos o m�
 | Selección y calibración | 2023: 2 000 registros |
 | Referencia histórica | 2024-2025: 2 232 registros |
 | Bases companion (v2) | VEHICULOS (12 667 filas) y PERSONAS (25 412 filas), join 100% por código |
-| Entrada | 175 características sin variables de resultado ni desenlaces por persona |
+| Entrada | 26 campos crudos → 175 características procesadas |
 | Arquitectura | `MLP_32_16`, ReLU, dropout 0.25, L2, semilla 314 |
 | Calibración desplegada | Platt, seleccionada por Brier OOF en 2023 |
 | Umbral calibrado | 0.30, seleccionado con predicciones OOF de 2023 |
 
-La referencia 2024-2025 produjo PR-AUC **0.4416** [IC 95% 0.3785-0.5124], ROC-AUC **0.8841** [0.8613-0.9055] y F1 multifatal **0.5058** en la escala calibrada (Brier 0.0683, ECE 0.0169). La versión 1 del proyecto (solo registro de siniestros, 162 features) obtuvo PR-AUC 0.2249 y ROC-AUC 0.7482: la comparación v1→v2 demuestra que el techo era informacional y que los agregados de escena de las bases companion casi duplican la discriminación. El bootstrap pareado muestra ventaja **estadísticamente significativa** de la red sobre la regresión logística en ROC-AUC (Δ+0.026 [+0.012, +0.042]) y empate estadístico con el Random Forest; la evaluación v2 constituye la segunda consulta declarada a la referencia 2024-2025.
+La referencia 2024-2025 produjo PR-AUC **0.4416** [IC 95% 0.3785-0.5124], ROC-AUC **0.8841** [0.8613-0.9055] y F1 multifatal **0.5058** en la escala calibrada (Brier 0.0683, ECE 0.0169). El salto frente a v1 respalda fuertemente la hipótesis de un límite informacional, pero no la demuestra causalmente: cambian variables y configuración y la v2 es la segunda consulta declarada a esa referencia. La red supera a la regresión logística en ROC-AUC (Δ+0.026 [+0.012, +0.042]); frente al Random Forest no se detectó diferencia significativa, lo que no demuestra equivalencia.
+
+La auditoría validation-only compara L2/dropout, una red, un ensemble de tres semillas y una multirrama. El ensemble mejora nominalmente PR-AUC en 2023, pero todos los IC pareados incluyen cero; por parsimonia se conserva **una sola MLP**. Una regla `n_personas >= 4`, elegida solo en 2023, alcanza F1 parecido en la referencia, pero la MLP la supera en PR-AUC (+0.0475 [0.0167, 0.0833]) y ROC-AUC (+0.0301 [0.0120, 0.0491]).
 
 ## Ejecución rápida en macOS
 
@@ -47,23 +49,25 @@ Cada sección tiene una URL compartible, por ejemplo `?section=estimar` o `?sect
 ## Verificación
 
 ```bash
-./scripts/check_release.py --local-content
+.venv/bin/python scripts/check_release.py --local-content
 ```
 
 `--local-content` es apropiado mientras los archivos definitivos todavía no estén confirmados en Git: valida contenido y reporta lo no versionado como advertencia. Antes de entregar desde un commit, ejecutá el gate estricto:
 
 ```bash
-./scripts/check_release.py
+.venv/bin/python scripts/check_release.py
 ```
 
-El gate ejecuta las cuatro pruebas directas, AppTest, hashes del manifiesto, paridad de inferencia sobre 2 232 registros, guard de explicabilidad, escaneo de notebooks/imports, referencias obsoletas, vigencia del PDF y `git diff --check`. No reentrena ni inicia servidores persistentes.
+El gate ejecuta la suite directa, AppTest sobre las cinco secciones y los cinco escenarios, hashes del manifiesto, paridad de inferencia sobre 2 232 registros, guard de explicabilidad, escaneo de notebooks/imports, referencias obsoletas, vigencia del PDF y `git diff --check`. No reentrena ni inicia servidores persistentes.
 
-Regeneración de evidencia sin reentrenar la red:
+Orden canónico de regeneración. La auditoría reentrena candidatos únicamente con 2021-2022, congela las decisiones en 2023 y recién entonces abre la referencia; el bundle reconstruye automáticamente el protocolo y los hashes de esa evidencia. Después se regeneran las figuras y el PDF:
 
 ```bash
+.venv/bin/python src/validation_design_audit.py
 .venv/bin/python src/final_model_bundle.py
 .venv/bin/python src/final_evaluation_figures.py
 .venv/bin/python src/final_explainability.py
+cd report && latexmk -pdf -interaction=nonstopmode -halt-on-error main.tex
 ```
 
 El entrenamiento completo solo es necesario si se decide rehacer la búsqueda predeclarada:
@@ -77,7 +81,7 @@ No se debe ajustar arquitectura, calibrador o umbrales con 2024-2025: esas etiqu
 ## Formulario académico
 
 - Los campos requeridos comienzan vacíos; los opcionales usan `NO INFORMADO`.
-- **Cargar caso de demostración** completa explícitamente un registro real de validación.
+- **Escenario de demostración** permite elegir entre cinco registros controlados y comparar la respuesta del modelo sin atribuir causalidad.
 - La fecha se restringe al periodo documentado 2021-2025.
 - La ubicación puede elegirse con un clic en un mapa OpenStreetMap acotado al Perú (con carreteras, calles y límites departamentales); el clic completa latitud, longitud y deduce el departamento con los mismos polígonos versionados de la validación. Los campos de escena (zona, tipo de vía, clima) no se deducen del mapa porque describen cómo el ONSV registró el siniestro. El mapa requiere internet para el fondo; sin conexión, los campos numéricos siguen operativos.
 - Las coordenadas deben formar un par dentro del Perú y corresponder al departamento elegido.
@@ -93,6 +97,7 @@ src/block_b_dataset_audit.py      limpieza reproducible de la fuente ONSV
 src/block_c_eda.py                análisis exploratorio
 src/model_protocol.py             corte cronológico y 175 características
 src/final_paired_comparison.py    bootstrap pareado vs logística y Random Forest
+src/validation_design_audit.py    ablación, una-vs-varias redes y regla n_personas
 src/block_e_modeling.py           búsqueda y selección de la MLP
 src/final_model_bundle.py         calibración, evaluación, hashes e inferencia
 src/final_evaluation_figures.py   figuras de selección y comparación
@@ -104,11 +109,11 @@ docs/defensa_10min.md             guion de sustentación
 
 ## Interpretación académica
 
-- El target es la multifatalidad entre siniestros fatales notificados por el ONSV.
+- El target es la multifatalidad entre siniestros fatales registrados por el ONSV.
 - PR-AUC es central porque la clase multifatal representa cerca del 10 %.
 - La calibración mejora la lectura probabilística, pero no crea capacidad discriminativa.
 - Gradient SHAP describe asociaciones del modelo, no causalidad.
-- El principal límite es informacional: faltan velocidad, alcohol, ocupantes, cinturón/casco y características vehiculares.
+- Persisten variables ausentes como velocidad, protección y exposición; su mejora potencial requiere evidencia nueva.
 
 ## Errores comunes
 

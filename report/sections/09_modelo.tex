@@ -1,7 +1,7 @@
 \section{Modelo neuronal}\label{sec:modelo}
 
 \subsection{Búsqueda cerrada y reproducible}
-Se definieron tres arquitecturas regularizadas y tres semillas antes de consultar el periodo de referencia 2024--2025. Cada corrida usó el mismo entrenamiento 2021--2022 y validación 2023, con entropía cruzada binaria, pesos de clase, Adam, reducción de tasa de aprendizaje y parada temprana por PR-AUC. La configuración se eligió por mediana de PR-AUC entre semillas; F1 mediana y menor dispersión actuaron como desempates. La misma búsqueda se ejecutó íntegra para la versión 2 con las 175 características.
+Se definieron tres configuraciones completas y tres semillas antes de consultar el periodo de referencia 2024--2025. Cada configuración varía conjuntamente capas, \emph{dropout}, L2 y tasa de aprendizaje. Cada corrida usó el mismo entrenamiento 2021--2022 y validación 2023, con entropía cruzada binaria, pesos de clase, Adam, reducción de tasa de aprendizaje y parada temprana por PR-AUC. La configuración se eligió por mediana de PR-AUC entre semillas; F1 mediana y menor dispersión actuaron como desempates. La misma búsqueda se ejecutó íntegra para la versión 2 con las 175 características.
 
 \begin{table}[H]
 \centering
@@ -22,7 +22,7 @@ MLP\_32: 32 & 0.4656 & 0.5118 & 0.0080 \\
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.92\textwidth]{figures/final_seed_robustness.png}
-  \caption{PR-AUC de validación por configuración y semilla. \texttt{MLP\_32\_16} presenta la mayor mediana; la variación entre semillas se conserva como evidencia, no se oculta. Nótese que la arquitectura ganadora de la versión 1 (\texttt{MLP\_64\_32}) deja de serlo con el contrato v2: la regla predeclarada decide, no la preferencia.}
+  \caption{PR-AUC de validación por configuración completa y semilla. \texttt{MLP\_32\_16} presenta la mayor mediana; la variación entre semillas se conserva como evidencia, no se oculta. Nótese que la configuración ganadora de la versión 1 (\texttt{MLP\_64\_32}) deja de serlo con el contrato v2: la regla predeclarada decide, no la preferencia.}
   \label{fig:robustez-semillas}
 \end{figure}
 

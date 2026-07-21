@@ -1,7 +1,7 @@
 \section{Preprocesamiento}\label{sec:preprocesamiento}
 
 \subsection{Contrato anti-fuga}
-El target es \texttt{target\_multifatal}=1 cuando \texttt{FALLECIDOS}$\geq2$. Por ser resultado directo, \texttt{FALLECIDOS} no entra a $X$. También se excluyen \texttt{LESIONADOS}, \texttt{VEHICULOS\_DANADOS}, causas post-investigación y señalización con faltantes dependientes del periodo. De las bases companion se excluyen la gravedad por persona, los lugares de atención y defunción y los dosajes etílicos; solo entran conteos y atributos de escena. La clase del siniestro y los agregados de vehículos\slash personas están disponibles después de la notificación; esto limita el uso a priorización posterior al hecho y descarta cualquier interpretación preventiva.
+El target es \texttt{target\_multifatal}=1 cuando \texttt{FALLECIDOS}$\geq2$. Por ser resultado directo, \texttt{FALLECIDOS} no entra a $X$. También se excluyen \texttt{LESIONADOS}, \texttt{VEHICULOS\_DANADOS}, causas post-investigación y señalización con faltantes dependientes del periodo. De las bases companion se excluyen la gravedad por persona, los lugares de atención y defunción y los dosajes etílicos; solo entran conteos y atributos de escena. Como no existen timestamps de disponibilidad por campo, el análisis se limita a clasificación retrospectiva post-registro.
 
 \subsection{Corte cronológico}
 Las fechas determinan tres bloques sin solapamiento: 2021--2022 para entrenamiento, 2023 para validación y calibración, y 2024--2025 para referencia histórica. El escalador, las categorías, el mapa de frecuencias de vía y cualquier imputación se ajustan únicamente con entrenamiento. Los transformadores no vuelven a ajustarse al procesar periodos posteriores.

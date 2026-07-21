@@ -13,7 +13,7 @@ El proyecto sigue CRISP-DM con una separación cronológica estricta. Este corte
 Partición & Periodo & $n$ & Positivos & Uso autorizado \\
 \midrule
 Entrenamiento & 2021--2022 & 4\,872 & 510 & Ajuste de preprocesamiento y pesos \\
-Validación & 2023 & 2\,000 & 196 & Arquitectura, semilla, umbrales y calibración OOF \\
+Validación & 2023 & 2\,000 & 196 & Configuración completa, semilla, umbrales y calibración OOF \\
 Referencia histórica & 2024--2025 & 2\,232 & 222 & Informe final; sin selección ni reajuste \\
 \bottomrule
 \end{tabularx}
@@ -31,10 +31,59 @@ Referencia histórica & 2024--2025 & 2\,232 & 222 & Informe final; sin selecció
 \end{align*}
 
 \subsection{Selección del modelo}
-Se compararon tres configuraciones MLP y tres semillas (42, 314 y 2718). La configuración se eligió por mediana de PR-AUC en validación, luego mediana de F1 y finalmente menor rango intercuartílico de PR-AUC. La semilla 314 quedó asociada al artefacto seleccionado. Los mismos datos y la misma política de umbral se aplicaron a regresión logística balanceada y Random Forest balanceado para evitar comparaciones ventajosas.
+Se compararon tres \textbf{configuraciones completas} MLP y tres semillas (42, 314 y 2718). Cada configuración cambia simultáneamente capas, \emph{dropout}, L2 y tasa de aprendizaje; por ello la búsqueda identifica un paquete ganador, no el efecto aislado de la arquitectura. La configuración se eligió por mediana de PR-AUC en validación, luego mediana de F1 y finalmente menor rango intercuartílico de PR-AUC. La semilla 314 quedó asociada al artefacto seleccionado. Los mismos datos y la misma política de umbral se aplicaron a regresión logística balanceada y Random Forest balanceado para evitar comparaciones ventajosas.
+
+\begin{table}[H]
+\centering
+\caption{Grilla cerrada de configuraciones completas; cada fila varía conjuntamente capas, \emph{dropout}, L2 y tasa de aprendizaje.}
+\label{tab:grilla-arquitecturas}
+\small
+\begin{tabular}{lccccc}
+\toprule
+ID & Capas ocultas & Dropout & L2 kernel & LR inicial & Lote \\
+\midrule
+\textbf{MLP\_32\_16} & \textbf{32--16} & \textbf{0.25} & \textbf{$10^{-4}$} & \textbf{$10^{-3}$} & \textbf{64} \\
+MLP\_64\_32 & 64--32 & 0.35 & $3\times10^{-4}$ & $5\times10^{-4}$ & 64 \\
+MLP\_32 & 32 & 0.20 & $10^{-4}$ & $5\times10^{-4}$ & 64 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La configuración completa se seleccionó por el agregado robusto entre semillas. Dentro de la configuración ganadora se conservó la corrida más próxima a sus medianas de PR-AUC y F1, no la corrida extrema; esa regla eligió la semilla 314.
+
+\subsection{Configuración exacta de entrenamiento}
+\begin{longtable}{p{3.3cm}p{6.0cm}p{5.1cm}}
+\caption{Técnicas efectivamente aplicadas a la MLP definitiva.}\label{tab:tecnicas-entrenamiento}\\
+\toprule
+Técnica & Configuración verificable & Propósito \\
+\midrule
+\endfirsthead
+\toprule
+Técnica & Configuración verificable & Propósito \\
+\midrule
+\endhead
+Función objetivo & Entropía cruzada binaria ponderada & Clasificación binaria bajo desbalance \\
+Pesos de clase & Fórmula \texttt{balanced}: $w_0=0.5585$, $w_1=4.7765$ en 2021--2022 & Dar mayor costo a errores multifatales; no es regularización \\
+Optimizador & Adam; tasa inicial $10^{-3}$ & Actualización adaptativa de gradientes~\cite{kingma_adam_2014} \\
+L2 & $10^{-4}$ en los kernels de ambas capas ocultas & Penalizar pesos grandes; no se aplica a sesgos ni salida~\cite{goodfellow_deep_learning_2016} \\
+Dropout & 0.25 después de Dense(32) y después de Dense(16) & Reducir coadaptación durante entrenamiento~\cite{srivastava_dropout_2014} \\
+Programa de épocas & Máximo 180; lote 64; la corrida seleccionada terminó tras 45 épocas & Fijar un presupuesto común y documentar la ejecución elegida \\
+Parada temprana & \texttt{val\_pr\_auc}, modo máximo, paciencia 20, restaurar mejores pesos & Detener al agotarse la mejora de validación~\cite{prechelt_early_stopping_1998} \\
+Reducción de tasa & Mismo monitor; factor 0.5, paciencia 8, tasa mínima $10^{-5}$ & Refinar el ajuste al entrar en meseta; por ello el estado final del optimizador puede guardar una tasa menor que la inicial \\
+Repetibilidad & Semillas 42, 314 y 2718; TensorFlow, NumPy y Python sincronizados & Medir sensibilidad y evitar elegir una corrida excepcional \\
+\bottomrule
+\end{longtable}
+
+\paragraph{Técnicas no utilizadas.}
+No se emplearon regularización L1 ni \emph{batch normalization}; tampoco SMOTE, sobremuestreo, \emph{stacking}, \emph{bagging} o \emph{boosting} combinados con la MLP. El Random Forest es únicamente un comparador independiente: no integra el predictor desplegado. La capacidad se controla con L2, dos capas de \emph{dropout}, parada temprana y una arquitectura compacta; el desbalance se trata con pesos de clase, sin sintetizar escenas categóricas o geográficas inexistentes.
+
+\subsection{Auditoría posterior del diseño, sin reajuste}
+Para responder si las técnicas y el número de redes están justificados, se añadió una auditoría reproducible que vuelve a entrenar únicamente con 2021--2022 y compara exclusivamente en 2023: cuatro variantes de regularización por tres semillas, la MLP individual congelada, un promedio de tres semillas y una alternativa multirrama que separa 162 variables de contexto de 13 variables companion. La auditoría no reemplaza pesos, calibrador ni umbrales canónicos. Un bootstrap pareado de 2\,000 remuestreos compara la red individual con el ensemble.
+
+Como control de suficiencia informativa se fija en 2023 una regla ordinal basada solo en \texttt{n\_personas}; recién después se aplica a la referencia histórica. Esa comparación post-hoc pregunta si la MLP aprende algo más que un conteo obvio, pero no se usa para elegir el modelo. Finalmente se informa 2024 y 2025 por separado como estabilidad descriptiva; 2025 es parcial. El script \path{src/validation_design_audit.py}, sus tablas y hashes hacen estas decisiones verificables.
 
 \subsection{Calibración y umbrales}
-Platt e isotónica se compararon mediante Brier OOF de cinco particiones estratificadas dentro de 2023~\cite{scikit_learn_2024}. Se seleccionó Platt por menor Brier OOF; el umbral calibrado 0.20 maximizó F1 sobre esas probabilidades OOF. El umbral crudo 0.65 proviene de la política predeclarada sobre scores de validación. Las escalas no se mezclan y la interfaz toma decisiones visibles solo en la escala calibrada.
+Platt e isotónica se compararon mediante Brier OOF de cinco particiones estratificadas dentro de 2023~\cite{scikit_learn_2024}. Se seleccionó Platt por menor Brier OOF; el umbral calibrado 0.30 maximizó F1 sobre esas probabilidades OOF. El umbral crudo 0.80 proviene de la política predeclarada sobre scores de validación. Las escalas no se mezclan y la interfaz toma decisiones visibles solo en la escala calibrada.
 
 \subsection{Evaluación e incertidumbre}
 Se reportan dos vistas del mismo modelo congelado: score crudo y probabilidad Platt. Para las métricas de referencia se calcularon 1\,000 remuestreos bootstrap al 95\,\%. La evaluación incluye comparación con prevalencia, regresión logística y Random Forest; no se realizan pruebas o ajustes posteriores que reclasifiquen 2024--2025 como un nuevo periodo no observado.

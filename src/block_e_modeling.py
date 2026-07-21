@@ -1,8 +1,9 @@
-"""Train and select the definitive neural network without endpoint leakage.
+"""Train and select the definitive neural-network configuration without endpoint access.
 
-Architecture, seed and raw decision threshold are selected only with the
-2021--2022 training and 2023 selection periods. The separate bundle generator
-owns calibration and the read-only 2024--2025 reference evaluation.
+Configuration, seed and raw decision threshold are selected only with the
+2021--2022 training and 2023 validation periods. This module applies Parquet
+predicate pushdown before materialization; the separate bundle generator owns
+calibration and the read-only 2024--2025 historical-reference evaluation.
 """
 from __future__ import annotations
 
@@ -12,6 +13,7 @@ import random
 import sys
 import tempfile
 from dataclasses import asdict, dataclass
+from datetime import datetime
 from pathlib import Path
 
 os.environ.setdefault("MPLCONFIGDIR", str(Path(tempfile.gettempdir()) / "accident_nn_matplotlib"))
@@ -39,7 +41,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.model_protocol import feature_availability_audit, fit_preprocessor, split_chronological, transform_features
+from src.model_protocol import EXCLUDED_COLUMNS, feature_availability_audit, fit_preprocessor, transform_features
 
 BASE_PATH = ROOT / "data" / "processed" / "base_limpia.parquet"
 FINAL_MODEL_DIR = ROOT / "models" / "final"
@@ -244,13 +246,13 @@ def write_protocol_document(feature_count: int, split_sizes: dict[str, int]) -> 
 ## Protocolo predeclarado
 - Entrenamiento: siniestros de 2021--2022 ({split_sizes['train']} registros).
 - Selección: 2023 ({split_sizes['validation']} registros).
-- Referencia histórica: 2024--2025 ({split_sizes['reference']} registros; 2025 es parcial en esta extracción). Este periodo no participa en entrenamiento, selección ni calibración.
-- MLP: 3 arquitecturas predeclaradas × 3 semillas = 9 corridas; L2, dropout y early stopping por PR-AUC de validación.
-- Selección de arquitectura: mayor mediana de PR-AUC entre semillas; desempates por mediana de F1 e IQR menor. Se conserva la semilla mediana, no la corrida extrema.
+- Referencia histórica: 2024--2025 no se abre ni se materializa en este pipeline. Su consulta controlada pertenece al generador del bundle definitivo.
+- MLP: 3 configuraciones completas predeclaradas × 3 semillas = 9 corridas; L2, dropout y early stopping por PR-AUC de validación.
+- Selección de configuración completa (capas, dropout, L2 y LR): mayor mediana de PR-AUC entre semillas; desempates por mediana de F1 e IQR menor. Se conserva la semilla mediana, no la corrida extrema.
 - Umbral: la misma regla para MLP, regresión logística y bosque aleatorio: máximo F1 de validación en la grilla 0.05--0.95; desempates por recall, precision y umbral alto.
 
 ## Contrato de variables
-La matriz tiene {feature_count} columnas y excluye resultados, conteos posteriores, causas investigadas, identificadores y señales con faltantes sesgados. Las variables de clase de siniestro son válidas solo para priorización posterior a la notificación; no se presentan como predicción preventiva previa al evento.
+La matriz tiene {feature_count} columnas y excluye resultados, causas investigadas, identificadores y señales con faltantes sesgados. Como la extracción no contiene timestamps por campo, el uso defendible es clasificación retrospectiva de registros consolidados.
 
 ## Límites
 El objetivo es multifatalidad condicional a siniestros ya fatales, no la probabilidad de que un siniestro cualquiera sea mortal. La evaluación cronológica mide generalización futura interna, pero no reemplaza validación externa. La calibración se selecciona y ajusta exclusivamente en 2023; el periodo de referencia se usa solo para describir desempeño histórico.
@@ -258,15 +260,56 @@ El objetivo es multifatalidad condicional a siniestros ya fatales, no la probabi
     (TABLES_DIR / "final_model_protocol.md").write_text(text, encoding="utf-8")
 
 
+def read_training_validation_source(path: Path = BASE_PATH) -> pd.DataFrame:
+    """Read only rows before 2024; the endpoint cannot enter process memory here."""
+    frame = pd.read_parquet(path, filters=[("FECHA", "<", datetime(2024, 1, 1))])
+    if "FECHA" not in frame:
+        raise ValueError("Training selection requires a FECHA column.")
+    dates = pd.to_datetime(frame["FECHA"], errors="coerce")
+    if dates.isna().any() or dates.empty:
+        raise ValueError("Training selection requires a valid, non-empty FECHA column.")
+    if dates.ge(pd.Timestamp("2024-01-01")).any():
+        raise RuntimeError("Endpoint rows reached the training pipeline despite predicate pushdown.")
+    return frame
+
+
+def split_training_validation(frame: pd.DataFrame) -> dict[str, pd.DataFrame | pd.Series]:
+    """Materialize only the 2021--22 training and 2023 validation partitions."""
+    selected = frame.copy()
+    selected["FECHA"] = pd.to_datetime(selected["FECHA"], errors="coerce")
+    if selected["FECHA"].isna().any() or "target_multifatal" not in selected:
+        raise ValueError("Training selection requires valid FECHA and target_multifatal fields.")
+    years = selected["FECHA"].dt.year
+    if not years.isin([2021, 2022, 2023]).all():
+        raise RuntimeError("The training pipeline accepts only 2021--2023 rows.")
+    train = selected[years.isin([2021, 2022])].copy()
+    validation = selected[years.eq(2023)].copy()
+    if min(len(train), len(validation)) == 0:
+        raise ValueError("The protocol needs non-empty 2021--22 training and 2023 validation partitions.")
+
+    def xy(partition: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
+        features = partition.drop(columns=[column for column in EXCLUDED_COLUMNS if column in partition])
+        return features, partition["target_multifatal"].astype("int8")
+
+    X_train, y_train = xy(train)
+    X_validation, y_validation = xy(validation)
+    return {
+        "X_train_raw": X_train,
+        "y_train": y_train,
+        "X_validation_raw": X_validation,
+        "y_validation": y_validation,
+    }
+
+
 def run_modeling_pipeline() -> dict[str, object]:
-    """Train and persist the selected MLP without reading the reference period."""
+    """Train and persist the selected MLP without materializing the endpoint."""
     for directory in [FINAL_MODEL_DIR, TABLES_DIR]:
         directory.mkdir(parents=True, exist_ok=True)
-    base = pd.read_parquet(BASE_PATH)
-    splits = split_chronological(base)
+    base = read_training_validation_source(BASE_PATH)
+    splits = split_training_validation(base)
     X_train_raw, y_train = splits["X_train_raw"], splits["y_train"]
     X_val_raw, y_val = splits["X_validation_raw"], splits["y_validation"]
-    # Do not transform or score the reference partition during model selection.
+    # No endpoint partition exists in this process to transform or score.
     scaler, encoders = fit_preprocessor(X_train_raw)  # type: ignore[arg-type]
     X_train = transform_features(X_train_raw, scaler, encoders)  # type: ignore[arg-type]
     X_val = transform_features(X_val_raw, scaler, encoders)  # type: ignore[arg-type]
@@ -291,7 +334,7 @@ def run_modeling_pipeline() -> dict[str, object]:
     mlp.save(FINAL_MODEL_DIR / "model.keras")
 
     feature_availability_audit().to_csv(TABLES_DIR / "feature_availability_audit.csv", index=False)
-    split_sizes = {"train": len(y_train), "validation": len(y_val), "reference": len(splits["y_test"])}
+    split_sizes = {"train": len(y_train), "validation": len(y_val)}
     write_protocol_document(len(encoders["feature_list"]), split_sizes)
     summary = {
         "split_sizes": split_sizes,
@@ -299,6 +342,7 @@ def run_modeling_pipeline() -> dict[str, object]:
         "selected_config": config.config_id,
         "selected_seed": seed,
         "selected_threshold": float(mlp_threshold["threshold"]),
+        "endpoint_period_loaded_for_training": False,
         "reference_period_used_for_selection": False,
     }
     (TABLES_DIR / "model_training_summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")

@@ -1,0 +1,4 @@
+comparison,partition,metric,delta,ci_2_5,ci_97_5,bootstrap_iterations,threshold_n_personas_selected_on_2023
+MLP_canónica_cruda - regla_n_personas,historical_reference_2024_2025_post_hoc,pr_auc,0.04750481727302697,0.01672176529059057,0.0833009975904848,2000,4.0
+MLP_canónica_cruda - regla_n_personas,historical_reference_2024_2025_post_hoc,roc_auc,0.030126395051768173,0.011989924206257298,0.0490830639430628,2000,4.0
+MLP_canónica_cruda - regla_n_personas,historical_reference_2024_2025_post_hoc,f1_multifatal,0.00028022978842651147,-0.041814229252351724,0.0412723610134507,2000,4.0

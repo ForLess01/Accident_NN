@@ -32,6 +32,7 @@
     "notebooks/03_model.ipynb",
     "notebooks/04_evaluacion_final.ipynb",
     "report/bib/referencias.bib",
+    "report/figures/design_validation_evidence.png",
     "report/figures/fig01_target_distribution.png",
     "report/figures/fig02_monthly_accidents.png",
     "report/figures/fig03_accidents_by_hour.png",
@@ -67,6 +68,14 @@
     "report/sections/13_conclusiones.tex",
     "report/sections/15_anexos.tex",
     "report/sections/eda_hallazgos.md",
+    "report/tables/design_annual_stability_2024_2025.csv",
+    "report/tables/design_n_personas_paired_bootstrap.csv",
+    "report/tables/design_n_personas_reference_comparison.csv",
+    "report/tables/design_network_strategy_bootstrap.csv",
+    "report/tables/design_network_strategy_validation.csv",
+    "report/tables/design_regularization_runs.csv",
+    "report/tables/design_regularization_summary.csv",
+    "report/tables/design_validation_audit.json",
     "report/tables/feature_availability_audit.csv",
     "report/tables/final_explainability_feature_importance.csv",
     "report/tables/final_explainability_group_importance.csv",
@@ -106,10 +115,12 @@
     "src/final_model_bundle.py",
     "src/final_paired_comparison.py",
     "src/model_protocol.py",
+    "src/validation_design_audit.py",
     "tests/test_app_inference.py",
     "tests/test_final_explainability.py",
     "tests/test_final_model_bundle.py",
     "tests/test_model_protocol.py",
-    "tests/test_release_check.py"
+    "tests/test_release_check.py",
+    "tests/test_validation_design_audit.py"
   ]
 }

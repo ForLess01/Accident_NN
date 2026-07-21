@@ -80,17 +80,7 @@ def test_feature_contract_has_cyclic_and_predeclared_interactions() -> None:
 def test_modeling_pipeline_does_not_transform_reference_period() -> None:
     train_raw = pd.DataFrame([_row("2021-01-01", 0), _row("2022-02-01", 1)])
     selection_raw = pd.DataFrame([_row("2023-01-01", 0), _row("2023-02-01", 1)])
-    reference_raw = pd.DataFrame([_row("2024-01-01", 0), _row("2025-01-01", 1)])
-    y_train = pd.Series([0, 1], dtype="int8")
-    y_selection = pd.Series([0, 1], dtype="int8")
-    splits = {
-        "X_train_raw": train_raw,
-        "y_train": y_train,
-        "X_validation_raw": selection_raw,
-        "y_validation": y_selection,
-        "X_test_raw": reference_raw,
-        "y_test": pd.Series([0, 1], dtype="int8"),
-    }
+    training_selection_source = pd.concat([train_raw, selection_raw], ignore_index=True)
     transformed: list[pd.DataFrame] = []
 
     class FakeModel:
@@ -104,15 +94,13 @@ def test_modeling_pipeline_does_not_transform_reference_period() -> None:
     baselines = pd.DataFrame({"model": ["LogisticRegression_balanced"], "threshold": [0.6]})
 
     def fake_transform(raw: pd.DataFrame, scaler: object, encoders: dict[str, object]) -> pd.DataFrame:
-        assert raw is not reference_raw
         transformed.append(raw)
         return pd.DataFrame({"feature": [0.0, 1.0]})
 
     with tempfile.TemporaryDirectory() as temporary_directory:
         temp = Path(temporary_directory)
         with (
-            patch.object(modeling.pd, "read_parquet", return_value=pd.DataFrame()),
-            patch.object(modeling, "split_chronological", return_value=splits),
+            patch.object(modeling, "read_training_validation_source", return_value=training_selection_source),
             patch.object(modeling, "fit_preprocessor", return_value=(object(), {"feature_list": ["feature"]})),
             patch.object(modeling, "transform_features", side_effect=fake_transform),
             patch.object(modeling, "train_baselines", return_value=({}, baselines)),
@@ -123,8 +111,39 @@ def test_modeling_pipeline_does_not_transform_reference_period() -> None:
             patch.object(modeling, "TABLES_DIR", temp / "tables"),
         ):
             summary = modeling.run_modeling_pipeline()
-    assert transformed == [train_raw, selection_raw]
+    assert [pd.to_datetime(frame["FECHA"]).dt.year.unique().tolist() for frame in transformed] == [[2021, 2022], [2023]]
+    assert summary["split_sizes"] == {"train": 2, "validation": 2}
+    assert summary["endpoint_period_loaded_for_training"] is False
     assert summary["reference_period_used_for_selection"] is False
+
+
+def test_training_reader_blocks_endpoint_before_materialization() -> None:
+    training_selection = pd.DataFrame([
+        _row("2021-01-01", 0), _row("2022-01-01", 1), _row("2023-01-01", 0),
+    ])
+    observed: dict[str, object] = {}
+
+    def guarded_read(path: Path, **kwargs: object) -> pd.DataFrame:
+        observed["path"] = path
+        observed.update(kwargs)
+        return training_selection
+
+    with patch.object(modeling.pd, "read_parquet", side_effect=guarded_read):
+        loaded = modeling.read_training_validation_source(Path("source.parquet"))
+
+    assert observed["filters"] == [("FECHA", "<", modeling.datetime(2024, 1, 1))]
+    splits = modeling.split_training_validation(loaded)
+    assert set(splits) == {"X_train_raw", "y_train", "X_validation_raw", "y_validation"}
+    assert not any("test" in key.lower() for key in splits)
+
+    endpoint_leak = pd.concat([training_selection, pd.DataFrame([_row("2024-01-01", 1)])], ignore_index=True)
+    with patch.object(modeling.pd, "read_parquet", return_value=endpoint_leak):
+        try:
+            modeling.read_training_validation_source(Path("source.parquet"))
+        except RuntimeError as exc:
+            assert "Endpoint rows" in str(exc)
+        else:
+            raise AssertionError("Endpoint rows must be rejected before training partitions are created")
 
 
 def test_baseline_helper_selects_each_threshold_from_validation_labels() -> None:
@@ -209,6 +228,7 @@ if __name__ == "__main__":
     test_split_is_chronological_and_excludes_leakage()
     test_feature_contract_has_cyclic_and_predeclared_interactions()
     test_modeling_pipeline_does_not_transform_reference_period()
+    test_training_reader_blocks_endpoint_before_materialization()
     test_baseline_helper_selects_each_threshold_from_validation_labels()
     test_mlp_grid_helper_selects_every_run_threshold_from_validation_labels()
     print("model-protocol-ok")

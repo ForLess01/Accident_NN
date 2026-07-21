@@ -279,8 +279,8 @@ def audit_and_clean() -> dict[str, Any]:
             "SITUACIÓN DE PERSONA",
         ],
         "companion_rationale": (
-            "Los agregados de escena (vehiculos y personas involucradas) son hechos "
-            "disponibles al caracterizar la notificacion, con el mismo estatus que CLASE. "
+            "Los agregados de vehiculos y personas pertenecen al registro consolidado. "
+            "La extraccion no incluye timestamps por campo para probar disponibilidad al notificar. "
             "Las columnas de desenlace por persona y los dosajes posteriores quedan vetados."
         ),
         "leakage_exclusions": [

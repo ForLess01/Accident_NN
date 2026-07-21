@@ -449,10 +449,10 @@ def predict_records(records: pd.DataFrame) -> pd.DataFrame:
     output = records.copy()
     output["calibrated_probability"] = predictions["calibrated_probability"].to_numpy()
     output["calibrated_threshold"] = float(thresholds["calibrated"]["value"])
-    output["priority_decision"] = np.where(
+    output["estimated_class"] = np.where(
         predictions["calibrated_prediction"].to_numpy() == 1,
-        "PRIORIZAR REVISIÓN",
-        "PRIORIDAD ESTÁNDAR",
+        "2+ fallecidos",
+        "1 fallecido",
     )
     output["raw_probability"] = predictions["raw_probability"].to_numpy()
     output["raw_threshold"] = float(thresholds["raw"]["value"])

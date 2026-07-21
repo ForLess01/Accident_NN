@@ -1,112 +1,118 @@
-# Guion de defensa oral (10 minutos) — Accident_NN
+# Defensa técnica de Accident_NN (10 minutos)
 
-> **Tesis defendible:** construimos una MLP auditable para priorización posterior a la notificación de siniestros ya fatales. La versión 1 diagnosticó un techo informacional; la versión 2 lo demostró incorporando las bases oficiales de vehículos y personas involucradas: la discriminación casi se duplicó (PR-AUC 0.22 → 0.44) y la red pasó a superar con significación estadística al modelo lineal en ranking.
+> **Tesis defendible:** construimos una MLP tabular compacta y auditable para clasificar retrospectivamente multifatalidad entre siniestros fatales registrados. La red mejora el ranking frente a una regla de conteo y a la regresión logística, pero no domina al Random Forest ni autoriza conclusiones causales u operativas.
 
-## Ruta de 10 minutos
+## Ruta
 
-| Tiempo | Bloque | Mensaje clave |
+| Tiempo | Bloque | Mensaje verificable |
 |---|---|---|
-| 0:00-1:00 | Problema | Clasificación condicional: 1 fallecido vs. 2+ fallecidos |
-| 1:00-2:15 | Datos | ONSV 2021-2025 + bases companion enlazadas al 100% por código |
-| 2:15-4:00 | Anti-fuga | Corte cronológico; 175 features de escena; desenlaces por persona VETADOS |
-| 4:00-5:30 | Historia v1→v2 | Diagnóstico del techo → variable faltante → salto demostrado |
-| 5:30-7:30 | Resultados | PR-AUC 0.4416, ROC-AUC 0.8841, F1 0.5058; significativa vs logística en ROC |
-| 7:30-8:30 | Calibración + SHAP | Platt OOF (ECE 0.017); personas involucradas = 43.7% de la importancia |
-| 8:30-10:00 | Interfaz + cierre | Mapa OSM, formulario de escena, demostraciones vivas, bundle con hashes |
+| 0:00-1:00 | Pregunta | 1 fallecido vs. 2+ fallecidos, dentro de siniestros ya fatales |
+| 1:00-2:15 | Datos | ONSV 2021-2025, 9.104 registros; 26 campos crudos → 175 features |
+| 2:15-4:15 | Red | 175→32→16→1; ReLU, L2, dropout, BCE ponderada, Adam |
+| 4:15-5:30 | Protocolo | 2021-22 entrena; 2023 selecciona/calibra; 2024-25 referencia histórica |
+| 5:30-7:30 | Resultados | PR-AUC 0.4416; ROC-AUC 0.8841; F1 0.5058; IC y baselines |
+| 7:30-8:45 | Justificación | Ablación, una-vs-varias redes, baseline `n_personas` |
+| 8:45-10:00 | Interfaz y límites | Flujo visible, segunda consulta, disponibilidad temporal y próximos datos |
 
-## 1. Problema — 1 minuto
+## Guion
 
-> “La base ONSV contiene únicamente siniestros con al menos un fallecido. Por eso nuestra clase negativa no es ‘no fatal’: es un siniestro con exactamente un fallecido. La clase positiva es multifatal, con dos o más.”
->
-> “El modelo responde una pregunta específica: **después de que un siniestro fatal fue notificado, ¿qué prioridad de revisión tiene por su probabilidad de multifatalidad?** No predice accidentes antes de que ocurran ni atribuye causalidad.”
+### 1. Pregunta y datos
 
-## 2. Datos — 1 minuto 15 segundos
+“La clase positiva es `FALLECIDOS >= 2`; la negativa es exactamente un fallecido. No estimamos fatalidad sobre todos los accidentes. Usamos 9.104 registros ONSV y dos tablas complementarias de vehículos y personas. El formulario tiene 26 campos crudos y el preprocesamiento produce 175 features en orden fijo.”
 
-> “Usamos tres bases oficiales del ONSV 2021-2025, enlazables por código de siniestro con **cobertura del 100%**: SINIESTROS (9,104 registros útiles, 10.19% multifatales), VEHICULOS (12,667 filas, una por vehículo) y PERSONAS (25,412 filas, hasta 74 involucrados en un evento).”
->
-> “De las tablas companion usamos solo hechos de escena: cuántos vehículos y de qué tipo, cuántas personas, pasajeros, peatones, fugados y edad media. Quedan **vetadas por fuga** la gravedad por persona, los lugares de atención y defunción y los dosajes etílicos: describen el desenlace o llegan con la investigación.”
+“La extracción no contiene timestamps por variable. Por eso no afirmamos que todos los campos companion estuvieran disponibles al instante de notificación: el alcance defendible es retrospectivo o post-registro.”
 
-## 3. Protocolo anti-fuga — 1 minuto 45 segundos
+### 2. Arquitectura y aprendizaje
 
-> “El diseño usa el orden real del tiempo: 2021-2022 entrena (4,872), 2023 selecciona y calibra (2,000), 2024-2025 es referencia (2,232). Escalador, encoders y frecuencias se ajustan solo con entrenamiento; arquitectura, semilla, calibrador y umbrales se eligen solo con 2023.”
->
-> “El contrato v2 tiene **175 variables**. ¿Es fuga el conteo de personas involucradas? No: es la variable de exposición, un hecho de la escena con el mismo estatus que la clase del siniestro. Un evento con un solo involucrado no puede ser multifatal — eso es estructura del problema, no trampa. Lo que sería trampa es usar la gravedad por persona, y está vetada y verificada por tests.”
+“La única red canónica es 175→Dense(32, ReLU)→Dropout(0.25)→Dense(16, ReLU)→Dropout(0.25)→Dense(1, sigmoide). Tiene dos capas ocultas, tres capas densas entrenables y 6.177 parámetros.”
 
-## 4. La historia v1 → v2 — 1 minuto 30 segundos
+“El forward pass transforma las 175 entradas con ReLU y produce un score sigmoide. Backpropagation propaga el gradiente de la BCE ponderada más L2 hacia atrás; Adam actualiza los pesos. Los pesos de clase atienden el desbalance; L2 y dropout controlan capacidad; early stopping y ReduceLROnPlateau controlan la trayectoria de entrenamiento.”
 
-> “La versión 1, solo con el registro de siniestros, alcanzó PR-AUC 0.2249 y empató estadísticamente con la regresión logística. En vez de agregar capas, diagnosticamos: **el techo era informacional** — faltaba la mecánica del evento.”
->
-> “La versión 2 incorporó esa información con las mismas particiones y las mismas reglas predeclaradas. La búsqueda cerrada (3 arquitecturas × 3 semillas, selección por mediana de PR-AUC) eligió `MLP_32_16`, semilla 314. Y declaramos con transparencia: la evaluación v2 es la **segunda consulta** a la referencia 2024-2025; el diseño completo se congeló antes usando solo 2021-2023.”
+“Platt es externo: `p = sigmoid(a * logit(s) + b)`. No es otra red, una capa de la MLP ni stacking.”
 
-## 5. Resultados — 2 minutos
+### 3. Selección sin fuga
 
-> “En la referencia: **PR-AUC 0.4416** [IC 0.379-0.512] con prevalencia 0.0995 —4.4 veces el azar—, **ROC-AUC 0.8841** [0.861-0.906], **F1 0.5058**, precisión 0.445, recall 0.586. Matriz calibrada: 130 aciertos multifatales, 92 escapes, 162 falsas alertas: casi 1 de cada 2 alertas es verdadera, contra 1 de cada 10 por azar.”
+“2021-2022 ajusta preprocesamiento y pesos; 2023 selecciona la configuración completa, semilla, calibrador y umbrales. Son tres configuraciones por tres semillas, nueve corridas. Digo configuración porque cambian simultáneamente capas, dropout, L2 y learning rate; la búsqueda no aísla arquitectura.”
 
-| Modelo | F1 | PR-AUC | ROC-AUC |
+“2024-2025 es referencia histórica y la v2 es la segunda consulta declarada. Congelar el diseño reduce tuning directo, pero el riesgo de multiplicidad no fue cuantificado; solo un periodo futuro o externo confirma.”
+
+### 4. Resultados
+
+| Modelo / escala | F1 | PR-AUC | ROC-AUC |
 |---|---:|---:|---:|
-| **MLP Platt (t=0.30)** | **0.5058** | 0.4416 | 0.8841 |
+| **MLP Platt, t=0.30** | **0.5058** | 0.4416 | 0.8841 |
 | Logística balanceada | 0.4896 | 0.4334 | 0.8580 |
 | Random Forest | 0.4943 | **0.4704** | **0.8937** |
 
-> “Bootstrap pareado de 2,000 remuestreos: contra la logística, la red gana ROC-AUC con **significación estadística** (Δ+0.026, IC [+0.012, +0.042]) — la no linealidad ahora aporta de verdad. Contra el Random Forest, empate estadístico con ventaja nominal del bosque en ranking. Reportamos ambas cosas: rigor no es ganar siempre, es medir bien.”
->
-> “Y la comparación central del proyecto: v1 0.2249 → v2 0.4416 en PR-AUC sobre la MISMA referencia. La hipótesis del techo informacional quedó demostrada empíricamente.”
+“La MLP tiene PR-AUC 0.4416 [0.3785, 0.5124], ROC-AUC 0.8841 [0.8613, 0.9055] y F1 0.5058. Contra logística, ΔROC-AUC es +0.0261 [0.0122, 0.0417]. Contra Random Forest no se detecta diferencia significativa; eso no significa equivalencia.”
 
-## 6. Calibración e interpretabilidad — 1 minuto
+“La matriz calibrada es TN 1.848, FP 162, FN 92 y TP 130. Los 92 FN son 41.4 % de 222: aproximadamente dos de cada cinco.”
 
-> “Platt se eligió por Brier OOF de 5 particiones solo en 2023 (0.0652). En la referencia, Brier 0.0683 y **ECE 0.0169**: cuando el modelo dice 30%, ocurre ≈30%. La calibración corrige la escala, no el ranking: PR-AUC y ROC-AUC no cambian.”
->
-> “Gradient SHAP (fondo 2021-2022, explicados 2023, sin tocar la referencia): el grupo **personas involucradas concentra el 43.7%** de la importancia, seguido de vehículos involucrados y clase. El modelo aprendió exactamente la variable que motivó la v2. Son asociaciones globales, no causas.”
+### 5. ¿Son necesarias estas técnicas y una sola red?
 
-## 7. Interfaz y cierre — 1 minuto 30 segundos
+“La ablación usa solo 2021-2023. L2+dropout logra PR-AUC mediana 0.4806 y ROC-AUC mediana 0.8911. Solo dropout llega a PR-AUC 0.4818; solo L2 a 0.4655; sin ambos a 0.4648. La evidencia apoya mantener el paquete estable, pero no demuestra que cada regularizador sea indispensable por separado.”
 
-> “La interfaz consume el bundle canónico `canonical-2.0.0` con hashes verificados, en solo lectura. El formulario pide los hechos de la escena —vehículos, personas, tipos— con validación de coherencia, y la ubicación se elige con un clic en un mapa OpenStreetMap acotado al Perú que deduce el departamento por point-in-polygon.”
->
-> “El Panorama demuestra el modelo contra la realidad: la serie mensual predicho vs. observado, la multifatalidad real por quintil de score y la comparación por categoría, todo sobre 2024-2025 con intervalos de Wilson.”
->
-> “Conclusión: el proyecto entrega método y resultado. Diagnosticamos un límite con honestidad, lo atacamos con datos oficiales enlazables y demostramos el salto con el mismo protocolo congelado. El siguiente paso válido es un periodo futuro no observado; el siguiente techo, velocidad y protección de ocupantes.”
+“El ensemble de tres semillas sube nominalmente PR-AUC de 0.4806 a 0.4976, pero los IC pareados de PR-AUC, ROC-AUC y F1 incluyen cero. La multirrama 162+13 obtiene 0.4622. Por parsimonia mantenemos una sola red; el ensemble exige nuevo holdout y calibración.”
 
----
+“La regla simple `n_personas >= 4`, elegida solo en 2023, obtiene PR-AUC 0.3941 y ROC-AUC 0.8540 en la referencia. La MLP mejora +0.0475 [0.0167, 0.0833] y +0.0301 [0.0120, 0.0491]. En F1 no se detecta diferencia. La red aporta ranking más allá del conteo, no una victoria en toda métrica.”
 
-## Preguntas probables del jurado
+### 6. Cierre
 
-### 1. ¿El número de personas involucradas no es fuga del resultado?
+“La interfaz muestra el flujo completo 26→175→32→16→Platt→clase, cinco escenarios controlados, curvas, calibración, matriz, bootstrap, ablaciones y SHAP global. Comparar escenarios muestra respuesta del modelo, no causalidad.”
 
-No. Es un hecho de la escena disponible al caracterizar la notificación (incluye ilesos) y constituye la exposición del evento: define el techo de víctimas posibles, no el desenlace. La fuga sería usar la gravedad por persona, que está vetada y las pruebas lo verifican. Declaramos como limitación que el registro de ilesos podría ser más completo en siniestros graves.
-
-### 2. Evaluaron dos veces sobre 2024-2025. ¿Eso no invalida la v2?
-
-Lo divulgamos explícitamente en el informe. Ninguna decisión de la v2 usó esas etiquetas: contrato, grilla, semillas, calibrador y umbrales se congelaron con 2021-2023. El riesgo de multiplicidad con UNA evaluación previa es mínimo y el salto (ranking casi duplicado) excede largamente lo atribuible a ese efecto. La validación definitiva exige un periodo futuro; lo decimos nosotros antes de que lo pregunten.
-
-### 3. ¿Por qué la red y no el Random Forest, que tiene mejor PR-AUC?
-
-Empate estadístico (ΔPR-AUC −0.029, IC [−0.073, +0.014]): no hay evidencia de que el bosque sea mejor, ni de lo contrario. La red sí supera significativamente al modelo lineal en ROC-AUC, cumple la consigna del curso y aporta la infraestructura de calibración y explicabilidad del sistema. Reportar al bosque como competidor de primer nivel es parte del rigor.
-
-### 4. ¿Por qué cambió la arquitectura entre versiones?
-
-Porque la regla predeclarada decide, no la preferencia: con 175 features la mediana de PR-AUC entre semillas favoreció a `MLP_32_16` (0.4806) sobre `MLP_64_32` (0.4682). Mantener la arquitectura v1 por apego habría sido selección arbitraria.
-
-### 5. ¿Qué significa el umbral calibrado 0.30?
-
-Se eligió sobre probabilidades OOF de 2023 por máximo F1 con desempates predeclarados. La decisión pública usa SOLO la escala Platt; el score crudo (umbral 0.80) queda en un panel de auditoría. Las escalas nunca se mezclan.
-
-### 6. ¿Por qué no predice si un accidente será fatal?
-
-Porque la fuente contiene solo accidentes ya fatales; mezclar no-fatales de otra institución enseñaría al modelo a distinguir fuentes, no severidad. La pregunta condicional mantiene un universo coherente.
-
-### 7. ¿Qué pasa con un código de vía que el modelo nunca vio?
-
-Nada se rompe: mapea a frecuencia cero por contrato, la interfaz lo advierte y está cubierto por tests.
-
-### 8. ¿Por qué no usaron SMOTE?
-
-Con 10.2% de prevalencia, pesos de clase bastan; sintetizar combinaciones categóricas y geográficas crearía casos indefendibles. Regla declarada antes de entrenar.
+“El aporte profesional no es agregar capas: es demostrar qué se seleccionó, qué no se justificó, dónde gana, dónde no, y qué evidencia falta.”
 
 ---
 
-## Notas para el ensayo
+## Preguntas difíciles
 
-- **Ensayar con cronómetro**; si se pasa de 10, recortar la demo (mostrar solo Panorama: quintiles + serie mensual).
-- **Tener abiertas las cinco secciones** de la app antes de empezar.
-- **Tener el PDF en la tabla v1 vs v2** (Sección de Resultados): es el gráfico mental que el jurado se lleva.
-- **Cerrar con la frase**: “Diagnosticamos el límite, conseguimos la variable que faltaba y demostramos el salto con el protocolo congelado. Eso es ingeniería de aprendizaje automático, no prueba y error.”
+### ¿Por qué una red si Random Forest lidera nominalmente?
+
+Porque la consigna evalúa una red neuronal y la MLP es competitiva, calibrable y auditable. Random Forest lidera PR-AUC y ROC-AUC nominales; los IC pareados no detectan diferencia. No ocultamos ese resultado ni afirmamos equivalencia.
+
+### ¿Por qué una sola red y no dos?
+
+El ensemble mejora nominalmente, pero todos los IC pareados incluyen cero. Una segunda red agrega mantenimiento y exige recalibración sin evidencia concluyente. La multirrama tampoco mejora. Se conserva una única MLP parsimoniosa.
+
+### ¿La MLP solo cuenta personas?
+
+No. La regla `n_personas >= 4` tiene F1 similar, pero la MLP la supera significativamente en PR-AUC y ROC-AUC en la comparación post-hoc de referencia. Eso muestra mejor ordenamiento con el conjunto de variables.
+
+### ¿Por qué 32 y 16 neuronas?
+
+No por intuición aislada: la configuración 32-16 ganó la regla predeclarada de mediana PR-AUC entre tres semillas. Es compacta para 4.872 registros y tiene 6.177 parámetros. La búsqueda compara paquetes completos, no solo capas.
+
+### ¿L1, batch normalization, SMOTE o stacking mejorarían?
+
+No hay evidencia actual que lo justifique. L1 puede forzar esparsidad redundante con el contrato; batch normalization no es necesaria en esta MLP tabular escalada; SMOTE sintetizaría combinaciones geográficas/categóricas; stacking cambia el sistema y necesita holdout. Agregarlos sin validación nueva sería complejidad, no rigor.
+
+### ¿Hay sobreajuste train/validation?
+
+Se controla con red compacta, L2, dropout, early stopping, tres semillas y selección agregada. La estabilidad entre semillas y la referencia posterior son compatibles con generalización, pero no eliminan incertidumbre ni sustituyen validación externa.
+
+### ¿La segunda consulta invalida los resultados?
+
+No los invalida, pero reduce su fuerza confirmatoria. Ninguna decisión v2 usó 2024-2025 directamente; aun así, el riesgo por consultas repetidas no está cuantificado. Por eso se rotula referencia histórica y se exige un periodo futuro para confirmación.
+
+### ¿Los campos companion estaban disponibles al notificar?
+
+No se puede demostrar con esta extracción porque faltan timestamps por variable. Son datos del registro consolidado; la interfaz y el informe los tratan retrospectivamente. Una operación en tiempo real exige metadatos de disponibilidad.
+
+### ¿Qué significa calibración?
+
+Platt mejora la concordancia agregada entre probabilidad media y frecuencia observada; no garantiza que un caso con 30 % “ocurra 30 %”. Brier y ECE evalúan grupos, mientras PR-AUC y ROC-AUC miden ranking.
+
+### ¿No significativo significa equivalentes?
+
+No. Significa que con esta muestra y procedimiento no se detectó una diferencia. Demostrar equivalencia requiere márgenes y una prueba de equivalencia preespecificados.
+
+### ¿SHAP explica causas?
+
+No. Gradient SHAP resume asociaciones del score global respecto de un fondo de entrenamiento. El signo medio no es una intervención, monotonicidad ni explicación causal individual.
+
+## Antes de presentar
+
+- Abrir `?section=panorama`, `?section=estimar` y `?section=evidencia`.
+- Mostrar primero la arquitectura y luego el forest plot; no empezar por una métrica aislada.
+- Decir “no se detectó diferencia significativa”, nunca “empate” o “equivalencia”.
+- Reconocer que 2025 es parcial y que la disponibilidad temporal no fue demostrada.

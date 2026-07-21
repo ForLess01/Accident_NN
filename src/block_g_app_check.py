@@ -35,7 +35,7 @@ def run_block_g_check(run_apptest: bool = True) -> dict[str, object]:
         raise RuntimeError("No demo records are available for the app check.")
 
     start = time.perf_counter()
-    predictions = predict_records(demos.head(2))
+    predictions = predict_records(demos)
     elapsed = time.perf_counter() - start
     numeric = predictions[["raw_probability", "calibrated_probability", "raw_threshold", "calibrated_threshold"]]
     source = inspect.getsource(app_inference)
@@ -49,7 +49,7 @@ def run_block_g_check(run_apptest: bool = True) -> dict[str, object]:
         },
         {
             "check": "model_schema_feature_alignment",
-            "passed": int(runtime.model.input_shape[-1]) == int(schema["processed_feature_count"]) == 175,
+            "passed": int(runtime.model.input_shape[-1]) == int(schema["processed_feature_count"]) == int(manifest["feature_count"]),
             "detail": f'model={runtime.model.input_shape[-1]}; schema={schema["processed_feature_count"]}',
         },
         {
@@ -85,7 +85,7 @@ def run_block_g_check(run_apptest: bool = True) -> dict[str, object]:
         {
             "check": "warm_prediction_under_2_seconds",
             "passed": elapsed < 2.0,
-            "detail": f"{elapsed:.3f}s for 2 records after bundle load",
+            "detail": f"{elapsed:.3f}s for {len(demos)} records after bundle load",
         },
     ]
 
@@ -104,7 +104,7 @@ def run_block_g_check(run_apptest: bool = True) -> dict[str, object]:
             app_path = str(ROOT / "app" / "streamlit_app.py")
             sections = {
                 "panorama": "Panorama",
-                "estimar": "Estimar prioridad",
+                "estimar": "Probar la red neuronal",
                 "explorar": "Explorar datos",
                 "regiones": "Patrones regionales",
                 "evidencia": "Evidencia del modelo",
@@ -133,14 +133,56 @@ def run_block_g_check(run_apptest: bool = True) -> dict[str, object]:
                 and test.number_input[1].value is None
                 and not any(item.value == "Resultado" for item in test.subheader)
             )
-            test.button[0].click().run()
-            demo_loaded = bool(
-                test.date_input[0].value is not None
-                and test.time_input[0].value is not None
-                and test.selectbox[0].value is not None
-                and test.number_input[0].value is not None
-                and test.number_input[1].value is not None
+            demo_runs: dict[str, dict[str, object]] = {}
+            for demo_id in demos["caso_id"].astype(str):
+                demo_test = AppTest.from_file(app_path, default_timeout=45)
+                demo_test.query_params["section"] = "estimar"
+                demo_test.run()
+                demo_test.selectbox[0].set_value(demo_id)
+                demo_test.button[0].click().run()
+                expected_road_code = str(demos.loc[demos["caso_id"].eq(demo_id), "CODIGO_VIA"].iloc[0])
+                loaded = bool(
+                    demo_test.date_input[0].value is not None
+                    and demo_test.time_input[0].value is not None
+                    and demo_test.selectbox[1].value is not None
+                    and demo_test.selectbox[2].value == expected_road_code
+                    and demo_test.number_input[0].value is not None
+                    and demo_test.number_input[1].value is not None
+                )
+                load_errors = [str(item.value) for item in demo_test.error]
+                load_exceptions = [str(item.value) for item in demo_test.exception]
+                warnings = [str(item.value) for item in demo_test.warning]
+                unseen_warning = demo_id != "demo_04_codigo_no_visto" or any(
+                    "no observado en entrenamiento" in item.lower() for item in warnings
+                )
+                demo_test.button[1].click().run()
+                submit_errors = [str(item.value) for item in demo_test.error]
+                submit_exceptions = [str(item.value) for item in demo_test.exception]
+                result_rendered = any(item.value == "Resultado" for item in demo_test.subheader)
+                demo_runs[demo_id] = {
+                    "loaded": loaded,
+                    "unseen_warning": unseen_warning,
+                    "load_errors": load_errors,
+                    "load_exceptions": load_exceptions,
+                    "submit_errors": submit_errors,
+                    "submit_exceptions": submit_exceptions,
+                    "result": result_rendered,
+                }
+
+            demos_ok = all(
+                bool(result["loaded"])
+                and bool(result["unseen_warning"])
+                and not result["load_errors"]
+                and not result["load_exceptions"]
+                and not result["submit_errors"]
+                and not result["submit_exceptions"]
+                and bool(result["result"])
+                for result in demo_runs.values()
             )
+
+            # Reuse a clean canonical demo for the stale-result regression.
+            test.selectbox[0].set_value("demo_01_tipico_letalidad_simple")
+            test.button[0].click().run()
             test.button[1].click().run()
             valid_errors = [str(item.value) for item in test.error]
             valid_exceptions = [str(item.value) for item in test.exception]
@@ -148,7 +190,7 @@ def run_block_g_check(run_apptest: bool = True) -> dict[str, object]:
 
             # Regression: a department/coordinate mismatch clears the prior
             # decision and reports a field-level coherence error.
-            test.selectbox[0].set_value("PUNO")
+            test.selectbox[1].set_value("PUNO")
             test.button[1].click().run()
             invalid_errors = [str(item.value) for item in test.error]
             invalid_exceptions = [str(item.value) for item in test.exception]
@@ -167,7 +209,7 @@ def run_block_g_check(run_apptest: bool = True) -> dict[str, object]:
             app_ok = bool(
                 navigation_ok
                 and empty_defaults
-                and demo_loaded
+                and demos_ok
                 and not valid_errors
                 and not valid_exceptions
                 and valid_result_rendered
@@ -181,13 +223,13 @@ def run_block_g_check(run_apptest: bool = True) -> dict[str, object]:
                     "check": "streamlit_apptest_smoke",
                     "passed": app_ok,
                     "detail": (
-                        "All 5 URL sections rendered; empty defaults + demo load + valid Result + mismatch stale-state guard + chart tables passed"
+                        "All 5 URL sections and all 5 inferred demos passed, including unseen PE-999X; mismatch stale-state guard + chart tables passed"
                         if app_ok
                         else json.dumps(
                             {
                                 "navigation": navigation_runs,
                                 "empty_defaults": empty_defaults,
-                                "demo_loaded": demo_loaded,
+                                "demo_runs": demo_runs,
                                 "valid_errors": valid_errors,
                                 "valid_exceptions": valid_exceptions,
                                 "valid_result": valid_result_rendered,

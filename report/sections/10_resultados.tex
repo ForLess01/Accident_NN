@@ -13,9 +13,9 @@ Los 2\,232 registros de 2024--2025 contienen 222 casos multifatales (prevalencia
 \toprule
 Métrica & Score crudo, $t=0.80$ & Platt, $t=0.30$ \\
 \midrule
-F1 multifatal & 0.4957 [0.4413, 0.5470] & 0.5058 [0.4512, 0.5566] \\
-Precisión multifatal & 0.4715 [0.4106, 0.5323] & 0.4452 [0.3879, 0.5000] \\
-\emph{Recall} multifatal & 0.5225 [0.4561, 0.5872] & 0.5856 [0.5194, 0.6489] \\
+F1 multifatal & 0.4957 [0.4379, 0.5462] & 0.5058 [0.4512, 0.5566] \\
+Precisión multifatal & 0.4715 [0.4078, 0.5304] & 0.4452 [0.3879, 0.5000] \\
+\emph{Recall} multifatal & 0.5225 [0.4572, 0.5850] & 0.5856 [0.5194, 0.6489] \\
 PR-AUC & 0.4416 [0.3785, 0.5124] & 0.4416 [0.3785, 0.5124] \\
 ROC-AUC & 0.8841 [0.8613, 0.9055] & 0.8841 [0.8613, 0.9055] \\
 Brier & 0.1081 & 0.0683 [0.0609, 0.0756] \\
@@ -28,32 +28,32 @@ La calibración transforma la escala, no el orden: PR-AUC y ROC-AUC son idéntic
 
 Con el umbral calibrado, la matriz contiene 1\,848 verdaderos negativos, 162 falsos positivos, 92 falsos negativos y 130 verdaderos positivos. El modelo identifica el 58.6\,\% de los multifatales y el 44.5\,\% de sus alertas son verdaderas: 4.5 veces la prevalencia base.
 
-\subsection{Comparación entre versiones: el techo informacional, demostrado}
+\subsection{Comparación entre versiones: evidencia consistente con la hipótesis informacional}
 La versión 1 usaba únicamente el registro de siniestros (162 características). La versión 2 agrega los agregados de escena de las bases companion de vehículos y personas. Todo lo demás ---particiones, reglas de selección, calibración OOF, política de umbral--- es idéntico. La \autoref{tab:v1-v2} muestra el efecto.
 
 \begin{table}[H]
 \centering
 \caption{Versión 1 vs.\ versión 2 sobre la misma referencia 2024--2025 (escala calibrada).}
 \label{tab:v1-v2}
-\small
-\begin{tabular}{lccc}
+\footnotesize
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{3.1cm}p{2.7cm}p{2.7cm}>{\raggedright\arraybackslash}X}
 \toprule
  & Versión 1 & Versión 2 & Cambio \\
 \midrule
-Características & 162 & 175 & +12 agregados de escena +1 indicador \\
-Arquitectura seleccionada & \texttt{MLP\_64\_32} & \texttt{MLP\_32\_16} & regla predeclarada, semilla 314 \\
-PR-AUC & 0.2249 & \textbf{0.4416} & $\times$1.96 (prevalencia 0.0995) \\
+Características & 162 & 175 & 12 agregados + 1 indicador \\
+Arquitectura seleccionada & \texttt{MLP\_64\_32} & \texttt{MLP\_32\_16} & Regla predeclarada; semilla 314 \\
+PR-AUC & 0.2249 & \textbf{0.4416} & $\times$1.96; prevalencia 0.0995 \\
 ROC-AUC & 0.7482 & \textbf{0.8841} & +0.136 \\
 F1 multifatal & 0.2958 & \textbf{0.5058} & +0.210 \\
-Precisión & 0.2359 & \textbf{0.4452} & alertas verdaderas: de 1 de 4 a casi 1 de 2 \\
-\emph{Recall} & 0.3964 & \textbf{0.5856} & FN: de 134 a 92 \\
-Brier / ECE & 0.0831 / 0.0085 & 0.0683 / 0.0169 & ambas escalas calibradas y honestas \\
-Grupo SHAP dominante & clase del siniestro & personas involucradas (43.7\,\%) & la variable nueva domina \\
+Precisión & 0.2359 & \textbf{0.4452} & De 1 de 4 a casi 1 de 2 alertas verdaderas \\
+\emph{Recall} & 0.3964 & \textbf{0.5856} & FN: 134 $\rightarrow$ 92 \\
+Brier / ECE & 0.0831 / 0.0085 & 0.0683 / 0.0169 & Ambas escalas calibradas \\
+Grupo SHAP dominante & clase del siniestro & personas involucradas (43.7\,\%) & Nueva variable dominante \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
 \end{table}
 
-Esta comparación es el hallazgo central del proyecto: la versión 1 diagnosticó un techo informacional (empate estadístico con la regresión logística, discriminación moderada); la versión 2 lo puso a prueba incorporando la variable mecánica faltante ---cuántas personas y qué vehículos estaban involucrados--- y la discriminación prácticamente se duplicó. El salto no proviene de más capas ni de más épocas: proviene de mejor información, incorporada con las mismas reglas anti-fuga.
+Esta comparación respalda fuertemente la hipótesis informacional: al incorporar cuántas personas y qué vehículos estaban involucrados, la discriminación prácticamente se duplicó. No es una ablación causal pura porque también cambió la configuración seleccionada y la referencia se consultó por segunda vez; por eso no se afirma que las nuevas variables sean la única causa del salto. El diseño congelado en 2021--2023 reduce el riesgo de ajuste directo, pero solo un periodo futuro o una cohorte externa puede confirmarlo.
 
 \subsection{Comparación honesta con líneas base}
 \begin{table}[H]
@@ -95,17 +95,36 @@ Random Forest & F1 & $+0.0015$ & $[-0.0378,\ +0.0390]$ & 0.522 & No \\
 \end{tabular}
 \end{table}
 
-La lectura honesta tiene dos caras. Contra la regresión logística, la red ahora muestra una ventaja \textbf{estadísticamente significativa} en ROC-AUC: con las variables de escena, la no linealidad (interacciones entre composición vehicular, personas y contexto) aporta capacidad que el modelo lineal no captura. Contra el Random Forest, el bosque presenta mejor ranking nominal y la diferencia no es significativa en ninguna métrica: en tabulares medianos los ensambles de árboles siguen siendo competidores de primer nivel, y este informe lo reporta en lugar de ocultarlo. La consigna del curso ---una red neuronal correctamente construida y evaluada--- se cumple con una red que ya no es meramente equivalente al baseline lineal.
+La lectura honesta tiene dos caras. Contra la regresión logística, la red muestra una ventaja \textbf{estadísticamente significativa} en ROC-AUC; este resultado es compatible con que las interacciones no lineales aporten capacidad, sin identificar causalmente qué interacción la produce. Contra el Random Forest, el bosque presenta mejor ranking nominal y no se detectó diferencia significativa en ninguna métrica. Esto no demuestra equivalencia: los intervalos todavía admiten ventajas en ambos sentidos. En datos tabulares medianos, los ensambles de árboles siguen siendo competidores de primer nivel.
+
+\subsection{Ablación de regularización y estrategia de una sola red}
+La auditoría validation-only reentrenó cuatro variantes 32--16 con tres semillas. La configuración canónica L2+\emph{dropout} obtuvo PR-AUC mediana 0.4806 (IQR 0.0058), ROC-AUC mediana 0.8911 y F1 mediana 0.5093. Solo \emph{dropout} alcanzó PR-AUC mediana 0.4818; solo L2, 0.4655; y sin ambos, 0.4648. Por tanto, la evidencia favorece mantener regularización y muestra estabilidad, pero no demuestra que L2 y \emph{dropout} sean individualmente indispensables. Se conserva la configuración ganadora predeclarada y no se reajustan los pesos.
+
+El promedio de tres semillas alcanzó PR-AUC 0.4976 frente a 0.4806 de la MLP congelada; la multirrama 162+13 obtuvo 0.4622. Sin embargo, en el bootstrap pareado del ensemble frente a una red, todos los IC 95\,\% incluyen cero: $\Delta$PR-AUC $+0.0170$ [$-0.0043$, $+0.0363$], $\Delta$ROC-AUC $+0.0028$ [$-0.0016$, $+0.0073$] y $\Delta$F1 $+0.0097$ [$-0.0270$, $+0.0489$]. La conclusión es mantener \textbf{una sola MLP}: el ensemble queda como hipótesis futura porque incorporarlo exigiría un nuevo holdout y calibración independiente.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{figures/design_validation_evidence.png}
+  \caption{Auditoría del diseño usando exclusivamente entrenamiento 2021--2022 y validación 2023. Las mejoras nominales del ensemble no justifican reemplazar la única red congelada.}
+  \label{fig:auditoria-diseno}
+\end{figure}
+\vspace{0.8em}
+
+\subsection{Control simple con \texttt{n\_personas}}
+La regla fijada exclusivamente en validación fue \texttt{n\_personas}$\geq4$. En la referencia histórica obtuvo PR-AUC 0.3941, ROC-AUC 0.8540 y F1 0.4954; la MLP cruda obtuvo 0.4416, 0.8841 y 0.4957, respectivamente. El bootstrap pareado post-hoc favorece a la MLP en ranking: $\Delta$PR-AUC $+0.0475$ [0.0167, 0.0833] y $\Delta$ROC-AUC $+0.0301$ [0.0120, 0.0491]; para F1 no se detectó diferencia ($\Delta=+0.0003$, IC [$-0.0418$, 0.0413]). La red, por tanto, aporta ordenamiento más allá del conteo dominante, aunque al umbral elegido ambas reglas tengan F1 similar.
+
+\subsection{Estabilidad anual descriptiva}
+Sin usarla para decidir, la MLP Platt obtuvo en 2024 ($n=1\,554$) PR-AUC 0.4448, ROC-AUC 0.8778 y F1 0.4986; en 2025 parcial ($n=678$), PR-AUC 0.4450, ROC-AUC 0.8976 y F1 0.5217. La similitud de PR-AUC es tranquilizadora, pero dos puntos temporales y un año incompleto no prueban ausencia de deriva.
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=\textwidth]{figures/final_model_evidence.png}
-  \caption{Comparación de PR-AUC, ROC-AUC y F1 entre la MLP definitiva y las líneas base en la referencia histórica.}
+  \caption{Comparación en escala cruda de PR-AUC, ROC-AUC y F1 entre la MLP definitiva y las líneas base en la referencia histórica. El F1 de la MLP es 0.4957; el F1 Platt 0.5058 pertenece a la escala calibrada y no se usa en esta figura.}
   \label{fig:evidencia-canonica}
 \end{figure}
 
 \subsection{Análisis de errores}
-Los 92 falsos negativos calibrados son el principal límite restante. Varios quedan apenas por debajo del umbral crudo: los primeros ejemplos (Apurímac, Cajamarca, febrero--marzo 2024) tienen scores 0.746--0.756 frente al corte 0.80. Esto demuestra que el umbral convierte diferencias pequeñas en decisiones distintas y que debe mostrarse la probabilidad, no solo la etiqueta. Los 162 falsos positivos implican carga de revisión, pero la precisión de 0.445 la vuelve manejable frente a la versión 1 (0.236). Las variables aún ausentes ---velocidad, uso de cinturón\slash casco, antigüedad del vehículo, exposición--- fijan el techo actual.
+Los 92 falsos negativos calibrados son el principal límite restante: representan 41.4\,\% de los 222 casos multifatales, aproximadamente dos de cada cinco. Varios quedan apenas por debajo del umbral y muestran que la etiqueta binaria oculta diferencias pequeñas; por eso la interfaz presenta probabilidad y clase. Los 162 falsos positivos también limitan el desempeño. Las variables aún ausentes ---velocidad, uso de cinturón\slash casco, antigüedad del vehículo y exposición--- podrían aportar información, pero su mejora no se presume sin nuevos datos.
 
 \subsection{Explicabilidad global}
 La explicación canónica usa Gradient SHAP sobre la sigmoide cruda. El fondo contiene 256 registros de entrenamiento 2021--2022; se explican 512 registros de validación 2023 con 200 muestras SHAP y semilla 20260709. No se cargaron etiquetas ni datos 2024--2025. Las 175 variables procesadas se sumaron en 20 grupos interpretables.

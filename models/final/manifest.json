@@ -1,8 +1,8 @@
 {
   "manifest_schema_version": "1.0",
   "model_version": "canonical-2.0.0",
-  "created_utc": "2026-07-12T19:52:01.118137+00:00",
-  "model_role": "conditional multifatality prioritization after notification",
+  "created_utc": "2026-07-21T15:46:07.292291+00:00",
+  "model_role": "retrospective conditional multifatality classification",
   "dataset": {
     "path": "data/processed/base_limpia.parquet",
     "sha256": "7c294e4b4eba48ae94f10db22e1a8145e4cd85b12fc61d363d70573d293a725a",
@@ -14,8 +14,10 @@
     "pandas": "3.0.3",
     "scikit_learn": "1.9.0",
     "tensorflow": "2.19.1",
-    "builder_code_sha256": "4d0456ecf9bccf23430a3098aa910ac0a82d80ba6ef3215092cb6c28e4570bb6",
-    "feature_protocol_sha256": "46db47fdbe8578c510ac0682fdd50bb59e275faea9f0df2b98f864f7026a96ee"
+    "builder_code_sha256": "29571a6ad5692fdbd009104168af042d1a426eb3af4db9710c756791322203b0",
+    "feature_protocol_sha256": "8032751141f2af3a399651f605b96199bf56ab72720c7e933221af4965485125",
+    "training_code_sha256": "addef93873156d30e991b116e56eae5765dfc54c2c0158b1947187e41dde3f60",
+    "design_audit_code_sha256": "d571fd60a4ee0d3a5456c18230cccd1e051d9ff55148a193073ca3b902e8cce1"
   },
   "splits": {
     "train": {
@@ -82,7 +84,7 @@
     "feature_list.json": "37efe7cf2a5bca38e35b4f5c44950587a92e51f2d7ee05a3c5c8965f73bc4104",
     "calibrator.joblib": "9932447d1a7a06f66d524f5e68408d2a359b29b886eef38b1c8b2ae145bdb3aa",
     "thresholds.json": "8b099d480c86329964303eabaab0216b5aafa840f93c4ca777459606c9fd3bc8",
-    "feature_schema.json": "16b61e07282b666c31175f9713206030c0f9773ae7836178fb6b26cc1cf75780",
+    "feature_schema.json": "a4e5cf4903204447d8870413ac3a9b335bb0ae485d49074386a1e47cf0870fb1",
     "calibration_selection.json": "37d87533a14a55cdee8623813580c6a1cb66d9b95cba47a9debc99c61ee8dfab"
   },
   "selection_artifact_hashes": {
@@ -99,7 +101,18 @@
     "final_reference_classification_report_2024_2025.csv": "a0c6e2c755f73f7c467ebf4add83129108fc2eb6ca02bbe948f389f6ed81d608",
     "final_reference_bootstrap_ci_2024_2025.csv": "1a77b1087bea97c32ba03d375caae8b875fc47d654e2190b17b109141bdc8b53",
     "final_reference_baseline_comparison_2024_2025.csv": "221065317cb43cf80e4ffbd0232eaeb3070f6ca0af7c097fa9aacfa15387e05c",
-    "final_model_protocol.md": "8aebcb97302352f7290528488c70dc4e86aa3f64291a8afe837ae0358a611205"
+    "final_model_protocol.md": "8e9dac6d50f5f243e9541d1d3706d8d2174d534f08fde3010ef0cc5bb66c3c47"
+  },
+  "design_evidence_artifact_hashes": {
+    "design_annual_stability_2024_2025.csv": "2cda2533b2c44e80d7be1bfc7343f77a54a90cc58e0e27e7a9aa89595d6cee16",
+    "design_n_personas_paired_bootstrap.csv": "25554aabb4bbab20bc3f31583e547e10eb820be2f68d0361f96a9996e92d853d",
+    "design_n_personas_reference_comparison.csv": "4397d986bf0d137115de29dce1197a0214a311932dd21f58b3ccca3e9fd4c20c",
+    "design_network_strategy_bootstrap.csv": "b58d61eec5663b811be347c9d1dda507e8d514e82860f0ecbf597f33a51e0e5f",
+    "design_network_strategy_validation.csv": "981b247b0bb3a229a5ea7f776b8a2f6a04bf422d53c4b879eb9a130d63648670",
+    "design_regularization_runs.csv": "c2ab9d7a8ce812d51fa02bfc5ce5ff1b2d11d4627d11971acb601f3e5559e6c3",
+    "design_regularization_summary.csv": "e2dab6e76abbd925a46bb595d28cf80f2c0636678a981ff5395bd09c113cc83b",
+    "design_validation_audit.json": "0dc192a9d1eb1b4d7dc2e85bc1dea38b4f3d51b3331e939ad92fa42204c06437",
+    "report/figures/design_validation_evidence.png": "a82d540112cc8c3e845e2a2865a35aec974e8b58c14dbfcbf631c412d064510e"
   },
   "reference_evaluation": {
     "status": "2024-2025 labels were already observed; metrics are historical reference and cannot justify further tuning",
@@ -251,14 +264,14 @@
     ]
   },
   "claims": {
-    "supported": "The MLP has nominally higher chronological ranking metrics than the declared baselines in this fixed reference sample.",
-    "not_supported": "No universal or statistically significant superiority is established; logistic regression retains a higher thresholded F1."
+    "supported": "On this fixed historical reference, nominal leaders derived from the canonical raw-score comparison are PR-AUC: Random Forest (0.4704); ROC-AUC: Random Forest (0.8937); F1: MLP cruda (0.4957).",
+    "not_supported": "Universal superiority is not established; paired differences against Random Forest are not statistically significant."
   },
   "evaluation_figure_hashes": {
-    "report/figures/final_seed_robustness.png": "3234db74cd9e4de77563d9ac8a374c95eb76839c4c1628c1e04dd6fac645fe2f",
-    "report/figures/final_model_evidence.png": "4a52a1f4b2b3620652a57384471ea46861f122ffa13b5e18741ab65773aa6653"
+    "report/figures/final_seed_robustness.png": "85cde65a0ff3df47ca5d7a9290335c70b59a5c510dc57030329fa6910e3945bb",
+    "report/figures/final_model_evidence.png": "b09ed8d59d7200510754cf4aa0ddbd772fdc170f87f5319920802a5fbd006996"
   },
-  "evaluation_figure_generator_sha256": "82465d3fdf3c458f2ac3f88b0ec42105d125359d7bfdae2161572ec9e1a0ac45",
+  "evaluation_figure_generator_sha256": "af3495bf71151164d7d495d19e19e925a7f5cc47e0d7bde0aab28594e01b5758",
   "explainability": {
     "method": "Gradient SHAP (shap.GradientExplainer)",
     "explained_output": "raw_mlp_sigmoid",
@@ -270,13 +283,13 @@
     "seed": 20260709,
     "association_not_causality": true,
     "local_explanations_generated": false,
-    "generator_sha256": "0d96a07afcbc1eb63f52c65380977d701e76df4028f601d139db1390e7678759",
+    "generator_sha256": "230dff431f6e4d7738c42169bad6ae1114e761589f64733b0a77f71b1f533776",
     "status": "generated"
   },
   "explainability_artifact_hashes": {
     "report/tables/final_explainability_group_importance.csv": "b05dffbcbb51db62c4c8c7bed2962f444ffe19390098f2e23d80501183e8bf2a",
     "report/tables/final_explainability_feature_importance.csv": "290eb88b01ff3ad1d303074debd5485d3b5755536751ea78947051716832185d",
-    "report/tables/final_explainability_provenance.json": "edb785760469e9fb890f3ccee47ffc3ba19dd995421b35cf02ca3c7b7d6cb869",
+    "report/tables/final_explainability_provenance.json": "7c8634b249c71bf0221a98518368f438803a7f3246b018ae0e9ca8634dd29abb",
     "report/figures/final_explainability_global.png": "89f0813d05a892c6e706ee5aa48e9bebf44270b2c56b419892aba34e6c1857f6"
   }
 }

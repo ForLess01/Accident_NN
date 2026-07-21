@@ -45,9 +45,14 @@ Columna & Rol & Justificación \\
 \end{table}
 
 \subsection{Bases companion: vehículos y personas involucradas (versión 2)}
-El ONSV publica en el mismo portal dos bases a nivel de registro enlazables por \texttt{CÓDIGO SINIESTRO}: \texttt{data/raw/BBDD\_ONSV\_VEHICULOS\_2021-2025.xlsx} (12\,667 filas, una por vehículo involucrado) y \texttt{data/raw/BBDD\_ONSV\_PERSONAS\_2021-2025.xlsx} (25\,412 filas, una por persona involucrada, hasta 74 en un mismo siniestro). La cobertura del join es del 100\,\% sobre los 9\,104 códigos de la base limpia.
+El ONSV publica en el mismo portal dos bases enlazables por \texttt{CÓDIGO SINIESTRO}:
+\begin{itemize}
+    \item vehículos: \path{data/raw/BBDD_ONSV_VEHICULOS_2021-2025.xlsx}, con 12\,667 filas, una por vehículo;
+    \item personas: \path{data/raw/BBDD_ONSV_PERSONAS_2021-2025.xlsx}, con 25\,412 filas, una por persona y hasta 74 en un siniestro.
+\end{itemize}
+La cobertura del join es del 100\,\% sobre los 9\,104 códigos de la base limpia.
 
-De estas tablas se derivan doce agregados de escena por siniestro: total de vehículos; conteos de buses\slash minibuses, pesados de carga, motos\slash trimotos y vehículos no identificados; servicios interprovinciales y de transporte público; total de personas involucradas; pasajeros, peatones y conductores fugados; y edad media de los involucrados. Son hechos observables al caracterizar la notificación, con el mismo estatus epistémico que la clase del siniestro. Quedan \textbf{vetadas por fuga} las columnas de desenlace por persona (\texttt{GRAVEDAD}, lugar de atención y de defunción) y los dosajes etílicos, que se determinan después. El conteo de personas involucradas es la variable de exposición del problema: un siniestro con un solo involucrado no puede ser multifatal, del mismo modo que la clase describe la mecánica; se declara como limitación que el registro de ilesos podría ser más completo en siniestros graves.
+De estas tablas se derivan doce agregados por siniestro: total de vehículos; conteos de buses\slash minibuses, pesados de carga, motos\slash trimotos y vehículos no identificados; servicios interprovinciales y de transporte público; total de personas involucradas; pasajeros, peatones y conductores fugados; y edad media. Pertenecen al registro consolidado, pero su disponibilidad al instante de notificación no puede demostrarse sin timestamps por campo. Quedan \textbf{vetadas por fuga} las columnas de desenlace por persona y los dosajes etílicos. El conteo de personas involucradas es una variable de exposición estructural; se declara como limitación que el registro de ilesos podría ser más completo en siniestros graves.
 
 \subsection{Variable objetivo}
 Se construyó el target binario condicional al universo de siniestros fatales:

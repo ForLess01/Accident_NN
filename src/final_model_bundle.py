@@ -64,6 +64,22 @@ CALIBRATION_POLICY = (
     "ties within 1e-12 use lower ECE, then prefer Platt for lower variance. "
     "Platt uses L2-regularized logistic regression with C=1.0 and liblinear."
 )
+REFERENCE_MODEL_NAMES = {
+    "MLP_definitiva": "MLP cruda",
+    "LogisticRegression_balanced": "regresión logística",
+    "RandomForest_balanced": "Random Forest",
+}
+DESIGN_EVIDENCE_PATHS = (
+    Path("report/tables/design_annual_stability_2024_2025.csv"),
+    Path("report/tables/design_n_personas_paired_bootstrap.csv"),
+    Path("report/tables/design_n_personas_reference_comparison.csv"),
+    Path("report/tables/design_network_strategy_bootstrap.csv"),
+    Path("report/tables/design_network_strategy_validation.csv"),
+    Path("report/tables/design_regularization_runs.csv"),
+    Path("report/tables/design_regularization_summary.csv"),
+    Path("report/tables/design_validation_audit.json"),
+    Path("report/figures/design_validation_evidence.png"),
+)
 
 
 def sha256_file(path: Path) -> str:
@@ -72,6 +88,90 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def design_evidence_hashes(root: Path = ROOT, *, require_complete: bool = True) -> dict[str, str]:
+    """Hash validation-audit evidence in one stable, reproducible order."""
+    missing = [relative for relative in DESIGN_EVIDENCE_PATHS if not (root / relative).is_file()]
+    if missing and require_complete:
+        raise RuntimeError(
+            "Generate design evidence before the canonical manifest: "
+            + ", ".join(str(path) for path in missing)
+        )
+    hashes: dict[str, str] = {}
+    for relative in DESIGN_EVIDENCE_PATHS:
+        path = root / relative
+        if not path.is_file():
+            continue
+        key = str(relative) if relative.parts[1] == "figures" else relative.name
+        hashes[key] = sha256_file(path)
+    return dict(sorted(hashes.items()))
+
+
+def reference_metric_leaders(comparison: pd.DataFrame) -> dict[str, dict[str, str | float]]:
+    """Return nominal metric leaders from the comparable raw-score rows."""
+    raw = comparison[comparison["probability_scale"] == "raw"].copy()
+    raw = raw[raw["model"].isin(REFERENCE_MODEL_NAMES)].copy()
+    missing = set(REFERENCE_MODEL_NAMES) - set(raw["model"])
+    if missing:
+        raise ValueError(f"Reference comparison is missing canonical models: {sorted(missing)}")
+    leaders: dict[str, dict[str, str | float]] = {}
+    for metric in ("pr_auc", "roc_auc", "f1_multifatal"):
+        row = raw.loc[raw[metric].idxmax()]
+        model = str(row["model"])
+        leaders[metric] = {
+            "model": model,
+            "display_name": REFERENCE_MODEL_NAMES[model],
+            "value": float(row[metric]),
+        }
+    return leaders
+
+
+def canonical_protocol_text(
+    *,
+    method: str,
+    raw_threshold: float,
+    calibrated_threshold: float,
+    comparison: pd.DataFrame,
+) -> str:
+    leaders = reference_metric_leaders(comparison)
+    raw_mlp = comparison[
+        (comparison["model"] == "MLP_definitiva")
+        & (comparison["probability_scale"] == "raw")
+    ].iloc[0]
+    return f"""# Protocolo del modelo canónico {MODEL_VERSION}
+
+## Alcance
+La salida estima retrospectivamente multifatalidad (2 o más fallecidos) condicionada a un siniestro ya fatal registrado. La extracción no aporta timestamps por variable para afirmar disponibilidad al instante de notificación y no demuestra causalidad.
+
+## Particiones y selección
+- Entrenamiento de la MLP congelada: 2021--2022.
+- Selección de configuración completa, semilla y umbral crudo: validación 2023.
+- Calibración definitiva: comparación Platt/isotónica con 5 folds OOF estratificados exclusivamente en 2023; selección por menor Brier OOF. Método seleccionado: {method}.
+- Umbral calibrado: máximo F1 sobre las probabilidades OOF 2023 del método seleccionado, con desempates predeclarados.
+- Referencia 2024--2025: sus etiquetas ya fueron observadas. Se conserva como referencia histórica y NO puede usarse para nuevos ajustes.
+
+## Artefacto congelado
+La arquitectura y los pesos no se reentrenan ni se vuelven a buscar al materializar `models/final/`. Los umbrales crudo ({raw_threshold:.2f}) y calibrado ({calibrated_threshold:.2f}) pertenecen a escalas distintas y nunca deben intercambiarse.
+
+## Lectura honesta
+En la referencia 2024--2025 la MLP cruda obtiene PR-AUC {raw_mlp['pr_auc']:.4f}, ROC-AUC {raw_mlp['roc_auc']:.4f} y F1 {raw_mlp['f1_multifatal']:.4f}. Los liderazgos nominales derivados de la tabla canónica son: PR-AUC, {leaders['pr_auc']['display_name']} ({leaders['pr_auc']['value']:.4f}); ROC-AUC, {leaders['roc_auc']['display_name']} ({leaders['roc_auc']['value']:.4f}); F1, {leaders['f1_multifatal']['display_name']} ({leaders['f1_multifatal']['value']:.4f}). Esto no prueba superioridad universal ni estadística de la red.
+"""
+
+
+def canonical_claims(comparison: pd.DataFrame) -> dict[str, str]:
+    leaders = reference_metric_leaders(comparison)
+    return {
+        "supported": (
+            "On this fixed historical reference, nominal leaders derived from the canonical raw-score comparison are "
+            f"PR-AUC: {leaders['pr_auc']['display_name']} ({leaders['pr_auc']['value']:.4f}); "
+            f"ROC-AUC: {leaders['roc_auc']['display_name']} ({leaders['roc_auc']['value']:.4f}); "
+            f"F1: {leaders['f1_multifatal']['display_name']} ({leaders['f1_multifatal']['value']:.4f})."
+        ),
+        "not_supported": (
+            "Universal superiority is not established; paired differences against Random Forest are not statistically significant."
+        ),
+    }
 
 
 def _fit_calibrator(method: str, probabilities: np.ndarray, labels: np.ndarray) -> object:
@@ -275,7 +375,7 @@ def _input_schema(base: pd.DataFrame, feature_list: list[str]) -> dict[str, Any]
         "processed_feature_count": len(feature_list),
         "processed_feature_dtype": "float32",
         "processed_feature_order": feature_list,
-        "scope": "post-notification prioritization; not pre-crash prevention",
+        "scope": "retrospective post-registry multifatality classification; field-level availability timestamps are absent",
     }
 
 
@@ -467,27 +567,16 @@ def build_canonical_bundle(
             {"model": "MLP_definitiva", "probability_scale": method, "threshold_source": "2023 OOF calibration policy", **calibrated_metrics},
         ]
     )
-    pd.concat([mlp_rows, baseline], ignore_index=True).to_csv(
+    reference_comparison = pd.concat([mlp_rows, baseline], ignore_index=True)
+    reference_comparison.to_csv(
         tables_dir / "final_reference_baseline_comparison_2024_2025.csv", index=False
     )
-    protocol_text = f"""# Protocolo del modelo canónico {MODEL_VERSION}
-
-## Alcance
-La salida estima multifatalidad (2 o más fallecidos) condicionada a un siniestro ya fatal. Su uso defendible es priorización posterior a la notificación; no predice que un siniestro cualquiera vaya a ser fatal ni demuestra causalidad.
-
-## Particiones y selección
-- Entrenamiento de la MLP congelada: 2021--2022.
-- Selección de arquitectura, semilla y umbral crudo: validación 2023.
-- Calibración definitiva: comparación Platt/isotónica con 5 folds OOF estratificados exclusivamente en 2023; selección por menor Brier OOF. Método seleccionado: {method}.
-- Umbral calibrado: máximo F1 sobre las probabilidades OOF 2023 del método seleccionado, con desempates predeclarados.
-- Referencia 2024--2025: sus etiquetas ya fueron observadas. Se conserva como referencia histórica y NO puede usarse para nuevos ajustes.
-
-## Artefacto congelado
-La arquitectura y los pesos no se reentrenan ni se vuelven a buscar al materializar `models/final/`. Los umbrales crudo ({raw_threshold:.2f}) y calibrado ({calibrated_threshold:.2f}) pertenecen a escalas distintas y nunca deben intercambiarse.
-
-## Lectura honesta
-En la referencia 2024--2025 la MLP tiene PR-AUC {raw_metrics['pr_auc']:.4f} y ROC-AUC {raw_metrics['roc_auc']:.4f}. Sus métricas de ranking son nominalmente mayores que las de los baselines declarados, pero la regresión logística conserva mayor F1; esto no prueba superioridad universal ni estadística de la red.
-"""
+    protocol_text = canonical_protocol_text(
+        method=method,
+        raw_threshold=raw_threshold,
+        calibrated_threshold=calibrated_threshold,
+        comparison=reference_comparison,
+    )
     (tables_dir / "final_model_protocol.md").write_text(protocol_text, encoding="utf-8")
 
     split_metadata = {}
@@ -523,11 +612,21 @@ En la referencia 2024--2025 la MLP tiene PR-AUC {raw_metrics['pr_auc']:.4f} y RO
         "final_model_protocol.md",
     ]
     reference_hashes = {name: sha256_file(tables_dir / name) for name in reference_files}
+    training_source = root / "src" / "block_e_modeling.py"
+    if not training_source.exists():
+        # Unit-test builders may use a minimal temporary root. The production
+        # manifest still authenticates the actual training implementation.
+        training_source = Path(__file__).with_name("block_e_modeling.py")
+    design_audit_source = root / "src" / "validation_design_audit.py"
+    if not design_audit_source.exists():
+        design_audit_source = Path(__file__).with_name("validation_design_audit.py")
+    production_root = root.resolve() == ROOT.resolve()
+    design_hashes = design_evidence_hashes(root, require_complete=production_root)
     manifest = {
         "manifest_schema_version": "1.0",
         "model_version": MODEL_VERSION,
         "created_utc": datetime.now(timezone.utc).isoformat(),
-        "model_role": "conditional multifatality prioritization after notification",
+        "model_role": "retrospective conditional multifatality classification",
         "dataset": {
             "path": str(base_path.relative_to(root)),
             "sha256": sha256_file(base_path),
@@ -541,6 +640,8 @@ En la referencia 2024--2025 la MLP tiene PR-AUC {raw_metrics['pr_auc']:.4f} y RO
             "tensorflow": tf.__version__,
             "builder_code_sha256": sha256_file(Path(__file__)),
             "feature_protocol_sha256": sha256_file(root / "src" / "model_protocol.py"),
+            "training_code_sha256": sha256_file(training_source),
+            "design_audit_code_sha256": sha256_file(design_audit_source),
         },
         "splits": split_metadata,
         "feature_count": len(feature_list),
@@ -565,6 +666,7 @@ En la referencia 2024--2025 la MLP tiene PR-AUC {raw_metrics['pr_auc']:.4f} y RO
             "model_selection_robustness.csv": sha256_file(tables_dir / "model_selection_robustness.csv"),
         },
         "reference_artifact_hashes": reference_hashes,
+        "design_evidence_artifact_hashes": design_hashes,
         "reference_evaluation": {
             "status": "2024-2025 labels were already observed; metrics are historical reference and cannot justify further tuning",
             "used_for_model_selection": False,
@@ -572,10 +674,7 @@ En la referencia 2024--2025 la MLP tiene PR-AUC {raw_metrics['pr_auc']:.4f} y RO
             "metrics": metrics,
             "bootstrap_ci": ci.to_dict(orient="records"),
         },
-        "claims": {
-            "supported": "The MLP has nominally higher chronological ranking metrics than the declared baselines in this fixed reference sample.",
-            "not_supported": "No universal or statistically significant superiority is established; logistic regression retains a higher thresholded F1.",
-        },
+        "claims": canonical_claims(reference_comparison),
     }
     (final_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     return manifest

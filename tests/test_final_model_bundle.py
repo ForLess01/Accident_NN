@@ -15,6 +15,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import src.final_model_bundle as final_bundle
+import src.final_evaluation_figures as final_figures
 from src.final_model_bundle import (
     CanonicalModelBundle,
     select_calibrator_validation_only,
@@ -72,7 +73,69 @@ def test_manifest_schema_artifacts_and_hashes_are_valid() -> None:
     assert manifest["code_and_libraries"]["feature_protocol_sha256"] == sha256_file(
         ROOT / "src" / "model_protocol.py"
     )
+    assert manifest["code_and_libraries"]["design_audit_code_sha256"] == sha256_file(
+        ROOT / "src" / "validation_design_audit.py"
+    )
+    assert manifest["design_evidence_artifact_hashes"] == final_bundle.design_evidence_hashes(ROOT)
     assert sha256_file(ROOT / manifest["dataset"]["path"]) == manifest["dataset"]["sha256"]
+
+
+def test_documented_architecture_thresholds_and_figure_labels_match_canonical_bundle() -> None:
+    manifest = json.loads((FINAL_DIR / "manifest.json").read_text(encoding="utf-8"))
+    theory = (ROOT / "report" / "sections" / "03_marco_teorico.tex").read_text(encoding="utf-8")
+    methodology = (ROOT / "report" / "sections" / "04_metodologia.tex").read_text(encoding="utf-8")
+    results = (ROOT / "report" / "sections" / "10_resultados.tex").read_text(encoding="utf-8")
+    figure_source = (ROOT / "src" / "final_evaluation_figures.py").read_text(encoding="utf-8")
+    assert theory.count("\\textbf{Dropout 1}") == 1
+    assert theory.count("\\textbf{Dropout 2}") == 1
+    assert "\\textbf{6\\,177}" in theory
+    assert "umbral calibrado 0.30" in methodology
+    assert "umbral crudo 0.80" in methodology
+    assert "umbral calibrado 0.20" not in methodology
+    assert "umbral crudo 0.65" not in methodology
+    assert "Comparación en escala cruda" in results
+    assert "El F1 de la MLP es 0.4957" in results
+    assert "comparación en escala cruda" in figure_source
+    assert "Robustez por configuración completa y semilla" in figure_source
+    assert final_figures.selected_config_id() == manifest["architecture"]["config_id"] == "MLP_32_16"
+
+    comparison = pd.read_csv(ROOT / "report" / "tables" / "final_reference_baseline_comparison_2024_2025.csv")
+    raw = comparison[comparison["probability_scale"] == "raw"].copy()
+    raw["label"] = raw["model"].map(
+        {
+            "MLP_definitiva": "MLP definitiva",
+            "LogisticRegression_balanced": "Regresión logística",
+            "RandomForest_balanced": "Random Forest",
+        }
+    )
+    summary = final_figures.leadership_summary(raw.dropna(subset=["label"]))
+    assert "PR-AUC: Random Forest" in summary
+    assert "ROC-AUC: Random Forest" in summary
+    assert "F1: MLP definitiva" in summary
+
+
+def test_protocol_and_manifest_claims_are_derived_from_canonical_raw_comparison() -> None:
+    manifest = json.loads((FINAL_DIR / "manifest.json").read_text(encoding="utf-8"))
+    thresholds = json.loads((FINAL_DIR / "thresholds.json").read_text(encoding="utf-8"))
+    comparison = pd.read_csv(ROOT / "report" / "tables" / "final_reference_baseline_comparison_2024_2025.csv")
+    expected_protocol = final_bundle.canonical_protocol_text(
+        method=manifest["calibration"]["method"],
+        raw_threshold=thresholds["raw"]["value"],
+        calibrated_threshold=thresholds["calibrated"]["value"],
+        comparison=comparison,
+    )
+    actual_protocol = (ROOT / "report" / "tables" / "final_model_protocol.md").read_text(encoding="utf-8")
+    assert actual_protocol == expected_protocol
+
+    leaders = final_bundle.reference_metric_leaders(comparison)
+    assert leaders["pr_auc"]["model"] == "RandomForest_balanced"
+    assert leaders["roc_auc"]["model"] == "RandomForest_balanced"
+    assert leaders["f1_multifatal"]["model"] == "MLP_definitiva"
+    assert manifest["claims"] == final_bundle.canonical_claims(comparison)
+    assert "PR-AUC: Random Forest (0.4704)" in manifest["claims"]["supported"]
+    assert "ROC-AUC: Random Forest (0.8937)" in manifest["claims"]["supported"]
+    assert "F1: MLP cruda (0.4957)" in manifest["claims"]["supported"]
+    assert "logistic regression retains a higher" not in manifest["claims"]["not_supported"].lower()
 
 
 def test_persisted_calibrated_threshold_uses_oof_validation_semantics() -> None:
@@ -239,7 +302,20 @@ def test_bundle_builder_freezes_validation_selection_before_endpoint_open() -> N
             }
         )
         fake_baseline = pd.DataFrame(
-            [{"model": "baseline", "probability_scale": "raw", "threshold_source": "validation", **minimal_metrics}]
+            [
+                {
+                    "model": "LogisticRegression_balanced",
+                    "probability_scale": "raw",
+                    "threshold_source": "validation",
+                    **minimal_metrics,
+                },
+                {
+                    "model": "RandomForest_balanced",
+                    "probability_scale": "raw",
+                    "threshold_source": "validation",
+                    **minimal_metrics,
+                },
+            ]
         )
 
         with (
@@ -269,6 +345,9 @@ def test_bundle_builder_freezes_validation_selection_before_endpoint_open() -> N
     assert endpoint_opened
     assert len(selection_calls) == 2 and all(labels is y_validation for labels in selection_calls)
     assert manifest["reference_evaluation"]["used_for_calibration_selection"] is False
+    assert manifest["code_and_libraries"]["design_audit_code_sha256"] == sha256_file(
+        ROOT / "src" / "validation_design_audit.py"
+    )
 
 
 def test_persisted_inference_matches_reference_and_outputs_are_finite() -> None:
@@ -318,6 +397,8 @@ def test_final_feature_contract_excludes_endpoint_and_post_event_leakage() -> No
 
 if __name__ == "__main__":
     test_manifest_schema_artifacts_and_hashes_are_valid()
+    test_documented_architecture_thresholds_and_figure_labels_match_canonical_bundle()
+    test_protocol_and_manifest_claims_are_derived_from_canonical_raw_comparison()
     test_persisted_calibrated_threshold_uses_oof_validation_semantics()
     test_calibration_selector_accepts_validation_only_and_never_endpoint_labels()
     test_bundle_builder_freezes_validation_selection_before_endpoint_open()

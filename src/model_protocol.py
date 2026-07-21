@@ -160,8 +160,8 @@ def derive_base_features(df: pd.DataFrame, via_frequency_map: dict[str, float] |
     features["road_type_zone"] = features["TIPO_VIA"] + "__" + features["ZONA"]
     features["road_network_class"] = features["RED_VIAL"] + "__" + features["CLASE"]
 
-    # v2 scene aggregates from the companion tables: counts of involved
-    # vehicles/persons are notification facts; per-person outcomes stay banned.
+    # v2 scene aggregates from companion tables are consolidated facts; their
+    # source availability timestamps are absent.
     for column in COMPANION_COUNT_COLUMNS:
         values = pd.to_numeric(df[column], errors="coerce") if column in df else pd.Series(np.nan, index=df.index)
         features[column] = values.fillna(0).clip(lower=0).astype("float64")
@@ -246,13 +246,13 @@ def transform_features(df: pd.DataFrame, scaler: StandardScaler, encoders: dict[
 
 
 def feature_availability_audit() -> pd.DataFrame:
-    """State which fields are valid after notification vs. before an event."""
+    """Record availability claims supported by the retrospective extraction."""
     rows = [
-        ("FECHA, HORA", "Initial dispatch record", "yes", "limited", "Calendar and cyclic-time features"),
-        ("DEPARTAMENTO, coordenadas, red/tipo de vía", "Location and road inventory", "yes", "yes when geocoded", "Location and road context"),
-        ("ZONA, CLIMA, geometría, superficie", "Initial scene/inventory observation", "yes", "partly", "Scene and infrastructure context"),
-        ("CLASE", "Event classification", "yes after notification", "no", "Post-incident prioritization only"),
-        ("Vehiculos/personas involucradas (conteos, tipo, edad)", "Scene facts from companion tables", "yes after notification", "no", "v2 aggregates; per-person outcomes stay banned"),
+        ("FECHA, HORA", "Consolidated registry", "timestamp not supplied", "not evaluated", "Calendar and cyclic-time features"),
+        ("DEPARTAMENTO, coordenadas, red/tipo de vía", "Consolidated registry", "timestamp not supplied", "not evaluated", "Location and road context"),
+        ("ZONA, CLIMA, geometría, superficie", "Consolidated registry", "timestamp not supplied", "not evaluated", "Scene and infrastructure context"),
+        ("CLASE", "Consolidated registry", "timestamp not supplied", "no", "Retrospective classification"),
+        ("Vehiculos/personas involucradas (conteos, tipo, edad)", "Companion registry", "timestamp not supplied", "no", "Retrospective v2 aggregates; per-person outcomes stay banned"),
         ("FALLECIDOS, LESIONADOS, VEHICULOS_DANADOS", "Outcome/count after event", "no", "no", "Excluded: direct outcome leakage"),
         ("CAUSA_FACTOR, CAUSA_ESPECIFICA", "Investigation conclusion", "no", "no", "Excluded: post-investigation leakage"),
         ("SENAL_VERTICAL, SENAL_HORIZONTAL", "Sparse recording field", "not reliable", "not reliable", "Excluded: missingness is period-dependent"),
