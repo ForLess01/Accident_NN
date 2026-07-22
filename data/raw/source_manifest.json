@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "catalog_url": "https://www.onsv.gob.pe/datosabiertos",
+  "verified_on": "2026-07-22",
+  "field_timestamp_evidence": "The public workbooks provide no per-field availability timestamps.",
+  "sources": [
+    {
+      "path": "BBDD_ONSV_PERSONAS_2021-2025.xlsx",
+      "role": "target-proxy lineage audit only; forbidden for predictors",
+      "url": "https://www.onsv.gob.pe/estaticos/excel/BBDD%20ONSV%20-%20PERSONAS%202021-2025%20%28preliminar%29.xlsx",
+      "sha256": "6bd03aa2b8918147f31d69c0be031d7011aa5e0df840bf0c05d111ef97b1373d",
+      "bytes": 4203578,
+      "sheets": ["PERSONAS"]
+    },
+    {
+      "path": "BBDD_ONSV_SINIESTROS_FATALES_2021-2025.xlsx",
+      "role": "primary crash registry and target source",
+      "url": "https://www.onsv.gob.pe/estaticos/excel/BBDD%20ONSV%20-%20SINIESTROS%20FATALES%202021-2025%20%28preliminar%29.xlsx",
+      "sha256": "4b815b6823cd558d55c8343ca0ab13023cbd63ef162c1c99b78e3dea4ae2762d",
+      "bytes": 1519015,
+      "sheets": ["SINIESTROS"]
+    },
+    {
+      "path": "BBDD_ONSV_VEHICULOS_2021-2025.xlsx",
+      "role": "retrospective consolidated vehicle aggregates",
+      "url": "https://www.onsv.gob.pe/estaticos/excel/BBDD%20ONSV%20-%20VEHICULOS%202021-2025%20%28preliminar%29.xlsx",
+      "sha256": "4335dbcdcf9dc0d46acd81723b64765fd65a58a151579384c8d15cc22db68f04",
+      "bytes": 1763791,
+      "sheets": ["VEHICULOS"]
+    },
+    {
+      "path": "Formato_2_Diccionario_de_datos.docx",
+      "role": "official field dictionary",
+      "url": "https://www.onsv.gob.pe/datosabiertos",
+      "sha256": "b1160523694486bb093e99ea083c8d32159d3177745b06ad181ff2814d163d5a",
+      "bytes": 14887,
+      "sheets": []
+    }
+  ]
+}

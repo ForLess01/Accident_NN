@@ -1,16 +1,12 @@
 \section{Conclusiones}\label{sec:conclusiones}
 
-\subsection{Cumplimiento de objetivos}
 \begin{itemize}
-  \item \textbf{EDA}: se caracterizaron 9\,104 siniestros fatales y el desbalance multifatal, con hallazgos temporales, territoriales y de condiciones registradas.
-  \item \textbf{Características}: 26 campos crudos se transforman en 175 variables, incluidos doce agregados companion, sin columnas de resultado o investigación posterior; la disponibilidad temporal se deja explícitamente sin demostrar.
-  \item \textbf{Modelo}: la búsqueda predeclarada (tres configuraciones completas, tres semillas) seleccionó una MLP 32--16 regularizada con semilla 314; el periodo 2024--2025 no intervino en la selección numérica ni en la recalibración de la versión 2, aunque constituye una segunda consulta declarada a la referencia.
-  \item \textbf{Evaluación}: la MLP calibrada obtuvo PR-AUC 0.4416 [0.3785--0.5124], ROC-AUC 0.8841 [0.8613--0.9055] y F1 0.5058, con ventaja estadísticamente significativa sobre la regresión logística en ROC-AUC; frente al Random Forest no se detectó diferencia significativa. La comparación v1$\rightarrow$v2 respalda fuertemente, sin demostrar causalidad, la hipótesis de un límite informacional previo.
-  \item \textbf{Interpretabilidad}: Gradient SHAP se ejecutó únicamente con entrenamiento y validación, agrupando 175 features en 20 grupos; el grupo de personas involucradas domina con 43.75\,\%, coherente con la mejora observada.
-  \item \textbf{Interfaz}: la app de cinco secciones consume un stack canónico de solo lectura con hashes, incluye selector de ubicación OpenStreetMap con deducción de departamento, formulario de escena sin desenlaces, y demostraciones interactivas del modelo contra la realidad observada.
+\item Se construyó una única MLP 169--64--32--1 con 12\,993 parámetros y técnicas de regularización realmente ejecutadas.
+\item La arquitectura se seleccionó con 2021/2022, se reajustó en 2021--2022 y se calibró en 2023; dos folds rolling verifican roles cronológicos disjuntos dentro de cada diagnóstico.
+\item La prueba ejecutable confirmó que PERSONAS reconstruye el objetivo para los 9\,104 registros; excluir esa familia fue obligatorio.
+\item En la referencia 2024--2025 ya consultada, PR-AUC es 0.3254, ROC-AUC 0.7916 y F1 calibrado 0.3989. El desempeño es moderado y se presenta sin maquillaje.
+\item La interfaz muestra cinco roles pedagógicos, separa verdad observada de estimación, valida paridad y no ofrece intervalos individuales inexistentes.
+\item El bundle, las fuentes, las demos, la explicabilidad y el PDF están sellados por contenido.
 \end{itemize}
 
-\subsection{Conclusión general}
-El proyecto entrega un sistema auditable y evidencia de método. La versión 2 usa información oficial adicional y muestra un salto de desempeño consistente con la hipótesis informacional. La ventaja de ROC-AUC frente a logística confirma una diferencia de ranking en esta referencia, no el mecanismo causal. La auditoría de diseño justifica mantener una sola red compacta: el ensemble mejora nominalmente, pero sus intervalos incluyen cero y necesitaría un holdout nuevo.
-
-Las limitaciones se declaran sin maquillaje: la evaluación v2 es la segunda consulta a la referencia; el riesgo asociado no está cuantificado; el Random Forest lidera nominalmente el ranking; 92 de 222 multifatales (41.4\,\%, aproximadamente dos de cada cinco) quedan fuera; y no se ha demostrado la disponibilidad de cada campo al instante de notificación. La siguiente evaluación válida exige un periodo futuro o externo no observado.
+La entrega es definitiva y reproducible para el curso. No es una validación confirmatoria externa: el proyecto no dispone de una cohorte prospectiva o externa intacta. Esa distinción entre finalización del artefacto e independencia científica es una conclusión, no una nota al pie.

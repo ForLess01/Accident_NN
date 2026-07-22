@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "model_version": "canonical-3.0.0",
+  "calibration_threshold_validation_partition": "calibration_threshold_validation_2023_only",
+  "reference_2024_2025_loaded": false,
+  "roles_in_order": [
+    "TN",
+    "FP",
+    "boundary_FN",
+    "TP",
+    "synthetic_unseen_code"
+  ],
+  "visible_decision_scale": "calibrated",
+  "visible_threshold": 0.15,
+  "synthetic_change": "CODIGO_VIA only; observed truth unavailable; sensitivity is not causality",
+  "csv_path": "data/processed/demo_cases.csv",
+  "csv_sha256": "97a3c80e82496314e667f996c8c33b692c9ffc332de430d79eb63bed75d3a386",
+  "model_sha256": "54287e187fe487a29a6ff7e4cd24d880664663b03a35ff00ff8969d11cf2372a"
+}

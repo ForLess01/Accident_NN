@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.1",
+  "schema_version": "2.0",
   "target": {
     "name": "target_multifatal",
     "definition": "1 when FALLECIDOS >= 2, conditional on an already-fatal crash"
@@ -72,7 +72,7 @@
       "name": "TIPO_VIA",
       "training_dtype": "string",
       "required": true,
-      "nullable": true,
+      "nullable": false,
       "role": "runtime_input"
     },
     {
@@ -151,41 +151,6 @@
       "required": true,
       "nullable": false,
       "role": "runtime_input"
-    },
-    {
-      "name": "n_personas",
-      "training_dtype": "int64",
-      "required": true,
-      "nullable": false,
-      "role": "runtime_input"
-    },
-    {
-      "name": "n_pasajeros",
-      "training_dtype": "int64",
-      "required": true,
-      "nullable": false,
-      "role": "runtime_input"
-    },
-    {
-      "name": "n_peatones",
-      "training_dtype": "int64",
-      "required": true,
-      "nullable": false,
-      "role": "runtime_input"
-    },
-    {
-      "name": "n_conductor_fugado",
-      "training_dtype": "int64",
-      "required": true,
-      "nullable": false,
-      "role": "runtime_input"
-    },
-    {
-      "name": "edad_media_involucrados",
-      "training_dtype": "float64",
-      "required": true,
-      "nullable": true,
-      "role": "runtime_input"
     }
   ],
   "runtime_constraints": {
@@ -212,7 +177,7 @@
     "ZONIFICACION",
     "target_multifatal"
   ],
-  "processed_feature_count": 175,
+  "processed_feature_count": 169,
   "processed_feature_dtype": "float32",
   "processed_feature_order": [
     "LATITUD",
@@ -225,11 +190,6 @@
     "n_no_identificado",
     "n_interprovincial",
     "n_transporte_publico",
-    "n_personas",
-    "n_pasajeros",
-    "n_peatones",
-    "n_conductor_fugado",
-    "edad_media_involucrados",
     "mes_sin",
     "mes_cos",
     "dia_semana_sin",
@@ -242,7 +202,6 @@
     "coord_faltante",
     "night_rural",
     "rain_curve",
-    "edad_faltante",
     "departamento_amazonas",
     "departamento_ancash",
     "departamento_apurimac",
@@ -391,5 +350,15 @@
     "road_network_class_desconocido__volcadura",
     "road_network_class_desconocido__desconocido"
   ],
-  "scope": "retrospective post-registry multifatality classification; field-level availability timestamps are absent"
+  "forbidden_source_families": {
+    "PERSONAS": [
+      "n_personas",
+      "n_pasajeros",
+      "n_peatones",
+      "n_conductor_fugado",
+      "edad_media_involucrados",
+      "edad_faltante"
+    ]
+  },
+  "scope": "retrospective historical classification on consolidated records; field-level availability timestamps are absent"
 }

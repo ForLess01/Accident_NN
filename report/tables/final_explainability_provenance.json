@@ -1,16 +1,23 @@
 {
   "schema_version": "1.0",
-  "model_version": "canonical-2.0.0",
+  "model_version": "canonical-3.0.0",
   "method": "Gradient SHAP (shap.GradientExplainer)",
   "shap_version": "0.52.0",
   "tensorflow_version": "2.19.1",
   "explained_output": "raw_mlp_sigmoid",
   "background_partition": "training_2021_2022_only",
-  "explanation_partition": "validation_2023_only",
+  "explanation_partition": "explanation_validation_2023_only",
   "background_sample_size": 256,
   "explanation_sample_size": 512,
   "shap_nsamples": 200,
   "seed": 20260709,
+  "stability_seeds": [
+    20260709,
+    20260810,
+    20260911
+  ],
+  "minimum_pairwise_spearman_rank_correlation": 0.9896800825593395,
+  "ranking_policy": "Report stability tiers; exact within-tier order is not interpreted as stable.",
   "sampling": "simple random sampling without replacement; sorted back to source index",
   "background_index_sha256": "4a3cbff5dc7efcffcb163d4d7c345d138257a40625701113df012359dc3f3b91",
   "explanation_index_sha256": "bdc5dfcc43454f5d6cbb86e2903056ac53b6674b5bddb74c404d135a392c048e",
@@ -36,12 +43,7 @@
     "n_moto",
     "n_no_identificado",
     "n_interprovincial",
-    "n_transporte_publico",
-    "n_personas",
-    "n_pasajeros",
-    "n_peatones",
-    "n_conductor_fugado",
-    "edad_media_involucrados"
+    "n_transporte_publico"
   ],
   "source_predicate": "FECHA < 2024-01-01 (Parquet predicate pushdown)",
   "labels_loaded": false,
@@ -53,5 +55,5 @@
   "association_not_causality": true,
   "local_explanations_generated": false,
   "limitations": "Global associations describe this frozen model and sample only. They do not identify causes, interventions, or feature effects for an individual case.",
-  "generator_sha256": "230dff431f6e4d7738c42169bad6ae1114e761589f64733b0a77f71b1f533776"
+  "generator_sha256": "36168ad4ccc5859dd8a80656c168a13f56a9340ccae85338bc8a91d5c213ee5f"
 }

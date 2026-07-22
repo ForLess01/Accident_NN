@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "metric_basis": "unweighted predictions from the same frozen network",
+  "learning_curve_roles": "2021 inner fit vs 2022 inner selection; no 2023 or reference rows",
+  "train_pr_auc": 0.43315540962080673,
+  "validation_pr_auc": 0.3366581050873884,
+  "pr_auc_generalization_gap_train_minus_validation": 0.09649730453341832,
+  "train_brier": 0.16432902216911316,
+  "validation_brier": 0.16793286800384521,
+  "brier_generalization_gap_validation_minus_train": 0.0036038458347320557,
+  "weighted_loss_compared_across_partitions": false
+}

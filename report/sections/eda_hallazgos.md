@@ -9,7 +9,7 @@ H6: LIMA concentra la mayor cantidad de siniestros fatales (1917) (fig08), pero 
 H7: El código de carretera con mayor número de siniestros fue PE-1N con 1032 registros (fig10). Esto respalda el uso de frecuencia de vía como feature, calculada solo en train para evitar fuga.
 H8: Las condiciones pre-impacto separan el riesgo (fig11): zona rural 15.1% vs urbana 3.6%, y clima lluvioso 17.6% vs despejado 9.8%. Estas variables aportan contexto relevante para el modelo.
 H9: El mapa mes × hora (fig12) evidencia patrones combinados de temporalidad. Por eso no basta con incluir fecha u hora cruda: se derivan mes, franja y codificación cíclica.
-H10: La columna con mayor porcentaje de faltantes en la base limpia fue SENAL_HORIZONTAL con 77.9% (fig13). Las señales viales se excluyen del modelo por ese motivo; el resto admite imputación simple con flags.
+H10: La columna con mayor porcentaje de faltantes en la base limpia fue SENAL_VERTICAL con 77.9% (fig13). Las señales viales se excluyen del modelo por ese motivo; el resto admite imputación simple con flags.
 H11: El scatter geográfico (fig23) muestra los siniestros siguiendo los corredores viales del país, con eventos multifatales distribuidos en todas las regiones. Las coordenadas aportan señal espacial continua que complementa al departamento.
 
 ## Interpretación por figura

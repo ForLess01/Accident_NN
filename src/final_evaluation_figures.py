@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import hashlib
 import os
+import sys
 from pathlib import Path
 
 os.environ.setdefault("MPLCONFIGDIR", "/tmp/accident_nn_matplotlib")
@@ -15,8 +16,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from src.app_inference import canonical_selection_timeline, load_manifest, load_model_selection
+
+
 TABLES_DIR = ROOT / "report" / "tables"
 FIGURES_DIR = ROOT / "report" / "figures"
 COLORS = {"MLP_32_16": "#8CA3A3", "MLP_64_32": "#6F8090", "MLP_32": "#496B7C"}
@@ -24,8 +30,13 @@ SELECTED_COLOR = "#C94F16"
 
 
 def selected_config_id() -> str:
-    selection = json.loads((ROOT / "models" / "final" / "model_selection.json").read_text(encoding="utf-8"))
+    selection = load_model_selection()
     return str(selection["selected_config"]["config_id"])
+
+
+def selection_metric_label() -> str:
+    timeline = canonical_selection_timeline(load_model_selection(), load_manifest())
+    return f"PR-AUC en selección {timeline['architecture_selection_period']}"
 
 
 def leadership_summary(frame: pd.DataFrame) -> str:
@@ -64,7 +75,7 @@ def generate_selection_robustness() -> Path:
         ax.hlines(median, x - 0.31, x + 0.31, color="#202A27", linewidth=2.2)
         ax.text(x, median + 0.0022, f"mediana {median:.4f}", ha="center", fontsize=9)
     ax.set_xticks(range(len(order)), [labels[value] for value in order])
-    ax.set_ylabel("PR-AUC en selección 2023")
+    ax.set_ylabel(selection_metric_label())
     ax.set_title("Robustez por configuración completa y semilla", loc="left", weight="bold")
     ax.grid(axis="y", color="#E1E5E2", linewidth=0.8)
     ax.set_axisbelow(True)

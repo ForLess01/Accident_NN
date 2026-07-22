@@ -33,6 +33,7 @@ SEED = 42
 BOOTSTRAP_ITERATIONS = 2000
 MATCH_TOLERANCE = 1e-6
 METRIC_NAMES = ["pr_auc", "roc_auc", "f1_multifatal"]
+COMPARISON_FAMILY_SIZE = 6
 
 
 def _baseline_models() -> dict[str, object]:
@@ -143,7 +144,7 @@ def run_paired_bootstrap() -> dict[str, object]:
                     "delta_ci95_low": float(low),
                     "delta_ci95_high": float(high),
                     "prob_mlp_better": float((draws > 0).mean()),
-                    "significant_at_5pct": bool(low > 0 or high < 0),
+                    "nominal_significant_at_5pct": bool(low > 0 or high < 0),
                     "bootstrap_samples": int(len(draws)),
                 }
             )
@@ -157,9 +158,22 @@ def run_paired_bootstrap() -> dict[str, object]:
     summary = {
         "comparison": "frozen MLP raw scores vs refit baselines, validation-selected thresholds",
         "period": "2024-2025 historical reference (already observed; diagnostic only)",
-        "method": "paired bootstrap over records, percentile CI",
+        "method": "row-level paired percentile bootstrap conditional on frozen predictions",
+        "pipeline_refit_per_resample": False,
+        "included_uncertainty": "paired row sampling variation within the already-observed historical reference",
+        "excluded_uncertainty": [
+            "training and model-selection uncertainty",
+            "threshold-selection uncertainty",
+            "temporal and spatial dependence",
+            "repeated consultation of the reference period",
+            "future or external generalization",
+        ],
         "seed": SEED,
         "iterations": BOOTSTRAP_ITERATIONS,
+        "comparison_family_size": COMPARISON_FAMILY_SIZE,
+        "interval_coverage": "nominal 95% per comparison",
+        "multiplicity_adjustment": "none",
+        "simultaneous_familywise_coverage": False,
         "results": summary_results,
     }
     (TABLES_DIR / "final_paired_bootstrap_2024_2025.json").write_text(

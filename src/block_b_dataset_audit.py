@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,10 @@ import pandas as pd
 
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from src.source_provenance import build_personas_proxy_audit, verify_raw_sources
 RAW_DIR = ROOT / "data" / "raw"
 PROCESSED_DIR = ROOT / "data" / "processed"
 TABLES_DIR = ROOT / "report" / "tables"
@@ -23,9 +28,9 @@ VEHICLES_PATH = RAW_DIR / "BBDD_ONSV_VEHICULOS_2021-2025.xlsx"
 PERSONS_PATH = RAW_DIR / "BBDD_ONSV_PERSONAS_2021-2025.xlsx"
 COMPANION_HEADER_ROW = 4
 
-# Scene-level aggregates derived from the companion tables. Per-person outcome
-# columns (GRAVEDAD, lugar de atencion/defuncion) and post-investigation tests
-# (dosaje etilico) are banned: they encode the target or arrive later.
+# Only VEHICULOS aggregates enter the retrospective feature contract. Every
+# PERSONAS aggregate is structurally forbidden because PERSONAS cardinality and
+# GRAVEDAD counts encode the target. PERSONAS is opened only by the lineage audit.
 COMPANION_FEATURES = [
     "n_vehiculos",
     "n_bus",
@@ -34,11 +39,6 @@ COMPANION_FEATURES = [
     "n_no_identificado",
     "n_interprovincial",
     "n_transporte_publico",
-    "n_personas",
-    "n_pasajeros",
-    "n_peatones",
-    "n_conductor_fugado",
-    "edad_media_involucrados",
 ]
 HEAVY_PASSENGER_TYPES = {"ÓMNIBUS", "OMNIBUS", "MINIBUS", "MICROBUS", "MICROBÚS"}
 HEAVY_CARGO_TYPES = {
@@ -114,17 +114,17 @@ def parse_hour(value: Any) -> float:
 
 
 def load_raw_dataset() -> pd.DataFrame:
+    verify_raw_sources()
     raw = pd.read_excel(XLSX_PATH, sheet_name=SHEET_NAME, header=HEADER_ROW, dtype=str)
     raw.columns = [str(column).strip() for column in raw.columns]
     return raw
 
 
 def companion_aggregates() -> pd.DataFrame:
-    """Per-crash scene aggregates from the vehicles and persons companion tables."""
+    """Per-crash VEHICULOS aggregates; PERSONAS is never a predictor source."""
+    verify_raw_sources()
     vehicles = pd.read_excel(VEHICLES_PATH, sheet_name=0, header=COMPANION_HEADER_ROW, dtype=str)
-    persons = pd.read_excel(PERSONS_PATH, sheet_name=0, header=COMPANION_HEADER_ROW, dtype=str)
     vehicles.columns = [str(column).strip() for column in vehicles.columns]
-    persons.columns = [str(column).strip() for column in persons.columns]
 
     vehicles["code"] = vehicles["CÓDIGO SINIESTRO"].astype("string").str.strip()
     vehicles["tipo"] = vehicles["VEHÍCULO"].fillna("").str.strip().str.upper()
@@ -142,24 +142,14 @@ def companion_aggregates() -> pd.DataFrame:
         ),
     )
 
-    persons["code"] = persons["CÓDIGO SINIESTRO"].astype("string").str.strip()
-    persons["tipo_persona"] = persons["TIPO PERSONA"].fillna("").str.strip().str.upper()
-    persons["edad_numerica"] = pd.to_numeric(persons["EDAD"], errors="coerce")
-    persons.loc[~persons["edad_numerica"].between(0, 110), "edad_numerica"] = np.nan
-    person_aggregates = persons.dropna(subset=["code"]).groupby("code").agg(
-        n_personas=("code", "size"),
-        n_pasajeros=("tipo_persona", lambda values: int(values.isin({"PASAJERO", "OCUPANTE"}).sum())),
-        n_peatones=("tipo_persona", lambda values: int((values == "PEATÓN").sum())),
-        n_conductor_fugado=("tipo_persona", lambda values: int((values == "CONDUCTOR FUGADO").sum())),
-        edad_media_involucrados=("edad_numerica", "mean"),
-    )
-    return vehicle_aggregates.join(person_aggregates, how="outer")
+    return vehicle_aggregates
 
 
 def audit_and_clean() -> dict[str, Any]:
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
     TABLES_DIR.mkdir(parents=True, exist_ok=True)
 
+    source_verification = verify_raw_sources()
     raw = load_raw_dataset()
     original_shape = raw.shape
     original_columns = list(raw.columns)
@@ -222,12 +212,11 @@ def audit_and_clean() -> dict[str, Any]:
     joined = aggregates.reindex(df["CODIGO_SINIESTRO"].astype("string").str.strip().values)
     joined.index = df.index
     companion_coverage = float(joined["n_vehiculos"].notna().mean())
-    companion_person_coverage = float(joined["n_personas"].notna().mean())
+    companion_person_coverage = None
     for column in COMPANION_FEATURES:
-        if column == "edad_media_involucrados":
-            df[column] = joined[column].astype("float64")
-        else:
-            df[column] = joined[column].fillna(0).astype("int64")
+        df[column] = joined[column].fillna(0).astype("int64")
+
+    proxy_audit = build_personas_proxy_audit(df, PERSONS_PATH, output_dir=TABLES_DIR)
 
     final_shape = df.shape
     multifatal_count = int(df["target_multifatal"].sum())
@@ -246,6 +235,7 @@ def audit_and_clean() -> dict[str, Any]:
 
     audit_summary = {
         "raw_file": str(XLSX_PATH.relative_to(ROOT)),
+        "raw_source_manifest": source_verification,
         "sheet": SHEET_NAME,
         "header_row": HEADER_ROW,
         "original_shape": list(original_shape),
@@ -271,6 +261,8 @@ def audit_and_clean() -> dict[str, Any]:
         "companion_features": COMPANION_FEATURES,
         "companion_vehicle_coverage": companion_coverage,
         "companion_person_coverage": companion_person_coverage,
+        "personas_predictors_included": False,
+        "personas_proxy_audit": proxy_audit,
         "companion_banned_columns": [
             "GRAVEDAD",
             "LUGAR ATENCIÓN LESIONADO",
@@ -279,9 +271,9 @@ def audit_and_clean() -> dict[str, Any]:
             "SITUACIÓN DE PERSONA",
         ],
         "companion_rationale": (
-            "Los agregados de vehiculos y personas pertenecen al registro consolidado. "
-            "La extraccion no incluye timestamps por campo para probar disponibilidad al notificar. "
-            "Las columnas de desenlace por persona y los dosajes posteriores quedan vetados."
+            "Solo agregados de VEHICULOS pertenecen al contrato retrospectivo. "
+            "PERSONAS queda completamente excluida porque su cardinalidad y GRAVEDAD reconstruyen el objetivo. "
+            "La extracción no incluye timestamps por campo para probar disponibilidad al notificar."
         ),
         "leakage_exclusions": [
             "LESIONADOS",

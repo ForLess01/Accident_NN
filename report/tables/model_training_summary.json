@@ -3,10 +3,18 @@
     "train": 4872,
     "validation": 2000
   },
-  "feature_count": 175,
-  "selected_config": "MLP_32_16",
-  "selected_seed": 314,
-  "selected_threshold": 0.8,
+  "feature_count": 169,
+  "selected_config": "MLP_64_32",
+  "selected_seed": 42,
+  "selected_threshold": 0.65,
+  "architecture_selection": {
+    "fit": "2021",
+    "selection": "2022"
+  },
+  "final_refit": {
+    "period": "2021-2022",
+    "epochs": 14
+  },
   "endpoint_period_loaded_for_training": false,
   "reference_period_used_for_selection": false
 }

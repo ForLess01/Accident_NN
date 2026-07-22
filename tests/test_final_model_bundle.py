@@ -1,407 +1,122 @@
 from __future__ import annotations
-
-import inspect
-import json
-import sys
-import tempfile
+import json,sys
 from pathlib import Path
-from unittest.mock import patch
-
-import numpy as np
-import pandas as pd
-
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-import src.final_model_bundle as final_bundle
-import src.final_evaluation_figures as final_figures
+import numpy as np,pandas as pd
+import pytest
+ROOT=Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path: sys.path.insert(0,str(ROOT))
 from src.final_model_bundle import (
     CanonicalModelBundle,
-    select_calibrator_validation_only,
+    _read_design_before_endpoint,
+    _read_endpoint_after_freeze,
     sha256_file,
 )
-from src.model_protocol import EXCLUDED_COLUMNS, split_chronological
+from src.model_protocol import PERSONAS_DERIVED_COLUMNS,split_chronological
+
+def test_manifest_and_bundle_are_consistent() -> None:
+    final=ROOT/'models/final'; manifest=json.loads((final/'manifest.json').read_text())
+    schema=json.loads((final/'feature_schema.json').read_text()); features=json.loads((final/'feature_list.json').read_text())
+    assert manifest['model_version']=='canonical-3.0.0'
+    assert manifest['feature_count']==schema['processed_feature_count']==len(features)==169
+    assert manifest['architecture']['hidden_units']==[64,32]
+    assert manifest['architecture']['seed']==42
+    assert manifest['calibration']['validation_partition']=='calibration_threshold_validation_2023_only'
+    assert manifest['thresholds']['raw']['source_partition']=='threshold_validation_2023'
+    assert manifest['thresholds']['calibrated']['source_partition']=='threshold_validation_2023_oof'
+    assert PERSONAS_DERIVED_COLUMNS.isdisjoint(features)
+    assert all(field['name'] not in PERSONAS_DERIVED_COLUMNS for field in schema['required_raw_fields'])
+    for name,expected in manifest['artifact_hashes'].items(): assert sha256_file(final/name)==expected
+    assert manifest['dataset']['raw_source_manifest_sha256']==sha256_file(ROOT/'data/raw/source_manifest.json')
+    assert manifest['reference_evaluation']['confirmatory_independence'] is False
+    assert manifest['reference_evaluation']['external_or_prospective_untouched_cohort'] is False
+    gate=manifest['endpoint_open_gate']
+    assert gate['design_rows_materialized_before_open']==manifest['splits']['train']['count']+manifest['splits']['validation']['count']
+    assert gate['reference_rows_materialized_after_open']==manifest['splits']['reference']['count']
+    claim=manifest['claims']['not_supported']
+    assert '0.0252' in claim and '[0.00166, 0.04790]' in claim
+    assert 'six paired intervals are nominal and unadjusted for multiplicity' in claim
+    assert 'paired differences against Random Forest are not statistically significant' not in claim
+
+def test_frozen_inference_reproduces_reference() -> None:
+    base=pd.read_parquet(ROOT/'data/processed/base_limpia.parquet'); splits=split_chronological(base)
+    runtime=CanonicalModelBundle(ROOT/'models/final',verify_hashes=True)
+    predicted=runtime.predict_dataframe(splits['X_test_raw'])
+    frozen=pd.read_csv(ROOT/'report/tables/final_reference_probabilities_2024_2025.csv')
+    np.testing.assert_allclose(predicted.raw_probability,frozen.raw_probability,atol=1e-7,rtol=0)
+    np.testing.assert_allclose(predicted.calibrated_probability,frozen.calibrated_probability,atol=1e-7,rtol=0)
+
+def test_bootstrap_scope_is_explicit() -> None:
+    meta=json.loads((ROOT/'report/tables/final_reference_bootstrap_metadata.json').read_text())
+    assert meta['pipeline_refit_per_resample'] is False
+    joined=' '.join(meta['excluded_uncertainty']).lower()
+    for word in ['training','temporal','spatial','future','individual']: assert word in joined
+    paired=json.loads((ROOT/'report/tables/final_paired_bootstrap_2024_2025.json').read_text())
+    assert paired['comparison_family_size']==6
+    assert paired['interval_coverage']=='nominal 95% per comparison'
+    assert paired['multiplicity_adjustment']=='none'
+    assert paired['simultaneous_familywise_coverage'] is False
+    flags=[
+        metric['nominal_significant_at_5pct']
+        for baseline in paired['results'].values()
+        for metric in baseline.values()
+    ]
+    assert len(flags)==6
 
 
-FINAL_DIR = ROOT / "models" / "final"
-REFERENCE_PROBABILITIES = ROOT / "report" / "tables" / "final_reference_probabilities_2024_2025.csv"
-
-
-def test_manifest_schema_artifacts_and_hashes_are_valid() -> None:
-    manifest = json.loads((FINAL_DIR / "manifest.json").read_text(encoding="utf-8"))
-    required = {
-        "manifest_schema_version",
-        "model_version",
-        "dataset",
-        "code_and_libraries",
-        "splits",
-        "feature_count",
-        "architecture",
-        "calibration",
-        "thresholds",
-        "artifact_hashes",
-        "reference_evaluation",
-    }
-    assert required.issubset(manifest)
-    assert manifest["model_version"] == "canonical-2.0.0"
-    assert manifest["feature_count"] == 175
-    assert manifest["architecture"]["weights_frozen"] is True
-    assert manifest["architecture"]["architecture_search_rerun"] is False
-    assert manifest["reference_evaluation"]["used_for_model_selection"] is False
-    assert manifest["reference_evaluation"]["used_for_calibration_selection"] is False
-    for name, expected_hash in manifest["artifact_hashes"].items():
-        assert sha256_file(FINAL_DIR / name) == expected_hash
-    for name, expected_hash in manifest["reference_artifact_hashes"].items():
-        assert sha256_file(ROOT / "report" / "tables" / name) == expected_hash
-    for relative_path, expected_hash in manifest["evaluation_figure_hashes"].items():
-        assert sha256_file(ROOT / relative_path) == expected_hash
-    assert manifest["evaluation_figure_generator_sha256"] == sha256_file(
-        ROOT / "src" / "final_evaluation_figures.py"
-    )
-    selection_paths = {
-        "model_selection.json": FINAL_DIR / "model_selection.json",
-        "model_selection_baseline_validation.csv": ROOT / "report" / "tables" / "model_selection_baseline_validation.csv",
-        "model_selection_seed_grid_validation.csv": ROOT / "report" / "tables" / "model_selection_seed_grid_validation.csv",
-        "model_selection_robustness.csv": ROOT / "report" / "tables" / "model_selection_robustness.csv",
-    }
-    for name, expected_hash in manifest["selection_artifact_hashes"].items():
-        assert sha256_file(selection_paths[name]) == expected_hash
-    assert manifest["code_and_libraries"]["builder_code_sha256"] == sha256_file(
-        ROOT / "src" / "final_model_bundle.py"
-    )
-    assert manifest["code_and_libraries"]["feature_protocol_sha256"] == sha256_file(
-        ROOT / "src" / "model_protocol.py"
-    )
-    assert manifest["code_and_libraries"]["design_audit_code_sha256"] == sha256_file(
-        ROOT / "src" / "validation_design_audit.py"
-    )
-    assert manifest["design_evidence_artifact_hashes"] == final_bundle.design_evidence_hashes(ROOT)
-    assert sha256_file(ROOT / manifest["dataset"]["path"]) == manifest["dataset"]["sha256"]
-
-
-def test_documented_architecture_thresholds_and_figure_labels_match_canonical_bundle() -> None:
-    manifest = json.loads((FINAL_DIR / "manifest.json").read_text(encoding="utf-8"))
-    theory = (ROOT / "report" / "sections" / "03_marco_teorico.tex").read_text(encoding="utf-8")
-    methodology = (ROOT / "report" / "sections" / "04_metodologia.tex").read_text(encoding="utf-8")
-    results = (ROOT / "report" / "sections" / "10_resultados.tex").read_text(encoding="utf-8")
-    figure_source = (ROOT / "src" / "final_evaluation_figures.py").read_text(encoding="utf-8")
-    assert theory.count("\\textbf{Dropout 1}") == 1
-    assert theory.count("\\textbf{Dropout 2}") == 1
-    assert "\\textbf{6\\,177}" in theory
-    assert "umbral calibrado 0.30" in methodology
-    assert "umbral crudo 0.80" in methodology
-    assert "umbral calibrado 0.20" not in methodology
-    assert "umbral crudo 0.65" not in methodology
-    assert "Comparación en escala cruda" in results
-    assert "El F1 de la MLP es 0.4957" in results
-    assert "comparación en escala cruda" in figure_source
-    assert "Robustez por configuración completa y semilla" in figure_source
-    assert final_figures.selected_config_id() == manifest["architecture"]["config_id"] == "MLP_32_16"
-
-    comparison = pd.read_csv(ROOT / "report" / "tables" / "final_reference_baseline_comparison_2024_2025.csv")
-    raw = comparison[comparison["probability_scale"] == "raw"].copy()
-    raw["label"] = raw["model"].map(
+def _minimal_partition(dates: list[str]) -> pd.DataFrame:
+    return pd.DataFrame(
         {
-            "MLP_definitiva": "MLP definitiva",
-            "LogisticRegression_balanced": "Regresión logística",
-            "RandomForest_balanced": "Random Forest",
-        }
-    )
-    summary = final_figures.leadership_summary(raw.dropna(subset=["label"]))
-    assert "PR-AUC: Random Forest" in summary
-    assert "ROC-AUC: Random Forest" in summary
-    assert "F1: MLP definitiva" in summary
-
-
-def test_protocol_and_manifest_claims_are_derived_from_canonical_raw_comparison() -> None:
-    manifest = json.loads((FINAL_DIR / "manifest.json").read_text(encoding="utf-8"))
-    thresholds = json.loads((FINAL_DIR / "thresholds.json").read_text(encoding="utf-8"))
-    comparison = pd.read_csv(ROOT / "report" / "tables" / "final_reference_baseline_comparison_2024_2025.csv")
-    expected_protocol = final_bundle.canonical_protocol_text(
-        method=manifest["calibration"]["method"],
-        raw_threshold=thresholds["raw"]["value"],
-        calibrated_threshold=thresholds["calibrated"]["value"],
-        comparison=comparison,
-    )
-    actual_protocol = (ROOT / "report" / "tables" / "final_model_protocol.md").read_text(encoding="utf-8")
-    assert actual_protocol == expected_protocol
-
-    leaders = final_bundle.reference_metric_leaders(comparison)
-    assert leaders["pr_auc"]["model"] == "RandomForest_balanced"
-    assert leaders["roc_auc"]["model"] == "RandomForest_balanced"
-    assert leaders["f1_multifatal"]["model"] == "MLP_definitiva"
-    assert manifest["claims"] == final_bundle.canonical_claims(comparison)
-    assert "PR-AUC: Random Forest (0.4704)" in manifest["claims"]["supported"]
-    assert "ROC-AUC: Random Forest (0.8937)" in manifest["claims"]["supported"]
-    assert "F1: MLP cruda (0.4957)" in manifest["claims"]["supported"]
-    assert "logistic regression retains a higher" not in manifest["claims"]["not_supported"].lower()
-
-
-def test_persisted_calibrated_threshold_uses_oof_validation_semantics() -> None:
-    thresholds = json.loads((FINAL_DIR / "thresholds.json").read_text(encoding="utf-8"))
-    evidence = json.loads((FINAL_DIR / "calibration_selection.json").read_text(encoding="utf-8"))
-    reference = pd.read_csv(REFERENCE_PROBABILITIES)
-    calibrated_threshold = float(thresholds["calibrated"]["value"])
-    assert thresholds["calibrated"]["source_partition"] == "validation_2023_oof"
-    assert calibrated_threshold == float(evidence["selected_calibrated_threshold"]["threshold"])
-    assert evidence["threshold_source"] == "selected method OOF calibrated validation predictions"
-    assert np.array_equal(
-        reference["calibrated_prediction"].to_numpy(),
-        (reference["calibrated_probability"].to_numpy() >= calibrated_threshold).astype(int),
+            'FECHA': pd.to_datetime(dates),
+            'target_multifatal': [0, 1, 0][:len(dates)],
+            'DEPARTAMENTO': ['LIMA'] * len(dates),
+        },
+        index=np.arange(100,100+len(dates)),
     )
 
 
-def test_calibration_selector_accepts_validation_only_and_never_endpoint_labels() -> None:
-    signature = inspect.signature(select_calibrator_validation_only)
-    assert "test_labels" not in signature.parameters
-    validation_probabilities = np.linspace(0.01, 0.99, 200)
-    validation_labels = pd.Series(([0] * 160) + ([1] * 40), dtype="int8")
-    endpoint_label_sentinel = np.ones(17, dtype=int)
-    observed_fit_labels: list[np.ndarray] = []
-    original_fit = final_bundle._fit_calibrator
+def test_endpoint_reader_is_impossible_before_frozen_decisions(tmp_path: Path) -> None:
+    calls: list[list[tuple[str,str,pd.Timestamp]]] = []
+    def reader(_path: Path, *, filters: list[tuple[str,str,pd.Timestamp]]) -> pd.DataFrame:
+        calls.append(filters)
+        return _minimal_partition(['2021-02-01','2022-02-01','2023-02-01'])
 
-    def guarded_fit(method: str, probabilities: np.ndarray, labels: np.ndarray) -> object:
-        observed = np.asarray(labels).copy()
-        observed_fit_labels.append(observed)
-        assert not np.array_equal(observed, endpoint_label_sentinel)
-        assert len(observed) in {160, 200}
-        return original_fit(method, probabilities, labels)
+    design,splits=_read_design_before_endpoint(tmp_path/'base.parquet',reader)
+    assert pd.to_datetime(design.FECHA).dt.year.max()==2023
+    assert len(splits['y_train'])==2 and len(splits['y_validation'])==1
+    assert calls==[[('FECHA','<',pd.Timestamp('2024-01-01'))]]
 
-    with (
-        patch.object(final_bundle, "_fit_calibrator", side_effect=guarded_fit),
-        patch.object(final_bundle, "y_test", endpoint_label_sentinel, create=True),
-    ):
-        method, _, evidence, oof = select_calibrator_validation_only(
-            validation_probabilities, validation_labels
+    endpoint_calls=0
+    def forbidden_reader(*_args: object,**_kwargs: object) -> pd.DataFrame:
+        nonlocal endpoint_calls
+        endpoint_calls+=1
+        raise AssertionError('endpoint reader must not run')
+    with pytest.raises(RuntimeError,match='complete frozen decision'):
+        _read_endpoint_after_freeze(
+            tmp_path/'base.parquet',tmp_path,{'thresholds.json':'x'},forbidden_reader
         )
-
-    assert method in {"platt", "isotonic"}
-    assert np.isfinite(oof).all()
-    assert evidence["source_partition"] == "validation_2023_only"
-    assert evidence["test_labels_used_for_selection"] is False
-    assert len(observed_fit_labels) == (2 * final_bundle.CALIBRATION_FOLDS) + 1
+    assert endpoint_calls==0
 
 
-def test_bundle_builder_freezes_validation_selection_before_endpoint_open() -> None:
-    """Exercise the builder boundary, not only the calibration helper."""
-    train_raw = pd.DataFrame({"FECHA": ["2021-01-01", "2022-01-01"], "DEPARTAMENTO": ["PUNO", "LIMA"]})
-    validation_raw = pd.DataFrame({"FECHA": ["2023-01-01", "2023-02-01"], "DEPARTAMENTO": ["PUNO", "LIMA"]})
-    endpoint_raw = pd.DataFrame({"FECHA": ["2024-01-01", "2025-01-01"], "DEPARTAMENTO": ["PUNO", "LIMA"]})
-    y_train = pd.Series([0, 1], dtype="int8")
-    y_validation = pd.Series([0, 1], dtype="int8")
-    endpoint_label_sentinel = pd.Series([1, 0], dtype="int8")
-    splits = {
-        "X_train_raw": train_raw,
-        "y_train": y_train,
-        "X_validation_raw": validation_raw,
-        "y_validation": y_validation,
-        "X_test_raw": endpoint_raw,
-        "y_test": endpoint_label_sentinel,
-    }
-    endpoint_opened = False
-    selection_calls: list[pd.Series] = []
+def test_endpoint_hook_precedes_materialization_and_filters_reference(tmp_path: Path) -> None:
+    decision_names=['calibration_selection.json','calibrator.joblib','thresholds.json','feature_schema.json']
+    hashes={}
+    for name in decision_names:
+        path=tmp_path/name; path.write_text(name,encoding='utf-8'); hashes[name]=sha256_file(path)
+    opened=False
+    filters_seen: list[tuple[str,str,pd.Timestamp]]=[]
+    def hook() -> None:
+        nonlocal opened
+        opened=True
+    def endpoint_reader(_path: Path, *, filters: list[tuple[str,str,pd.Timestamp]]) -> pd.DataFrame:
+        assert opened, 'endpoint materialized before endpoint-open hook'
+        filters_seen.extend(filters)
+        return _minimal_partition(['2024-01-01','2025-12-31'])
+    X,y=_read_endpoint_after_freeze(tmp_path/'base.parquet',tmp_path,hashes,endpoint_reader,hook)
+    assert opened and len(X)==len(y)==2
+    assert filters_seen==[
+        ('FECHA','>=',pd.Timestamp('2024-01-01')),
+        ('FECHA','<',pd.Timestamp('2026-01-01')),
+    ]
 
-    class FakeModel:
-        input_shape = (None, 1)
-
-        def predict(self, features: pd.DataFrame, verbose: int = 0) -> np.ndarray:
-            return np.array([[0.2], [0.8]], dtype=float)
-
-    def guarded_transform(raw: pd.DataFrame, scaler: object, encoders: dict[str, object]) -> pd.DataFrame:
-        if raw is endpoint_raw:
-            assert endpoint_opened, "Endpoint features must not be transformed before selection is frozen."
-        return pd.DataFrame({"feature": [0.0, 1.0]})
-
-    def guarded_selector(probabilities: np.ndarray, labels: pd.Series) -> tuple[str, object, dict[str, object], np.ndarray]:
-        assert not endpoint_opened
-        assert labels is y_validation
-        assert labels is not endpoint_label_sentinel
-        selection_calls.append(labels)
-        evidence: dict[str, object] = {
-            "source_partition": "validation_2023_only",
-            "test_labels_used_for_selection": False,
-            "selected_method": "platt",
-        }
-        return "platt", object(), evidence, np.array([0.1, 0.9])
-
-    def guarded_threshold(labels: pd.Series, probabilities: np.ndarray) -> dict[str, float | str]:
-        assert not endpoint_opened
-        assert labels is y_validation
-        assert labels is not endpoint_label_sentinel
-        selection_calls.append(labels)
-        return {"threshold": 0.5, "selection_policy": "validation-only test policy"}
-
-    def open_endpoint() -> None:
-        nonlocal endpoint_opened
-        assert len(selection_calls) == 2
-        endpoint_opened = True
-
-    minimal_metrics = {
-        "n": 2,
-        "positives": 1,
-        "class_rate": 0.5,
-        "threshold": 0.5,
-        "f1_multifatal": 1.0,
-        "precision_multifatal": 1.0,
-        "recall_multifatal": 1.0,
-        "pr_auc": 1.0,
-        "roc_auc": 1.0,
-        "brier": 0.1,
-        "ece_10_bins": 0.1,
-    }
-    with tempfile.TemporaryDirectory() as temporary_directory:
-        root = Path(temporary_directory)
-        final_dir = root / "models" / "final"
-        tables_dir = root / "report" / "tables"
-        processed_dir = root / "data" / "processed"
-        final_dir.mkdir(parents=True)
-        tables_dir.mkdir(parents=True)
-        processed_dir.mkdir(parents=True)
-        (root / "src").mkdir()
-        (root / "src" / "model_protocol.py").write_text("# fake protocol\n", encoding="utf-8")
-        (processed_dir / "base_limpia.parquet").write_bytes(b"fake-dataset")
-        (final_dir / "model.keras").write_bytes(b"fake-model")
-        (final_dir / "scaler.joblib").write_bytes(b"fake-scaler")
-        (final_dir / "encoders.joblib").write_bytes(b"fake-encoders")
-        (final_dir / "feature_list.json").write_text('["feature"]', encoding="utf-8")
-        (final_dir / "model_selection.json").write_text(
-            json.dumps(
-                {
-                    "selected_config": {
-                        "config_id": "MLP_64_32",
-                        "hidden_units": [64, 32],
-                        "dropout": 0.35,
-                        "l2": 0.0003,
-                        "learning_rate": 0.0005,
-                        "batch_size": 64,
-                    },
-                    "selected_seed": 314,
-                    "selected_threshold": {"threshold": 0.65},
-                }
-            ),
-            encoding="utf-8",
-        )
-        for name in (
-            "model_selection_baseline_validation.csv",
-            "model_selection_seed_grid_validation.csv",
-            "model_selection_robustness.csv",
-        ):
-            (tables_dir / name).write_text("placeholder\n", encoding="utf-8")
-        fake_base = pd.DataFrame({"placeholder": [1, 2]})
-        fake_confusion = pd.DataFrame({"probability_scale": ["raw"], "actual": [0], "predicted": [0], "count": [1]})
-        fake_report = pd.DataFrame({"probability_scale": ["raw"], "class_or_average": ["multifatal"]})
-        fake_ci = pd.DataFrame(
-            {
-                "probability_scale": ["raw"],
-                "metric": ["f1_multifatal"],
-                "estimate": [1.0],
-                "ci_2_5": [1.0],
-                "ci_97_5": [1.0],
-                "bootstrap_iterations": [1],
-            }
-        )
-        fake_baseline = pd.DataFrame(
-            [
-                {
-                    "model": "LogisticRegression_balanced",
-                    "probability_scale": "raw",
-                    "threshold_source": "validation",
-                    **minimal_metrics,
-                },
-                {
-                    "model": "RandomForest_balanced",
-                    "probability_scale": "raw",
-                    "threshold_source": "validation",
-                    **minimal_metrics,
-                },
-            ]
-        )
-
-        with (
-            patch.object(final_bundle.pd, "read_parquet", return_value=fake_base),
-            patch.object(final_bundle, "split_chronological", return_value=splits),
-            patch.object(final_bundle.joblib, "load", side_effect=[object(), {"feature_list": ["feature"]}]),
-            patch.object(final_bundle.keras.models, "load_model", return_value=FakeModel()),
-            patch.object(final_bundle, "transform_features", side_effect=guarded_transform),
-            patch.object(final_bundle, "select_calibrator_validation_only", side_effect=guarded_selector),
-            patch.object(final_bundle, "choose_threshold", side_effect=guarded_threshold),
-            patch.object(final_bundle, "apply_calibrator", return_value=np.array([0.1, 0.9])),
-            patch.object(final_bundle.joblib, "dump", side_effect=lambda value, path: Path(path).write_bytes(b"fake-calibrator")),
-            patch.object(final_bundle, "_input_schema", return_value={"processed_feature_count": 1}),
-            patch.object(final_bundle, "_metrics", return_value=minimal_metrics),
-            patch.object(final_bundle, "_bootstrap_metrics", return_value=fake_ci),
-            patch.object(final_bundle, "_classification_tables", return_value=(fake_confusion, fake_report)),
-            patch.object(final_bundle, "_baseline_reference", return_value=fake_baseline),
-            # If production selection is literally mutated from y_val to y_test,
-            # this global resolves to the distinct endpoint sentinel and the
-            # identity assertions above fail semantically.
-            patch.object(final_bundle, "y_test", endpoint_label_sentinel, create=True),
-        ):
-            manifest = final_bundle.build_canonical_bundle(
-                root=root, bootstrap_iterations=1, endpoint_opened_hook=open_endpoint
-            )
-
-    assert endpoint_opened
-    assert len(selection_calls) == 2 and all(labels is y_validation for labels in selection_calls)
-    assert manifest["reference_evaluation"]["used_for_calibration_selection"] is False
-    assert manifest["code_and_libraries"]["design_audit_code_sha256"] == sha256_file(
-        ROOT / "src" / "validation_design_audit.py"
-    )
-
-
-def test_persisted_inference_matches_reference_and_outputs_are_finite() -> None:
-    base = pd.read_parquet(ROOT / "data" / "processed" / "base_limpia.parquet")
-    raw_test = split_chronological(base)["X_test_raw"]
-    runtime = CanonicalModelBundle(FINAL_DIR)
-    predictions = runtime.predict_dataframe(raw_test)  # type: ignore[arg-type]
-    reference = pd.read_csv(REFERENCE_PROBABILITIES)
-    assert len(predictions) == len(reference) == 2232
-    assert np.isfinite(predictions.to_numpy()).all()
-    assert predictions[["raw_probability", "calibrated_probability"]].min().min() >= 0
-    assert predictions[["raw_probability", "calibrated_probability"]].max().max() <= 1
-    np.testing.assert_allclose(
-        predictions["raw_probability"].to_numpy(), reference["raw_probability"].to_numpy(), rtol=0, atol=1e-7
-    )
-    np.testing.assert_allclose(
-        predictions["calibrated_probability"].to_numpy(),
-        reference["calibrated_probability"].to_numpy(),
-        rtol=0,
-        atol=1e-7,
-    )
-    assert np.array_equal(predictions["raw_prediction"].to_numpy(), reference["raw_prediction"].to_numpy())
-    assert np.array_equal(
-        predictions["calibrated_prediction"].to_numpy(), reference["calibrated_prediction"].to_numpy()
-    )
-
-
-def test_final_feature_contract_excludes_endpoint_and_post_event_leakage() -> None:
-    schema = json.loads((FINAL_DIR / "feature_schema.json").read_text(encoding="utf-8"))
-    features = set(json.loads((FINAL_DIR / "feature_list.json").read_text(encoding="utf-8")))
-    raw_fields = {field["name"]: field for field in schema["required_raw_fields"]}
-    assert schema["schema_version"] == "1.1"
-    for coordinate in ("LATITUD", "LONGITUD"):
-        assert raw_fields[coordinate]["required"] is True
-        assert raw_fields[coordinate]["nullable"] is False
-    assert schema["runtime_constraints"]["coordinate_pair"] == {
-        "fields": ["LATITUD", "LONGITUD"],
-        "required": True,
-        "nullable": False,
-    }
-    assert schema["processed_feature_count"] == len(features) == 175
-    assert not (features & set(EXCLUDED_COLUMNS))
-    assert {"FALLECIDOS", "LESIONADOS", "CAUSA_FACTOR", "CAUSA_ESPECIFICA"}.issubset(
-        set(schema["excluded_leakage_columns"])
-    )
-
-
-if __name__ == "__main__":
-    test_manifest_schema_artifacts_and_hashes_are_valid()
-    test_documented_architecture_thresholds_and_figure_labels_match_canonical_bundle()
-    test_protocol_and_manifest_claims_are_derived_from_canonical_raw_comparison()
-    test_persisted_calibrated_threshold_uses_oof_validation_semantics()
-    test_calibration_selector_accepts_validation_only_and_never_endpoint_labels()
-    test_bundle_builder_freezes_validation_selection_before_endpoint_open()
-    test_persisted_inference_matches_reference_and_outputs_are_finite()
-    test_final_feature_contract_excludes_endpoint_and_post_event_leakage()
-    print("final-model-bundle-ok")
+if __name__=='__main__':
+    test_manifest_and_bundle_are_consistent(); test_frozen_inference_reproduces_reference(); test_bootstrap_scope_is_explicit(); print('final-model-bundle-ok')

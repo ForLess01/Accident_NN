@@ -1,99 +1,12 @@
 \section{Dataset}\label{sec:dataset}
 
-\subsection{Fuente oficial}
-Se utilizó la base \emph{SINIESTROS DE TRANSITO FATALES 2021--2025 (PRELIMINAR)}, publicada el 2026-02-27 por el Observatorio Nacional de Seguridad Vial (ONSV) en su portal de datos abiertos:
+La fuente es el catálogo oficial ONSV \url{https://www.onsv.gob.pe/datosabiertos}. Los archivos SINIESTROS, VEHICULOS, PERSONAS y el diccionario se declaran en \path{data/raw/source_manifest.json} con URL, tamaño, hojas y SHA-256. El pipeline verifica el conjunto exacto antes de leer; una fuente modificada, faltante o adicional detiene la ejecución. Los datos 2024--2025 son preliminares.
 
-\begin{quote}
-\url{https://www.onsv.gob.pe/datosabiertos}
-\end{quote}
+\subsection{Objetivo}
+El universo contiene solo siniestros fatales. Por tanto, $y=1$ cuando \texttt{FALLECIDOS}$\geq2$ y $y=0$ cuando \texttt{FALLECIDOS}=1. El modelo no estima la probabilidad de que cualquier accidente sea fatal.
 
-\noindent El portal describe el recurso como: ``Detalle de siniestros de tránsito con consecuencias fatales, ocurridos a nivel nacional, 2021--2025 (preliminar)'', autor ONSV. El archivo original se mantiene en \texttt{data/raw/BBDD\_ONSV\_SINIESTROS\_FATALES\_2021-2025.xlsx} (hoja \texttt{SINIESTROS}, encabezado en la fila 5). La fecha de descarga y verificación local fue el 2026-07-09. Es un dato abierto del Estado peruano, lo que permite libre reuso con atribución. El ONSV declara la información de 2025 como preliminar.
+\subsection{Prueba de fuga PERSONAS}
+La auditoría por código comparó SINIESTROS con PERSONAS. El conteo \texttt{GRAVEDAD} $=$ \texttt{FALLECIDO} coincide con \texttt{FALLECIDOS} y reconstruye el target en los 9\,104 registros; además, el número de filas PERSONAS cubre necesariamente a los fallecidos. Excluir solamente \texttt{GRAVEDAD} era insuficiente. La decisión final excluye toda la fuente PERSONAS de los predictores; solo permanece como prueba de linaje.
 
-\subsection{Adecuación de la fuente}
-La base ONSV aporta fecha, hora, localización, clase notificada, clima, geometría, superficie y clasificación vial. Estas variables permiten estudiar asociaciones de multifatalidad sin mezclar fuentes con criterios de registro incompatibles. Su límite es igualmente claro: al contener solo siniestros fatales, obliga a formular un objetivo condicional de alta letalidad y no una predicción de mortalidad general.
-
-\subsection{Diccionario de datos base}
-La \autoref{tab:diccionario} resume las variables del registro y su rol en el proyecto.
-
-\begin{table}[H]
-\centering
-\caption{Variables del registro ONSV y su rol en el proyecto.}
-\label{tab:diccionario}
-\begin{tabularx}{\textwidth}{p{3.5cm} p{4.2cm} X}
-\toprule
-Columna & Rol & Justificación \\
-\midrule
-\texttt{FECHA}, \texttt{HORA} & Característica (derivar) & Estacionalidad, nocturnidad, fatiga \\
-\texttt{DEPARTAMENTO} & Característica categórica & Geografía del riesgo \\
-\texttt{ZONA} & Característica categórica & Ruralidad: velocidades y respuesta médica \\
-\texttt{RED VIAL} & Característica categórica & Nacional\slash departamental\slash provincial\slash urbana \\
-\texttt{TIPO DE VÍA} & Característica categórica & Carretera, avenida, calle, vía expresa \\
-\texttt{COD CARRETERA} & Característica (derivar) & Familias de vías y frecuencia \\
-\texttt{COORDENADAS} & Característica numérica & Señal espacial continua \\
-\texttt{CONDICIÓN CLIMÁTICA} & Característica categórica & Visibilidad y adherencia \\
-\texttt{CARACTERÍSTICAS DE VÍA} & Característica categórica & Recta, curva, intersección, estructura \\
-\texttt{PERFIL LONGITUDINAL} & Característica categórica & Plana vs.\ inclinada \\
-\texttt{SUPERFICIE DE CALZADA} & Característica categórica & Pavimentada, afirmado, trocha \\
-\texttt{CLASE SINIESTRO} & Característica categórica & Mecánica del evento \\
-\texttt{CANTIDAD DE FALLECIDOS} & \textbf{Solo target} & \textbf{Prohibida como entrada} \\
-\texttt{CANTIDAD DE LESIONADOS} & \textbf{Excluida} & Resultado posterior (fuga) \\
-\texttt{CANTIDAD VEHÍCULOS DAÑADOS} & \textbf{Excluida} & Resultado posterior (fuga) \\
-\texttt{CAUSA (factor y específica)} & \textbf{Excluida} & Se determina en la investigación posterior \\
-\texttt{SEÑALES vertical\slash horizontal} & \textbf{Excluida} & 78\,\% de faltantes concentrados por periodo \\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-\subsection{Bases companion: vehículos y personas involucradas (versión 2)}
-El ONSV publica en el mismo portal dos bases enlazables por \texttt{CÓDIGO SINIESTRO}:
-\begin{itemize}
-    \item vehículos: \path{data/raw/BBDD_ONSV_VEHICULOS_2021-2025.xlsx}, con 12\,667 filas, una por vehículo;
-    \item personas: \path{data/raw/BBDD_ONSV_PERSONAS_2021-2025.xlsx}, con 25\,412 filas, una por persona y hasta 74 en un siniestro.
-\end{itemize}
-La cobertura del join es del 100\,\% sobre los 9\,104 códigos de la base limpia.
-
-De estas tablas se derivan doce agregados por siniestro: total de vehículos; conteos de buses\slash minibuses, pesados de carga, motos\slash trimotos y vehículos no identificados; servicios interprovinciales y de transporte público; total de personas involucradas; pasajeros, peatones y conductores fugados; y edad media. Pertenecen al registro consolidado, pero su disponibilidad al instante de notificación no puede demostrarse sin timestamps por campo. Quedan \textbf{vetadas por fuga} las columnas de desenlace por persona y los dosajes etílicos. El conteo de personas involucradas es una variable de exposición estructural; se declara como limitación que el registro de ilesos podría ser más completo en siniestros graves.
-
-\subsection{Variable objetivo}
-Se construyó el target binario condicional al universo de siniestros fatales:
-\[
-y = \begin{cases}
-1, & \text{si } \text{FALLECIDOS} \geq 2 \quad \text{(``Alta Letalidad'')} \\
-0, & \text{si } \text{FALLECIDOS} = 1
-\end{cases}
-\]
-La prohibición de \texttt{LESIONADOS}, \texttt{VEHICULOS\_DANADOS} y las columnas de causa como entradas se declara explícitamente como decisión metodológica en la \autoref{sec:preprocesamiento}: los conteos se levantan después del siniestro (fuga directa del resultado) y la causa se codifica al cierre de la investigación (el 49\,\% figura ``en proceso de investigación'').
-
-\subsection{Auditoría inicial}
-La auditoría (Bloque B) verificó y registró:
-\begin{itemize}
-  \item Formato: Excel (\texttt{.xlsx}), hoja \texttt{SINIESTROS}, encabezado en fila 5, 27 columnas.
-  \item Número de filas de datos: 9\,106.
-  \item Fechas inválidas eliminadas: 2. Duplicados por código de siniestro: 0.
-  \item N final útil: 9\,104.
-  \item Casos multifatales: 928 (10.19\,\%); letalidad simple: 8\,176.
-  \item Rango temporal: 2021-01-01 a 2025-12-30 (2025 parcial, 678 registros).
-  \item Coordenadas fuera del territorio peruano anuladas: 1 registro.
-\end{itemize}
-
-El protocolo usa un corte cronológico 2021--2022 / 2023 / 2024--2025. Como la clase multifatal representa 10.19\,\%, se usan pesos de clase sin SMOTE: sintetizar combinaciones categóricas y geográficas habría introducido casos difíciles de justificar. \autoref{tab:audit} resume la auditoría de fuente.
-
-\begin{table}[H]
-\centering
-\caption{Resumen de la auditoría del dataset (Bloque B).}
-\label{tab:audit}
-\begin{tabular}{lr}
-\toprule
-Indicador & Valor \\
-\midrule
-Filas de datos originales & 9\,106 \\
-Fechas inválidas eliminadas & 2 \\
-Duplicados por código & 0 \\
-Filas útiles finales & 9\,104 \\
-Casos multifatales (2+ fallecidos) & 928 \\
-Porcentaje de clase multifatal & 10.19\,\% \\
-Rango temporal & 2021--2025 (2025 parcial) \\
-Máximo de fallecidos en un siniestro & 33 \\
-\bottomrule
-\end{tabular}
-\end{table}
+\subsection{Disponibilidad}
+Se conservan siete agregados VEHICULOS: total, buses, carga pesada, motos, no identificados, servicio interprovincial y transporte público. Los libros no incluyen timestamps por campo. Por ello su uso solo se defiende para clasificación histórica retrospectiva de registros consolidados, no para tiempo real o instante de notificación.

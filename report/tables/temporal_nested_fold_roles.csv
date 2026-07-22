@@ -1,0 +1,9 @@
+fold,role,date_min,date_max,n,positives
+rolling_1,fit,2021-01-01,2021-06-30,1176,112
+rolling_1,selection,2021-07-01,2021-12-31,1216,120
+rolling_1,calibration,2022-01-01,2022-06-30,1239,137
+rolling_1,outer,2022-07-01,2022-12-31,1241,141
+rolling_2,fit,2021-01-01,2021-12-31,2392,232
+rolling_2,selection,2022-01-01,2022-06-30,1239,137
+rolling_2,calibration,2022-07-01,2022-12-31,1241,141
+rolling_2,outer,2023-01-01,2023-12-31,2000,196

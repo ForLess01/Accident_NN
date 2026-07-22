@@ -22,6 +22,6 @@
   "urban_rate": 3.6231884057971016,
   "rain_rate": 17.62589928057554,
   "clear_rate": 9.783677482792527,
-  "missing_top_column": "SENAL_HORIZONTAL",
+  "missing_top_column": "SENAL_VERTICAL",
   "missing_top_value": 77.86687170474517
 }

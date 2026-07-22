@@ -10,6 +10,7 @@ data/processed/*
 !data/processed/.gitkeep
 !data/processed/base_limpia.parquet
 !data/processed/demo_cases.csv
+!data/processed/demo_cases_manifest.json
 data/geo/*
 !data/geo/.gitkeep
 !data/geo/peru_departamentos_simple.geojson

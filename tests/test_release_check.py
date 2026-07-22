@@ -1,76 +1,82 @@
 from __future__ import annotations
-
-import sys
-import tempfile
+import json,os,subprocess,sys,tempfile
 from pathlib import Path
+ROOT=Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path: sys.path.insert(0,str(ROOT))
+from scripts.check_release import (
+    PYTHON,
+    RELEASE_PYTEST_ACTIVE_ENV,
+    complete_pytest_command,
+    find_changed_canonical_paths,
+    find_forbidden_timeline_labels,
+    find_missing_required_files,
+    load_release_inventory,
+    release_pytest_environment,
+    verify_pdf_freshness,
+)
+import scripts.execute_notebooks as execute_notebooks
+
+def test_inventory_is_explicit_and_complete() -> None:
+    paths=load_release_inventory()
+    assert paths==sorted(set(paths))
+    assert not find_missing_required_files(ROOT,paths)
+    required={'data/raw/source_manifest.json','docs/data_provenance.md','data/processed/demo_cases_manifest.json','report/build_manifest.json','scripts/execute_notebooks.py','scripts/build_report.py','src/source_provenance.py','src/temporal_diagnostics.py'}
+    assert required<=set(paths)
+
+def test_report_freshness_ignores_mtimes() -> None:
+    verify_pdf_freshness()
+    manifest=json.loads((ROOT/'report/build_manifest.json').read_text())
+    source=ROOT/'report/main.tex'
+    original=source.stat()
+    before=(ROOT/'report/main.pdf').stat().st_mtime
+    os.utime(source,(before+10000,before+10000))
+    try: verify_pdf_freshness()
+    finally: os.utime(source,ns=(original.st_atime_ns,original.st_mtime_ns))
+
+def test_binary_modification_is_detected() -> None:
+    with tempfile.TemporaryDirectory() as temporary:
+        root=Path(temporary)
+        subprocess.run(['git','init','-q'],cwd=root,check=True)
+        artifact=root/'artifact.bin'
+        artifact.write_bytes(b'canonical\x00artifact')
+        subprocess.run(['git','add','artifact.bin'],cwd=root,check=True)
+        artifact.write_bytes(b'mutated\x00artifact')
+        changed=find_changed_canonical_paths(root,['artifact.bin'])
+        assert changed and any('artifact.bin' in entry for entry in changed)
 
 
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-from scripts.check_release import find_missing_required_files, find_stale_notebook_claims, load_release_inventory
-
-
-REPRESENTATIVE_REQUIRED_FILES = {
-    "raw ONSV": "data/raw/BBDD_ONSV_SINIESTROS_FATALES_2021-2025.xlsx",
-    "report source": "report/main.tex",
-    "bibliography": "report/bib/referencias.bib",
-    "model bundle": "models/final/model.keras",
-    "processed runtime": "data/processed/base_limpia.parquet",
-    "test": "tests/test_app_inference.py",
-    "UI": "app/streamlit_app.py",
-}
+def test_external_absolute_notebook_status_path_is_safe(tmp_path: Path,monkeypatch,capsys) -> None:
+    external=tmp_path/'outside.ipynb'; external.write_text('{}',encoding='utf-8')
+    monkeypatch.setattr(execute_notebooks,'execute',lambda path: None)
+    monkeypatch.setattr(sys,'argv',['execute_notebooks.py',str(external)])
+    assert execute_notebooks.main()==0
+    payload=json.loads(capsys.readouterr().out)
+    assert payload=={'notebook':str(external.resolve()),'status':'executed'}
 
 
-def test_explicit_inventory_is_complete_in_workspace() -> None:
-    inventory = load_release_inventory()
-    assert "scripts/release_inventory.json" in inventory
-    assert "data/raw/Formato_2_Diccionario_de_datos.docx" in inventory
-    assert "report/main.pdf" in inventory
-    assert "docs/defensa_10min.md" in inventory
-    assert "requirements-macos.txt" in inventory
-    assert not find_missing_required_files(ROOT, inventory)
+def test_release_runs_complete_pytest_suite_with_nonrecursive_contract() -> None:
+    assert complete_pytest_command()==[str(PYTHON),'-m','pytest','-q']
+    environment=release_pytest_environment()
+    assert environment[RELEASE_PYTEST_ACTIVE_ENV]=='1'
 
 
-def test_representative_file_deletions_fail_completeness_check() -> None:
-    inventory = load_release_inventory()
-    for label, relative in REPRESENTATIVE_REQUIRED_FILES.items():
-        assert relative in inventory, f"Representative {label} is absent from explicit inventory"
+def test_forbidden_2023_selection_labels_are_detected_without_false_positive(tmp_path: Path) -> None:
+    tables=tmp_path/'report/tables'; tables.mkdir(parents=True)
+    protocol=tables/'protocol.md'
+    protocol.write_text(
+        'Selección de arquitectura: 2022. Validación de calibración y umbrales: 2023.',
+        encoding='utf-8',
+    )
+    assert find_forbidden_timeline_labels(tmp_path)==[]
+    protocol.write_text('Umbral: 2023 selection-period policy.',encoding='utf-8')
+    hits=find_forbidden_timeline_labels(tmp_path)
+    assert hits and any('selection-period' in hit for hit in hits)
+    protocol.write_text('Los umbrales se seleccionan en 2023.',encoding='utf-8')
+    assert find_forbidden_timeline_labels(tmp_path)
+    protocol.write_text('Umbral seleccionado exclusivamente en validación 2023.',encoding='utf-8')
+    assert find_forbidden_timeline_labels(tmp_path)
+    protocol.write_text('La calibración se selecciona y ajusta exclusivamente en 2023.',encoding='utf-8')
+    assert find_forbidden_timeline_labels(tmp_path)
 
-    with tempfile.TemporaryDirectory() as temporary_directory:
-        clone = Path(temporary_directory)
-        for relative in inventory:
-            path = clone / relative
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.touch()
-
-        assert not find_missing_required_files(clone, inventory)
-        for label, relative in REPRESENTATIVE_REQUIRED_FILES.items():
-            candidate = clone / relative
-            candidate.unlink()
-            missing = find_missing_required_files(clone, inventory)
-            assert missing == [relative], f"Deleting representative {label} did not fail deterministically"
-            candidate.touch()
-
-
-def test_notebook_markdown_scan_rejects_stale_methodology() -> None:
-    assert not find_stale_notebook_claims(ROOT)
-    with tempfile.TemporaryDirectory() as temporary_directory:
-        root = Path(temporary_directory)
-        notebook = root / "notebooks" / "stale.ipynb"
-        notebook.parent.mkdir(parents=True)
-        notebook.write_text(
-            '{"cells":[{"cell_type":"markdown","source":["Tres arquitecturas; no abre el periodo de referencia."]}],"nbformat":4,"nbformat_minor":5}',
-            encoding="utf-8",
-        )
-        hits = find_stale_notebook_claims(root)
-        assert len(hits) == 2
-        assert all("stale.ipynb" in hit for hit in hits)
-
-
-if __name__ == "__main__":
-    test_explicit_inventory_is_complete_in_workspace()
-    test_representative_file_deletions_fail_completeness_check()
-    test_notebook_markdown_scan_rejects_stale_methodology()
-    print("release-check-ok")
+if __name__=='__main__':
+    test_inventory_is_explicit_and_complete(); test_report_freshness_ignores_mtimes(); test_binary_modification_is_detected(); print('release-check-ok')

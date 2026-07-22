@@ -1,22 +1,32 @@
 {
   "reference_period_used_during_selection": false,
   "selected_config": {
-    "config_id": "MLP_32_16",
+    "config_id": "MLP_64_32",
     "hidden_units": [
-      32,
-      16
+      64,
+      32
     ],
-    "dropout": 0.25,
-    "l2": 0.0001,
-    "learning_rate": 0.001,
+    "dropout": 0.35,
+    "l2": 0.0003,
+    "learning_rate": 0.0005,
     "batch_size": 64
   },
-  "selected_seed": 314,
+  "selected_seed": 42,
+  "architecture_selection_partition": "fit_2021_select_2022",
+  "final_refit_partition": "2021-2022",
+  "fixed_refit_epochs_from_inner_selection": 14,
+  "inner_selected_threshold_diagnostic_only": {
+    "threshold": 0.6,
+    "f1": 0.419811320754717,
+    "precision": 0.312280701754386,
+    "recall": 0.6402877697841727,
+    "selection_policy": "max validation F1; ties: recall, precision, higher threshold"
+  },
   "selected_threshold": {
-    "threshold": 0.8,
-    "f1": 0.5093457943925234,
-    "precision": 0.4698275862068966,
-    "recall": 0.5561224489795918,
+    "threshold": 0.65,
+    "f1": 0.3942307692307692,
+    "precision": 0.28738317757009346,
+    "recall": 0.6275510204081632,
     "selection_policy": "max validation F1; ties: recall, precision, higher threshold"
   },
   "selection_rule": "median validation PR-AUC across seeds, then median F1, then lower PR-AUC IQR",

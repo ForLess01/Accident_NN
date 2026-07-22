@@ -7,15 +7,15 @@ Desarrollar una red neuronal de clasificación binaria de alta letalidad en sini
 \begin{itemize}
   \item \textbf{OE1.} Caracterizar la siniestralidad fatal nacional mediante análisis exploratorio de datos, con al menos ocho hallazgos interpretados.
   \item \textbf{OE2.} Construir al menos doce características derivadas de las variables pre-impacto del registro, cada una justificada.
-  \item \textbf{OE3.} Entrenar un perceptrón multicapa (MLP) y compararlo contra tres líneas base: \texttt{DummyClassifier} (clase mayoritaria), regresión logística y \emph{random forest}. El MLP debe superar claramente al \texttt{DummyClassifier}; si no supera a la regresión logística o al \emph{random forest}, se reporta y discute honestamente.
-  \item \textbf{OE4.} Identificar los cinco factores de mayor influencia en la alta letalidad mediante SHAP.
-  \item \textbf{OE5.} Desplegar una interfaz gráfica en Streamlit que reutilice el pipeline de entrenamiento sin discrepancias.
+  \item \textbf{OE3.} Entrenar un perceptrón multicapa (MLP) y compararlo contra tres líneas base: \texttt{DummyClassifier(strategy=prior)}, regresión logística y \emph{random forest}. Si la MLP no supera a un método clásico, se reporta y discute honestamente.
+  \item \textbf{OE4.} Identificar familias de variables asociadas al score mediante Gradient SHAP y comprobar la estabilidad de sus bandas de importancia.
+  \item \textbf{OE5.} Desplegar una interfaz gráfica en Streamlit que consuma exactamente el bundle de inferencia canónico, con verificación de hashes y paridad.
 \end{itemize}
 
 \subsection{Métricas comprometidas antes de entrenar}
 El dataset es desbalanceado: la clase multifatal es minoritaria (10.2\,\%). Por ello se fijaron las métricas antes de ver los datos, como hace un profesional:
 \begin{itemize}
-  \item Selección de configuración completa: \textbf{mayor mediana de PR-AUC en validación 2023 entre semillas}; desempates por mayor F1 mediana y, después, menor IQR de PR-AUC. Cada configuración combina capas, dropout, L2 y tasa de aprendizaje.
+  \item Selección de configuración completa: \textbf{mayor mediana de PR-AUC en selección 2022 entre semillas}; desempates por mayor F1 mediana y, después, menor IQR de PR-AUC. Cada configuración combina capas, dropout, L2 y tasa de aprendizaje.
   \item Métricas de reporte obligatorio: \emph{precision} y \emph{recall} de la clase multifatal, PR-AUC, ROC-AUC, matriz de confusión completa y \emph{accuracy} solo como referencia.
   \item Se prohíbe argumentar calidad con \emph{accuracy} aislada: un modelo que responde siempre ``letalidad simple'' alcanza \emph{accuracy} alta y es inútil.
   \item Selección de umbral: máximo F1 en validación, con desempates predeclarados por \emph{recall}, precisión y mayor umbral; no se ajusta después de observar 2024--2025.

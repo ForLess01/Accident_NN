@@ -1,4 +1,4 @@
-"""Selection-period global explainability for the definitive MLP.
+"""Global explainability on the 2023 validation partition for the definitive MLP.
 
 The generator deliberately reads only pre-2024 raw fields.  Training rows are
 used solely as the Gradient SHAP background and 2023 validation rows are the
@@ -23,6 +23,7 @@ os.environ.setdefault("MPLCONFIGDIR", "/tmp/accident_nn_matplotlib")
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from src.chronology import EXPLANATION_VALIDATION_PARTITION
 from src.model_protocol import transform_features
 
 
@@ -30,6 +31,7 @@ SEED = 20260709
 BACKGROUND_SIZE = 256
 EXPLANATION_SIZE = 512
 SHAP_NSAMPLES = 200
+STABILITY_SEEDS = (20260709, 20260810, 20260911)
 
 # Reading an explicit projection plus a Parquet predicate makes the temporal
 # boundary auditable: neither endpoint rows nor any outcome column enter this
@@ -50,7 +52,7 @@ EXPLANATION_RAW_COLUMNS = [
     "CARACTERISTICA_VIA",
     "PERFIL_VIA",
     "SUPERFICIE",
-    # v2 scene aggregates; per-person outcome columns never enter this list.
+    # VEHICULOS-only aggregates; PERSONAS never enters the model or explainer.
     "n_vehiculos",
     "n_bus",
     "n_pesado_carga",
@@ -58,11 +60,6 @@ EXPLANATION_RAW_COLUMNS = [
     "n_no_identificado",
     "n_interprovincial",
     "n_transporte_publico",
-    "n_personas",
-    "n_pasajeros",
-    "n_peatones",
-    "n_conductor_fugado",
-    "edad_media_involucrados",
 ]
 
 
@@ -148,10 +145,6 @@ def feature_group(feature: str) -> str:
         return "RED_VIAL × CLASE"
     if feature in {"n_vehiculos", "n_bus", "n_pesado_carga", "n_moto", "n_no_identificado", "n_interprovincial", "n_transporte_publico"}:
         return "VEHICULOS INVOLUCRADOS"
-    if feature in {"n_personas", "n_pasajeros", "n_peatones", "n_conductor_fugado"}:
-        return "PERSONAS INVOLUCRADAS"
-    if feature in {"edad_media_involucrados", "edad_faltante"}:
-        return "EDAD INVOLUCRADOS"
     raise ValueError(f"Processed feature has no interpretable group: {feature}")
 
 
@@ -297,6 +290,57 @@ def generate_final_explainability(
     )
     group_table, feature_table = aggregate_global_explanations(np.asarray(shap_values), feature_names)
 
+    # Stability audit across deterministic samples/seeds. Rankings are emitted
+    # as tiers when exact order is not stable enough to defend.
+    stability_runs: list[pd.DataFrame] = []
+    for stability_seed in STABILITY_SEEDS:
+        if stability_seed == seed:
+            grouped = group_table.copy()
+        else:
+            bg_raw = deterministic_sample(background_pool, background_size, stability_seed)
+            ex_raw = deterministic_sample(validation_pool, explanation_size, stability_seed + 1)
+            bg = transform_features(bg_raw, scaler, encoders)
+            ex = transform_features(ex_raw, scaler, encoders)
+            np.random.seed(stability_seed)
+            tf.keras.utils.set_random_seed(stability_seed)
+            stability_explainer = shap.GradientExplainer(
+                shap_model, bg.to_numpy(dtype="float32")
+            )
+            stability_values = stability_explainer.shap_values(
+                ex.to_numpy(dtype="float32"), nsamples=shap_nsamples, rseed=stability_seed
+            )
+            grouped, _ = aggregate_global_explanations(
+                np.asarray(stability_values), feature_names
+            )
+        run = grouped[["raw_variable_group", "rank", "importance_share"]].copy()
+        run["seed"] = stability_seed
+        stability_runs.append(run)
+    stability_long = pd.concat(stability_runs, ignore_index=True)
+    stability = (
+        stability_long.groupby("raw_variable_group", as_index=False)
+        .agg(
+            rank_median=("rank", "median"),
+            rank_min=("rank", "min"),
+            rank_max=("rank", "max"),
+            importance_share_mean=("importance_share", "mean"),
+            importance_share_sd=("importance_share", "std"),
+        )
+        .sort_values(["rank_median", "raw_variable_group"])
+    )
+    stability["rank_range"] = stability["rank_max"] - stability["rank_min"]
+    stability["stability_tier"] = np.select(
+        [stability["rank_max"].le(5), stability["rank_range"].le(3)],
+        ["stable_top", "stable_band"],
+        default="variable",
+    )
+    rank_matrix = stability_long.pivot(
+        index="raw_variable_group", columns="seed", values="rank"
+    )
+    pairwise_rank_correlations = rank_matrix.corr(method="spearman")
+    lower_triangle = pairwise_rank_correlations.to_numpy()[
+        np.tril_indices(len(STABILITY_SEEDS), k=-1)
+    ]
+
     tables_dir = root / "report" / "tables"
     figures_dir = root / "report" / "figures"
     tables_dir.mkdir(parents=True, exist_ok=True)
@@ -304,9 +348,11 @@ def generate_final_explainability(
     group_path = tables_dir / "final_explainability_group_importance.csv"
     feature_path = tables_dir / "final_explainability_feature_importance.csv"
     provenance_path = tables_dir / "final_explainability_provenance.json"
+    stability_path = tables_dir / "final_explainability_stability.csv"
     figure_path = figures_dir / "final_explainability_global.png"
     group_table.to_csv(group_path, index=False, float_format="%.10g")
     feature_table.to_csv(feature_path, index=False, float_format="%.10g")
+    stability.to_csv(stability_path, index=False, float_format="%.10g")
     _write_figure(group_table, figure_path)
 
     index_digest = lambda values: hashlib.sha256(",".join(map(str, values)).encode("utf-8")).hexdigest()
@@ -318,11 +364,14 @@ def generate_final_explainability(
         "tensorflow_version": tf.__version__,
         "explained_output": "raw_mlp_sigmoid",
         "background_partition": "training_2021_2022_only",
-        "explanation_partition": "validation_2023_only",
+        "explanation_partition": EXPLANATION_VALIDATION_PARTITION,
         "background_sample_size": int(len(background_raw)),
         "explanation_sample_size": int(len(validation_raw)),
         "shap_nsamples": int(shap_nsamples),
         "seed": int(seed),
+        "stability_seeds": list(STABILITY_SEEDS),
+        "minimum_pairwise_spearman_rank_correlation": float(np.min(lower_triangle)),
+        "ranking_policy": "Report stability tiers; exact within-tier order is not interpreted as stable.",
         "sampling": "simple random sampling without replacement; sorted back to source index",
         "background_index_sha256": index_digest(background_raw.index.tolist()),
         "explanation_index_sha256": index_digest(validation_raw.index.tolist()),
@@ -341,7 +390,7 @@ def generate_final_explainability(
     }
     provenance_path.write_text(json.dumps(provenance, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    artifact_paths = [group_path, feature_path, provenance_path, figure_path]
+    artifact_paths = [group_path, feature_path, stability_path, provenance_path, figure_path]
     explainability_hashes = {
         str(path.relative_to(root)): sha256_file(path) for path in artifact_paths
     }
@@ -349,6 +398,7 @@ def generate_final_explainability(
         **{key: provenance[key] for key in (
             "method", "explained_output", "background_partition", "explanation_partition",
             "background_sample_size", "explanation_sample_size", "shap_nsamples", "seed",
+            "stability_seeds", "minimum_pairwise_spearman_rank_correlation", "ranking_policy",
             "association_not_causality", "local_explanations_generated", "generator_sha256",
         )},
         "status": "generated",

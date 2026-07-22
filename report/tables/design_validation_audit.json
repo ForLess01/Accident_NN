@@ -6,17 +6,17 @@
     "design_evaluation": "2023",
     "historical_reference": "2024-2025, opened only after design rules were frozen"
   },
-  "raw_input_fields": 26,
-  "processed_features": 175,
+  "raw_input_fields": 21,
+  "processed_features": 169,
   "regularization_variants": 4,
   "regularization_seeds": [
     42,
     314,
     2718
   ],
-  "network_strategy_conclusion": "retain the single frozen seed-314 MLP; the ensemble is a future hypothesis requiring a new holdout and independent calibration",
+  "network_strategy_conclusion": "retain the single frozen seed-42 MLP; the ensemble is a future hypothesis requiring a new holdout and independent calibration",
   "ensemble_all_reported_ci_include_zero": true,
-  "n_personas_rule_selected_on_validation": 4,
+  "personas_predictors_included": false,
   "reference_is_post_hoc": true,
   "canonical_artifacts_modified": false
 }

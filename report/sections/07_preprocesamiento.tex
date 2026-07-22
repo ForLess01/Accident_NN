@@ -1,25 +1,7 @@
 \section{Preprocesamiento}\label{sec:preprocesamiento}
 
-\subsection{Contrato anti-fuga}
-El target es \texttt{target\_multifatal}=1 cuando \texttt{FALLECIDOS}$\geq2$. Por ser resultado directo, \texttt{FALLECIDOS} no entra a $X$. También se excluyen \texttt{LESIONADOS}, \texttt{VEHICULOS\_DANADOS}, causas post-investigación y señalización con faltantes dependientes del periodo. De las bases companion se excluyen la gravedad por persona, los lugares de atención y defunción y los dosajes etílicos; solo entran conteos y atributos de escena. Como no existen timestamps de disponibilidad por campo, el análisis se limita a clasificación retrospectiva post-registro.
+El preprocesamiento se ajusta únicamente en la partición de fit correspondiente. Normaliza categorías, crea una categoría \texttt{DESCONOCIDO}, asigna frecuencia cero a códigos de vía no vistos, estandariza continuas y genera codificación \emph{one-hot}. Mes, día semanal y hora se representan cíclicamente. Se incluyen interacciones predeclaradas de contexto vial.
 
-\subsection{Corte cronológico}
-Las fechas determinan tres bloques sin solapamiento: 2021--2022 para entrenamiento, 2023 para validación y calibración, y 2024--2025 para referencia histórica. El escalador, las categorías, el mapa de frecuencias de vía y cualquier imputación se ajustan únicamente con entrenamiento. Los transformadores no vuelven a ajustarse al procesar periodos posteriores.
+El contrato persistido contiene 21 campos crudos y 169 columnas \texttt{float32} en orden fijo. Se excluyen fallecidos, lesionados, vehículos dañados, causas investigadas, identificadores y toda característica PERSONAS. El esquema, escalador, encoders, modelo, calibrador y umbrales se verifican por hash antes de inferencia.
 
-\subsection{Limpieza y codificación}
-Las categorías se normalizan a vocabularios cerrados con una categoría explícita \texttt{DESCONOCIDO}. Los códigos de carretera no vistos reciben frecuencia cero. Latitud y longitud se convierten a numérico; el \emph{bundle} final exige el par completo para inferencia y la interfaz no inventa ubicaciones. Las continuas se estandarizan con estadísticos 2021--2022; las variables cíclicas permanecen en $[-1,1]$ y las categóricas se codifican \emph{one-hot}.
-
-\subsection{Contrato persistido}
-\path{models/final/} contiene \path{feature_list.json}, \path{feature_schema.json}, escalador, codificadores, modelo, calibrador, umbrales y manifiesto. El manifiesto registra hashes SHA-256 y el cargador de inferencia los verifica antes de predecir. El vector final tiene exactamente 175 columnas y el orden es parte del contrato.
-
-\subsection{Pruebas de frontera}
-Las pruebas automatizadas verifican que:
-\begin{itemize}
-  \item las particiones temporales no se solapen;
-  \item validación, no la referencia, seleccione umbrales y calibración;
-  \item el modelo, el esquema y la lista tengan 175 entradas en el mismo orden;
-  \item las escalas cruda y calibrada conserven umbrales distintos;
-  \item el par de coordenadas sea obligatorio en la inferencia final;
-  \item una entrada inválida elimine cualquier resultado previo de la interfaz.
-\end{itemize}
-Los casos de demostración prueban ejecución, no desempeño.
+La curva de aprendizaje compara PR-AUC no ponderada de fit 2021 y selección 2022; no enfrenta pérdida ponderada con pérdida no ponderada. Para el modelo reajustado, PR-AUC de entrenamiento es 0.4332 y de 2023 es 0.3367; la brecha es 0.0965. El Brier aumenta solo 0.0036 entre entrenamiento y 2023, evidencia que debe leerse junto al deterioro de ranking.

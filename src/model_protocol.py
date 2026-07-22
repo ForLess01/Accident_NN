@@ -55,7 +55,7 @@ EXCLUDED_COLUMNS = frozenset(
         "ZONIFICACION",
     }
 )
-COMPANION_COUNT_COLUMNS = [
+VEHICLE_COUNT_COLUMNS = [
     "n_vehiculos",
     "n_bus",
     "n_pesado_carga",
@@ -63,12 +63,12 @@ COMPANION_COUNT_COLUMNS = [
     "n_no_identificado",
     "n_interprovincial",
     "n_transporte_publico",
-    "n_personas",
-    "n_pasajeros",
-    "n_peatones",
-    "n_conductor_fugado",
 ]
-CONTINUOUS_COLUMNS = ["LATITUD", "LONGITUD", "via_freq", *COMPANION_COUNT_COLUMNS, "edad_media_involucrados"]
+COMPANION_COUNT_COLUMNS = VEHICLE_COUNT_COLUMNS
+PERSONAS_DERIVED_COLUMNS = frozenset(
+    {"n_personas", "n_pasajeros", "n_peatones", "n_conductor_fugado", "edad_media_involucrados", "edad_faltante"}
+)
+CONTINUOUS_COLUMNS = ["LATITUD", "LONGITUD", "via_freq", *VEHICLE_COUNT_COLUMNS]
 
 
 def split_chronological(base: pd.DataFrame) -> dict[str, pd.DataFrame | pd.Series]:
@@ -160,14 +160,11 @@ def derive_base_features(df: pd.DataFrame, via_frequency_map: dict[str, float] |
     features["road_type_zone"] = features["TIPO_VIA"] + "__" + features["ZONA"]
     features["road_network_class"] = features["RED_VIAL"] + "__" + features["CLASE"]
 
-    # v2 scene aggregates from companion tables are consolidated facts; their
-    # source availability timestamps are absent.
-    for column in COMPANION_COUNT_COLUMNS:
+    # VEHICULOS aggregates are consolidated retrospective facts. PERSONAS is
+    # structurally prohibited because its cardinality reconstructs the target.
+    for column in VEHICLE_COUNT_COLUMNS:
         values = pd.to_numeric(df[column], errors="coerce") if column in df else pd.Series(np.nan, index=df.index)
         features[column] = values.fillna(0).clip(lower=0).astype("float64")
-    edad = pd.to_numeric(df["edad_media_involucrados"], errors="coerce") if "edad_media_involucrados" in df else pd.Series(np.nan, index=df.index)
-    features["edad_faltante"] = edad.isna().astype("int8")
-    features["edad_media_involucrados"] = edad
     return features
 
 
@@ -175,18 +172,14 @@ def fit_preprocessor(train_df: pd.DataFrame) -> tuple[StandardScaler, dict[str, 
     preliminary = derive_base_features(train_df)
     lat_median = float(preliminary["LATITUD"].median())
     lon_median = float(preliminary["LONGITUD"].median())
-    edad_median_raw = preliminary["edad_media_involucrados"].median()
-    edad_median = 0.0 if pd.isna(edad_median_raw) else float(edad_median_raw)
     via_frequency_map = preliminary["CODIGO_VIA"].value_counts(normalize=True, dropna=False).astype(float).to_dict()
     base = derive_base_features(train_df, via_frequency_map)
     base["LATITUD"] = base["LATITUD"].fillna(lat_median)
     base["LONGITUD"] = base["LONGITUD"].fillna(lon_median)
-    base["edad_media_involucrados"] = base["edad_media_involucrados"].fillna(edad_median)
     scaler = StandardScaler().fit(base[CONTINUOUS_COLUMNS])
     encoders: dict[str, Any] = {
         "lat_median": lat_median,
         "lon_median": lon_median,
-        "edad_median": edad_median,
         "via_frequency_map": via_frequency_map,
         "departamento_categories": sorted(base["DEPARTAMENTO"].dropna().unique().tolist()),
         "via_prefijo_categories": sorted(base["via_prefijo"].dropna().unique().tolist()),
@@ -212,12 +205,11 @@ def transform_features(df: pd.DataFrame, scaler: StandardScaler, encoders: dict[
     base = derive_base_features(df, encoders["via_frequency_map"])
     base["LATITUD"] = base["LATITUD"].fillna(float(encoders["lat_median"]))
     base["LONGITUD"] = base["LONGITUD"].fillna(float(encoders["lon_median"]))
-    base["edad_media_involucrados"] = base["edad_media_involucrados"].fillna(float(encoders["edad_median"]))
     output = pd.DataFrame(index=base.index)
     scaled = scaler.transform(base[encoders["continuous_columns"]])
     for idx, column in enumerate(encoders["continuous_columns"]):
         output[column] = scaled[:, idx]
-    for column in ["mes_sin", "mes_cos", "dia_semana_sin", "dia_semana_cos", "fin_de_semana", "hora_faltante", "hora_sin", "hora_cos", "nocturno", "coord_faltante", "night_rural", "rain_curve", "edad_faltante"]:
+    for column in ["mes_sin", "mes_cos", "dia_semana_sin", "dia_semana_cos", "fin_de_semana", "hora_faltante", "hora_sin", "hora_cos", "nocturno", "coord_faltante", "night_rural", "rain_curve"]:
         output[column] = base[column].fillna(0)
     one_hot_parts = [
         add_one_hot(base, "DEPARTAMENTO", encoders["departamento_categories"], "departamento"),
@@ -252,9 +244,17 @@ def feature_availability_audit() -> pd.DataFrame:
         ("DEPARTAMENTO, coordenadas, red/tipo de vía", "Consolidated registry", "timestamp not supplied", "not evaluated", "Location and road context"),
         ("ZONA, CLIMA, geometría, superficie", "Consolidated registry", "timestamp not supplied", "not evaluated", "Scene and infrastructure context"),
         ("CLASE", "Consolidated registry", "timestamp not supplied", "no", "Retrospective classification"),
-        ("Vehiculos/personas involucradas (conteos, tipo, edad)", "Companion registry", "timestamp not supplied", "no", "Retrospective v2 aggregates; per-person outcomes stay banned"),
+        ("VEHICULOS involucrados (conteos y tipo)", "VEHICULOS companion registry", "timestamp not supplied", "not evaluated", "retrospective historical classification", "include with scope restriction"),
+        ("Todos los agregados de PERSONAS", "PERSONAS companion registry", "not usable: cardinality/deceased counts encode target", "yes", "none", "exclude entire source from predictors"),
         ("FALLECIDOS, LESIONADOS, VEHICULOS_DANADOS", "Outcome/count after event", "no", "no", "Excluded: direct outcome leakage"),
         ("CAUSA_FACTOR, CAUSA_ESPECIFICA", "Investigation conclusion", "no", "no", "Excluded: post-investigation leakage"),
         ("SENAL_VERTICAL, SENAL_HORIZONTAL", "Sparse recording field", "not reliable", "not reliable", "Excluded: missingness is period-dependent"),
     ]
-    return pd.DataFrame(rows, columns=["source_fields", "availability", "post_incident_prioritization", "prevention", "decision"])
+    normalized = []
+    for row in rows:
+        if len(row) == 5:
+            source_fields, source_stage, timestamp_evidence, target_dependency, decision = row
+            normalized.append((source_fields, source_stage, timestamp_evidence, target_dependency, "retrospective historical classification", decision))
+        else:
+            normalized.append(row)
+    return pd.DataFrame(normalized, columns=["source_fields", "source_stage", "timestamp_evidence", "target_dependency", "allowed_scope", "decision"])

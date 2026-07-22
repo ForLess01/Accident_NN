@@ -8,7 +8,10 @@ from __future__ import annotations
 
 import argparse
 import ast
+import hashlib
 import json
+import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -16,15 +19,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PYTHON = ROOT / ".venv" / "bin" / "python"
-DIRECT_CHECKS = [
-    "tests/test_release_check.py",
-    "tests/test_model_protocol.py",
-    "tests/test_final_model_bundle.py",
-    "tests/test_final_explainability.py",
-    "tests/test_app_inference.py",
-    "tests/test_validation_design_audit.py",
-    "src/block_g_app_check.py",
-]
+APP_CHECKS = ["src/block_g_app_check.py"]
+RELEASE_PYTEST_ACTIVE_ENV = "ACCIDENT_NN_RELEASE_PYTEST_ACTIVE"
 INVENTORY_PATH = ROOT / "scripts" / "release_inventory.json"
 FORBIDDEN_REFERENCES = (
     "models/v1",
@@ -37,15 +33,55 @@ FORBIDDEN_REFERENCES = (
 )
 TEXT_SUFFIXES = {".py", ".md", ".tex", ".json", ".toml", ".txt", ".csv", ".bib"}
 STALE_NOTEBOOK_CLAIMS = ("tres arquitecturas", "no abre el periodo de referencia")
+FORBIDDEN_TIMELINE_PATTERNS = (
+    re.compile(r"selection[-_ ]period", re.IGNORECASE),
+    re.compile(r"(?:selecci[oó]n|selection)\s*:\s*2023", re.IGNORECASE),
+    re.compile(r"2023\s+(?:architecture\s+)?selection", re.IGNORECASE),
+    re.compile(r"selection[_ -]?2023", re.IGNORECASE),
+    re.compile(r"selection_partition[\"']?\s*[:=][^\n]{0,80}2023", re.IGNORECASE),
+    re.compile(r"(?:se\s+)?seleccion(?:a|an|ó|aron|aba|aban)\s+en\s+2023", re.IGNORECASE),
+    re.compile(r"en\s+2023\s+(?:se\s+)?seleccion(?:a|an|ó|aron|aba|aban)", re.IGNORECASE),
+    re.compile(r"seleccionad[oa]s?\b[^\n]{0,80}validaci[oó]n\s+(?:de\s+)?2023", re.IGNORECASE),
+    re.compile(r"se\s+selecciona\b[^\n]{0,80}\ben\s+2023", re.IGNORECASE),
+)
+TIMELINE_SCAN_FILES = (
+    Path("README.md"),
+    Path("Plan.md"),
+    Path("src/block_e_modeling.py"),
+    Path("src/final_model_bundle.py"),
+    Path("src/final_explainability.py"),
+    Path("src/demo_cases.py"),
+)
+TIMELINE_SCAN_DIRECTORIES = (
+    Path("app"),
+    Path("docs"),
+    Path("models/final"),
+    Path("notebooks"),
+    Path("report/sections"),
+    Path("report/tables"),
+)
+TIMELINE_TEXT_SUFFIXES = TEXT_SUFFIXES | {".ipynb"}
 
 
 def announce(message: str) -> None:
     print(f"[release] {message}", flush=True)
 
 
-def run(command: list[str]) -> None:
+def run(command: list[str], *, env: dict[str, str] | None = None) -> None:
     announce("$ " + " ".join(command))
-    subprocess.run(command, cwd=ROOT, check=True)
+    subprocess.run(command, cwd=ROOT, check=True, env=env)
+
+
+def complete_pytest_command() -> list[str]:
+    """Return the one non-fragmented test command used by the release gate."""
+    return [str(PYTHON), "-m", "pytest", "-q"]
+
+
+def release_pytest_environment() -> dict[str, str]:
+    """Mark the child suite so an accidental nested release call fails closed."""
+    environment = os.environ.copy()
+    environment[RELEASE_PYTEST_ACTIVE_ENV] = "1"
+    return environment
 
 
 def load_release_inventory(path: Path = INVENTORY_PATH) -> list[str]:
@@ -155,6 +191,38 @@ def verify_notebook_claims() -> None:
         raise RuntimeError("Afirmaciones metodológicas obsoletas en notebooks:\n" + "\n".join(hits))
 
 
+def find_forbidden_timeline_labels(root: Path = ROOT) -> list[str]:
+    """Find canonical text that incorrectly turns 2023 into a selection period."""
+    files = [root / relative for relative in TIMELINE_SCAN_FILES]
+    for relative in TIMELINE_SCAN_DIRECTORIES:
+        directory = root / relative
+        if directory.exists():
+            files.extend(
+                path
+                for path in directory.rglob("*")
+                if path.is_file() and path.suffix.lower() in TIMELINE_TEXT_SUFFIXES
+            )
+    hits: list[str] = []
+    for path in sorted(set(files)):
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for pattern in FORBIDDEN_TIMELINE_PATTERNS:
+            for match in pattern.finditer(text):
+                line = text.count("\n", 0, match.start()) + 1
+                hits.append(f"{path.relative_to(root)}:{line} -> {match.group(0)}")
+    return hits
+
+
+def verify_timeline_labels() -> None:
+    hits = find_forbidden_timeline_labels()
+    if hits:
+        raise RuntimeError(
+            "Etiquetas temporales obsoletas: 2023 es validación de calibración/umbrales, no selección:\n"
+            + "\n".join(hits)
+        )
+
+
 def scan_forbidden_references() -> None:
     hits: list[str] = []
     roots = [ROOT / "app", ROOT / "src", ROOT / "tests", ROOT / "report", ROOT / "docs"]
@@ -170,14 +238,39 @@ def scan_forbidden_references() -> None:
         raise RuntimeError("Referencias obsoletas encontradas:\n" + "\n".join(hits))
 
 
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def verify_pdf_freshness() -> None:
     pdf = ROOT / "report" / "main.pdf"
-    sources = list((ROOT / "report").rglob("*.tex")) + list((ROOT / "report").rglob("*.bib"))
+    manifest_path = ROOT / "report" / "build_manifest.json"
     if not pdf.exists() or pdf.stat().st_size < 10_000:
         raise RuntimeError("report/main.pdf falta o no parece un PDF final válido.")
-    newer = [str(path.relative_to(ROOT)) for path in sources if path.stat().st_mtime > pdf.stat().st_mtime]
-    if newer:
-        raise RuntimeError("El PDF es anterior a sus fuentes: " + ", ".join(newer))
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError("Falta report/build_manifest.json válido; ejecutá scripts/build_report.py.") from exc
+    mismatches = []
+    for relative, expected in manifest.get("canonical_input_hashes", {}).items():
+        path = ROOT / relative
+        if not path.is_file() or _sha256(path) != expected:
+            mismatches.append(relative)
+    if _sha256(pdf) != manifest.get("pdf", {}).get("sha256"):
+        mismatches.append("report/main.pdf")
+    if mismatches:
+        raise RuntimeError("El informe no coincide por contenido con su manifiesto: " + ", ".join(mismatches))
+
+
+def find_changed_canonical_paths(root: Path, paths: list[str]) -> list[str]:
+    """Return porcelain status entries for canonical paths, including binary files."""
+    return subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=all", "--", *paths],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip().splitlines()
 
 
 def verify_git_tracking(local_content: bool) -> None:
@@ -192,7 +285,14 @@ def verify_git_tracking(local_content: bool) -> None:
         if result.returncode != 0:
             untracked.append(relative)
     if not untracked:
-        return
+        changed = find_changed_canonical_paths(ROOT, release_paths())
+        if not changed:
+            return
+        message = "Rutas canónicas modificadas respecto a HEAD: " + ", ".join(line.strip() for line in changed)
+        if local_content:
+            announce("ADVERTENCIA: " + message)
+            return
+        raise RuntimeError(message + ". El modo estricto exige contenido idéntico a HEAD.")
     message = "Archivos canónicos todavía no versionados: " + ", ".join(untracked)
     if local_content:
         announce("ADVERTENCIA: " + message)
@@ -208,17 +308,23 @@ def main() -> int:
         help="Valida el contenido local y muestra archivos no versionados como advertencia.",
     )
     args = parser.parse_args()
+    if os.environ.get(RELEASE_PYTEST_ACTIVE_ENV) == "1":
+        raise RuntimeError("Se bloqueó una invocación recursiva del release gate desde pytest.")
     if not PYTHON.exists():
         raise RuntimeError("No existe .venv/bin/python. Creá el entorno indicado en README.md.")
 
     require_paths()
     announce("artefactos requeridos presentes")
-    for relative in DIRECT_CHECKS:
+    run(complete_pytest_command(), env=release_pytest_environment())
+    announce("suite pytest completa verificada")
+    for relative in APP_CHECKS:
         run([str(PYTHON), relative])
     verify_notebooks_and_python()
     announce("notebooks, sintaxis e imports verificados")
     verify_notebook_claims()
     announce("afirmaciones metodológicas de notebooks verificadas")
+    verify_timeline_labels()
+    announce("cronología canónica sin etiquetas temporales obsoletas")
     scan_forbidden_references()
     announce("sin referencias obsoletas")
     verify_pdf_freshness()

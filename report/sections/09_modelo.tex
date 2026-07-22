@@ -1,46 +1,41 @@
 \section{Modelo neuronal}\label{sec:modelo}
 
-\subsection{Búsqueda cerrada y reproducible}
-Se definieron tres configuraciones completas y tres semillas antes de consultar el periodo de referencia 2024--2025. Cada configuración varía conjuntamente capas, \emph{dropout}, L2 y tasa de aprendizaje. Cada corrida usó el mismo entrenamiento 2021--2022 y validación 2023, con entropía cruzada binaria, pesos de clase, Adam, reducción de tasa de aprendizaje y parada temprana por PR-AUC. La configuración se eligió por mediana de PR-AUC entre semillas; F1 mediana y menor dispersión actuaron como desempates. La misma búsqueda se ejecutó íntegra para la versión 2 con las 175 características.
+\subsection{Arquitectura exacta}
+La única red canónica es:
+\begin{align*}
+169 &\rightarrow \operatorname{Dense}(64,\mathrm{ReLU})
+\rightarrow \operatorname{Dropout}(0.35)\\
+&\rightarrow \operatorname{Dense}(32,\mathrm{ReLU})
+\rightarrow \operatorname{Dropout}(0.35)
+\rightarrow \operatorname{Dense}(1,\sigma).
+\end{align*}
+Tiene dos capas ocultas, tres capas Dense entrenables y 12\,993 parámetros: $(169+1)64+(64+1)32+(32+1)1$.
 
-\begin{table}[H]
-\centering
-\caption{Robustez de configuraciones en validación 2023 (contrato v2 de 175 características).}
-\label{tab:robustez-config}
-\small
-\begin{tabular}{lccc}
-\toprule
-Configuración & PR-AUC mediana & F1 mediana & IQR PR-AUC \\
-\midrule
-\textbf{MLP\_32\_16: 32--16} & \textbf{0.4806} & 0.5093 & 0.0058 \\
-MLP\_64\_32: 64--32 & 0.4682 & \textbf{0.5154} & \textbf{0.0047} \\
-MLP\_32: 32 & 0.4656 & 0.5118 & 0.0080 \\
-\bottomrule
-\end{tabular}
-\end{table}
+La configuración \texttt{MLP\_64\_32}, semilla 42, usa L2 $3\times10^{-4}$, Adam con tasa $5\times10^{-4}$ y lote 64. La implementación reproducible usa TensorFlow/Keras \cite{tensorflow_2024,keras_2024}. La arquitectura se elige por mediana PR-AUC entre tres semillas en la selección 2022; la corrida mediana determina 14 épocas para el reajuste 2021--2022. El umbral crudo 0.65 y el calibrado 0.15 se validan y fijan en 2023.
 
 \begin{figure}[H]
-  \centering
-  \includegraphics[width=0.92\textwidth]{figures/final_seed_robustness.png}
-  \caption{PR-AUC de validación por configuración completa y semilla. \texttt{MLP\_32\_16} presenta la mayor mediana; la variación entre semillas se conserva como evidencia, no se oculta. Nótese que la configuración ganadora de la versión 1 (\texttt{MLP\_64\_32}) deja de serlo con el contrato v2: la regla predeclarada decide, no la preferencia.}
-  \label{fig:robustez-semillas}
+\centering
+\includegraphics[width=0.92\textwidth]{figures/final_seed_robustness.png}
+\caption{PR-AUC por configuración completa y semilla durante la selección. La regla usa la mediana; la dispersión impide elegir por una corrida afortunada.}
+\label{fig:robustez-semillas}
 \end{figure}
 
-\subsection{Arquitectura congelada}
-La MLP canónica es \texttt{MLP\_32\_16} con semilla 314: entrada de 175 variables, capas densas de 32 y 16 neuronas con ReLU, \emph{dropout} 0.25, L2 de $1\times10^{-4}$, Adam con $1\times10^{-3}$ y lote 64. El modelo final conserva exactamente el hash del artefacto seleccionado; materializar \path{models/final/} no reentrena ni vuelve a buscar pesos.
+\subsection{Una red, no dos}
+La auditoría comparó una MLP congelada, un promedio de tres semillas y una multirrama contexto/VEHICULOS. Los IC pareados del ensemble frente a la red única incluyen cero en todas las métricas reportadas. Sin evidencia concluyente y sin una nueva cohorte, una segunda red agregaría complejidad y otra decisión de selección. Se conserva una sola MLP.
 
-\subsection{Comparadores y política de umbral}
-El clasificador constante por prevalencia, la regresión logística balanceada y el Random Forest balanceado se entrenaron con las mismas particiones; los dos modelos aprendidos recibieron las mismas 175 variables. Para cada modelo, el umbral se escogió solo en validación con la misma regla: máximo F1; empates por \emph{recall}, precisión y mayor umbral. Para la MLP cruda se obtuvo 0.80.
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{figures/design_validation_evidence.png}
+\caption{Auditoría 2023 de regularización y número de redes. El eje derecho muestra diferencias pareadas del ensemble respecto de la red única; los intervalos incluyen cero.}
+\label{fig:auditoria-diseno}
+\end{figure}
 
-\subsection{Calibración Platt OOF}
-Sobre los scores de validación 2023 se generaron predicciones OOF con cinco particiones estratificadas. En esa selección, Platt obtuvo Brier OOF 0.0652 (ECE 0.0086) y quedó seleccionado frente a la isotónica. El umbral calibrado 0.30 se eligió sobre probabilidades OOF calibradas. Estos valores pertenecen exclusivamente a validación; el Brier 0.0683 informado en resultados corresponde a la referencia histórica 2024--2025 después de ajustar Platt con toda la validación. El procedimiento separa selección y referencia, y evita usar las etiquetas 2024--2025 para elegir el calibrador~\cite{scikit_learn_2024}.
+\subsection{Explicabilidad estable}
+Gradient SHAP usa fondo 2021--2022 y ejemplos 2023, sin etiquetas ni filas 2024--2025. Tres muestras/semillas deterministas producen correlación de rangos Spearman mínima 0.9897. Se reportan bandas de estabilidad; el orden exacto dentro de una banda no se interpreta como estable ni causal.
 
-\subsection{Artefactos canónicos}
-El directorio \path{models/final/} contiene:
-\begin{itemize}
-  \item \path{model.keras}, \path{scaler.joblib} y \path{encoders.joblib};
-  \item \path{feature_list.json} y \path{feature_schema.json};
-  \item \path{calibrator.joblib} y \path{thresholds.json};
-  \item \path{calibration_selection.json} y \path{manifest.json}.
-\end{itemize}
-Los hashes permiten demostrar que la aplicación ejecuta el mismo stack que sustenta el informe. La versión del bundle es \texttt{canonical-2.0.0}; la versión 1 permanece íntegra en la historia de Git.
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.76\textwidth]{figures/final_explainability_global.png}
+\caption{Importancia global agrupada mediante Gradient SHAP. La magnitud resume asociación con el score congelado; el color no representa un efecto causal.}
+\label{fig:explicabilidad-global}
+\end{figure}

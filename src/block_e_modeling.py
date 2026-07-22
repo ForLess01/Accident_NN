@@ -1,7 +1,8 @@
 """Train and select the definitive neural-network configuration without endpoint access.
 
-Configuration, seed and raw decision threshold are selected only with the
-2021--2022 training and 2023 validation periods. This module applies Parquet
+Architecture, configuration and seed are selected with fit 2021 / comparison
+2022. The frozen recipe is refit on 2021--2022, while 2023 is reserved for
+calibration and threshold validation. This module applies Parquet
 predicate pushdown before materialization; the separate bundle generator owns
 calibration and the read-only 2024--2025 historical-reference evaluation.
 """
@@ -28,6 +29,7 @@ from sklearn.dummy import DummyClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     average_precision_score,
+    brier_score_loss,
     f1_score,
     precision_score,
     recall_score,
@@ -41,6 +43,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from src.chronology import (
+    ARCHITECTURE_SELECTION_PARTITION,
+    FINAL_REFIT_PARTITION,
+    protocol_chronology_markdown,
+)
 from src.model_protocol import EXCLUDED_COLUMNS, feature_availability_audit, fit_preprocessor, transform_features
 
 BASE_PATH = ROOT / "data" / "processed" / "base_limpia.parquet"
@@ -60,7 +67,7 @@ class MLPConfig:
     batch_size: int
 
 
-# Compact grid declared before looking at selection-period metrics.
+# Compact grid declared before looking at architecture-selection metrics.
 MLP_GRID = (
     MLPConfig("MLP_32_16", (32, 16), 0.25, 1e-4, 1e-3, 64),
     MLPConfig("MLP_64_32", (64, 32), 0.35, 3e-4, 5e-4, 64),
@@ -161,6 +168,7 @@ def class_weights(y_train: pd.Series) -> dict[int, float]:
 
 def train_mlp_grid(X_train: pd.DataFrame, y_train: pd.Series, X_val: pd.DataFrame, y_val: pd.Series) -> tuple[keras.Model, MLPConfig, int, dict[str, float | str], np.ndarray, pd.DataFrame, pd.DataFrame]:
     fitted: dict[tuple[str, int], keras.Model] = {}
+    histories: dict[tuple[str, int], dict[str, list[float]]] = {}
     records: list[dict[str, float | int | str]] = []
     weights = class_weights(y_train)
     for config in MLP_GRID:
@@ -194,12 +202,16 @@ def train_mlp_grid(X_train: pd.DataFrame, y_train: pd.Series, X_val: pd.DataFram
                     "learning_rate": config.learning_rate,
                     "batch_size": config.batch_size,
                     "epochs_ran": len(history.history["loss"]),
+                    "best_epoch": int(np.argmax(history.history["val_pr_auc"]) + 1),
                     "best_val_pr_auc_history": float(max(history.history["val_pr_auc"])),
                     "selected_threshold": float(threshold["threshold"]),
                     **metrics,
                 }
             )
             fitted[(config.config_id, seed)] = model
+            histories[(config.config_id, seed)] = {
+                key: [float(value) for value in values] for key, values in history.history.items()
+            }
 
     run_table = pd.DataFrame(records)
     aggregate = (
@@ -215,6 +227,17 @@ def train_mlp_grid(X_train: pd.DataFrame, y_train: pd.Series, X_val: pd.DataFram
     selected_config = next(config for config in MLP_GRID if config.config_id == chosen_id)
     selected_seed = int(medoid["seed"])
     selected_model = fitted[(chosen_id, selected_seed)]
+    selected_history = histories[(chosen_id, selected_seed)]
+    epochs = len(selected_history.get("pr_auc", []))
+    # Keras PR-AUC is unweighted here for both train and validation; unlike the
+    # class-weighted optimization loss, these two curves are directly comparable.
+    selected_model._accident_learning_curve = pd.DataFrame(  # type: ignore[attr-defined]
+        {
+            "epoch": np.arange(1, epochs + 1),
+            "train_pr_auc_unweighted": selected_history.get("pr_auc", [np.nan] * epochs),
+            "validation_pr_auc_unweighted": selected_history.get("val_pr_auc", [np.nan] * epochs),
+        }
+    )
     selected_probabilities = selected_model.predict(X_val, verbose=0).reshape(-1)
     selected_threshold = choose_threshold(y_val, selected_probabilities)
     return selected_model, selected_config, selected_seed, selected_threshold, selected_probabilities, run_table, aggregate
@@ -240,24 +263,33 @@ def _platt_features(probabilities: np.ndarray) -> np.ndarray:
     return np.log(clipped / (1 - clipped)).reshape(-1, 1)
 
 
-def write_protocol_document(feature_count: int, split_sizes: dict[str, int]) -> None:
+def write_protocol_document(
+    feature_count: int,
+    split_sizes: dict[str, int],
+    destination: Path | None = None,
+) -> None:
+    chronology = protocol_chronology_markdown(
+        train_count=split_sizes["train"],
+        validation_count=split_sizes["validation"],
+    )
     text = f"""# Protocolo definitivo del modelo
 
 ## Protocolo predeclarado
-- Entrenamiento: siniestros de 2021--2022 ({split_sizes['train']} registros).
-- Selección: 2023 ({split_sizes['validation']} registros).
-- Referencia histórica: 2024--2025 no se abre ni se materializa en este pipeline. Su consulta controlada pertenece al generador del bundle definitivo.
+{chronology}
+- La referencia histórica no se abre ni se materializa en este pipeline. Su consulta controlada pertenece al generador del bundle definitivo.
 - MLP: 3 configuraciones completas predeclaradas × 3 semillas = 9 corridas; L2, dropout y early stopping por PR-AUC de validación.
 - Selección de configuración completa (capas, dropout, L2 y LR): mayor mediana de PR-AUC entre semillas; desempates por mediana de F1 e IQR menor. Se conserva la semilla mediana, no la corrida extrema.
 - Umbral: la misma regla para MLP, regresión logística y bosque aleatorio: máximo F1 de validación en la grilla 0.05--0.95; desempates por recall, precision y umbral alto.
 
 ## Contrato de variables
-La matriz tiene {feature_count} columnas y excluye resultados, causas investigadas, identificadores y señales con faltantes sesgados. Como la extracción no contiene timestamps por campo, el uso defendible es clasificación retrospectiva de registros consolidados.
+La matriz tiene {feature_count} columnas y excluye resultados, causas investigadas, identificadores, señales con faltantes sesgados y **todo agregado de PERSONAS**. PERSONAS reconstruye el objetivo por cardinalidad/conteo de fallecidos. Como la extracción no contiene timestamps por campo, el uso defendible es clasificación retrospectiva histórica de registros consolidados.
 
 ## Límites
-El objetivo es multifatalidad condicional a siniestros ya fatales, no la probabilidad de que un siniestro cualquiera sea mortal. La evaluación cronológica mide generalización futura interna, pero no reemplaza validación externa. La calibración se selecciona y ajusta exclusivamente en 2023; el periodo de referencia se usa solo para describir desempeño histórico.
+El objetivo es multifatalidad condicional a siniestros ya fatales, no la probabilidad de que un siniestro cualquiera sea mortal. La evaluación cronológica mide generalización futura interna, pero no reemplaza validación externa. El método y los parámetros de calibración, junto con los umbrales de decisión, se definen y ajustan únicamente en la partición de calibración y validación de umbrales de 2023; la arquitectura, la configuración y la semilla se seleccionan en 2022. El periodo de referencia se usa solo para describir desempeño histórico.
 """
-    (TABLES_DIR / "final_model_protocol.md").write_text(text, encoding="utf-8")
+    output = destination or TABLES_DIR / "final_model_protocol.md"
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(text, encoding="utf-8")
 
 
 def read_training_validation_source(path: Path = BASE_PATH) -> pd.DataFrame:
@@ -309,6 +341,26 @@ def run_modeling_pipeline() -> dict[str, object]:
     splits = split_training_validation(base)
     X_train_raw, y_train = splits["X_train_raw"], splits["y_train"]
     X_val_raw, y_val = splits["X_validation_raw"], splits["y_validation"]
+    # Architecture and seed selection use a strictly earlier inner split:
+    # fit 2021, select 2022. The selected recipe is then refit once on all
+    # 2021-22 for a fixed epoch count before 2023 calibration/thresholding.
+    train_years = pd.to_datetime(X_train_raw["FECHA"]).dt.year  # type: ignore[index]
+    inner_fit_raw = X_train_raw.loc[train_years.eq(2021)].copy()  # type: ignore[union-attr]
+    inner_select_raw = X_train_raw.loc[train_years.eq(2022)].copy()  # type: ignore[union-attr]
+    inner_y_fit = y_train.loc[inner_fit_raw.index]  # type: ignore[union-attr]
+    inner_y_select = y_train.loc[inner_select_raw.index]  # type: ignore[union-attr]
+    inner_scaler, inner_encoders = fit_preprocessor(inner_fit_raw)
+    X_inner_fit = transform_features(inner_fit_raw, inner_scaler, inner_encoders)
+    X_inner_select = transform_features(inner_select_raw, inner_scaler, inner_encoders)
+    inner_selected_model, config, seed, inner_threshold, _, grid_table, aggregate_table = train_mlp_grid(
+        X_inner_fit, inner_y_fit, X_inner_select, inner_y_select
+    )
+
+    selected_run = grid_table[
+        grid_table["config_id"].eq(config.config_id) & grid_table["seed"].eq(seed)
+    ].iloc[0]
+    fixed_epochs = int(selected_run["best_epoch"])
+
     # No endpoint partition exists in this process to transform or score.
     scaler, encoders = fit_preprocessor(X_train_raw)  # type: ignore[arg-type]
     X_train = transform_features(X_train_raw, scaler, encoders)  # type: ignore[arg-type]
@@ -318,11 +370,26 @@ def run_modeling_pipeline() -> dict[str, object]:
     (FINAL_MODEL_DIR / "feature_list.json").write_text(json.dumps(encoders["feature_list"], ensure_ascii=False, indent=2), encoding="utf-8")
 
     baseline_models, baseline_validation = train_baselines(X_train, y_train, X_val, y_val)  # type: ignore[arg-type]
-    mlp, config, seed, mlp_threshold, mlp_validation_probabilities, grid_table, aggregate_table = train_mlp_grid(X_train, y_train, X_val, y_val)  # type: ignore[arg-type]
+    set_global_seed(seed)
+    mlp = build_mlp(X_train.shape[1], config)
+    final_history = mlp.fit(
+        X_train,
+        y_train,
+        epochs=fixed_epochs,
+        batch_size=config.batch_size,
+        class_weight=class_weights(y_train),
+        verbose=0,
+    )
+    mlp_validation_probabilities = mlp.predict(X_val, verbose=0).reshape(-1)
+    mlp_threshold = choose_threshold(y_val, mlp_validation_probabilities)
     selection = {
         "reference_period_used_during_selection": False,
         "selected_config": asdict(config),
         "selected_seed": seed,
+        "architecture_selection_partition": ARCHITECTURE_SELECTION_PARTITION,
+        "final_refit_partition": FINAL_REFIT_PARTITION,
+        "fixed_refit_epochs_from_inner_selection": fixed_epochs,
+        "inner_selected_threshold_diagnostic_only": inner_threshold,
         "selected_threshold": mlp_threshold,
         "selection_rule": "median validation PR-AUC across seeds, then median F1, then lower PR-AUC IQR",
         "threshold_policy": mlp_threshold["selection_policy"],
@@ -330,6 +397,33 @@ def run_modeling_pipeline() -> dict[str, object]:
     baseline_validation.to_csv(TABLES_DIR / "model_selection_baseline_validation.csv", index=False)
     grid_table.to_csv(TABLES_DIR / "model_selection_seed_grid_validation.csv", index=False)
     aggregate_table.to_csv(TABLES_DIR / "model_selection_robustness.csv", index=False)
+    # The inner selected run owns the comparable 2021 fit / 2022 selection
+    # curves. The final 2021-22 refit has no validation callback by design.
+    curve = getattr(inner_selected_model, "_accident_learning_curve", pd.DataFrame())
+    curve.to_csv(TABLES_DIR / "model_learning_curves.csv", index=False)
+    train_probabilities = mlp.predict(X_train, verbose=0).reshape(-1)
+    validation_probabilities = mlp.predict(X_val, verbose=0).reshape(-1)
+    gap = {
+        "schema_version": 1,
+        "metric_basis": "unweighted predictions from the same frozen network",
+        "learning_curve_roles": "2021 inner fit vs 2022 inner selection; no 2023 or reference rows",
+        "train_pr_auc": float(average_precision_score(y_train, train_probabilities)),
+        "validation_pr_auc": float(average_precision_score(y_val, validation_probabilities)),
+        "pr_auc_generalization_gap_train_minus_validation": float(
+            average_precision_score(y_train, train_probabilities)
+            - average_precision_score(y_val, validation_probabilities)
+        ),
+        "train_brier": float(brier_score_loss(y_train, train_probabilities)),
+        "validation_brier": float(brier_score_loss(y_val, validation_probabilities)),
+        "brier_generalization_gap_validation_minus_train": float(
+            brier_score_loss(y_val, validation_probabilities)
+            - brier_score_loss(y_train, train_probabilities)
+        ),
+        "weighted_loss_compared_across_partitions": False,
+    }
+    (TABLES_DIR / "model_generalization_gap.json").write_text(
+        json.dumps(gap, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     (FINAL_MODEL_DIR / "model_selection.json").write_text(json.dumps(selection, ensure_ascii=False, indent=2), encoding="utf-8")
     mlp.save(FINAL_MODEL_DIR / "model.keras")
 
@@ -342,6 +436,8 @@ def run_modeling_pipeline() -> dict[str, object]:
         "selected_config": config.config_id,
         "selected_seed": seed,
         "selected_threshold": float(mlp_threshold["threshold"]),
+        "architecture_selection": {"fit": "2021", "selection": "2022"},
+        "final_refit": {"period": "2021-2022", "epochs": fixed_epochs},
         "endpoint_period_loaded_for_training": False,
         "reference_period_used_for_selection": False,
     }

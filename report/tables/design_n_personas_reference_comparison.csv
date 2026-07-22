@@ -1,3 +1,0 @@
-model,probability_scale,selection_partition,threshold,f1_multifatal,precision_multifatal,recall_multifatal,pr_auc,roc_auc
-regla_n_personas,ordinal_count_not_probability,validation_2023_only,4.0,0.49544626593806923,0.41590214067278286,0.6126126126126126,0.394107630710564,0.8539756174084533
-MLP_canónica_cruda,raw_mlp_sigmoid,validation_2023_only,0.8,0.49572649572649574,0.4715447154471545,0.5225225225225225,0.44161244798359095,0.8841020124602215

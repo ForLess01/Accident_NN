@@ -1,12 +1,15 @@
 {
   "manifest_schema_version": "1.0",
-  "model_version": "canonical-2.0.0",
-  "created_utc": "2026-07-21T15:46:07.292291+00:00",
+  "model_version": "canonical-3.0.0",
+  "created_utc": "2026-07-22T09:56:10.752579+00:00",
   "model_role": "retrospective conditional multifatality classification",
   "dataset": {
     "path": "data/processed/base_limpia.parquet",
-    "sha256": "7c294e4b4eba48ae94f10db22e1a8145e4cd85b12fc61d363d70573d293a725a",
-    "row_count": 9104
+    "sha256": "fa71c871d6b4449300ba27f20f9810c65d3e36508e3b3382ccea959fd38c3090",
+    "row_count": 9104,
+    "raw_source_manifest_path": "data/raw/source_manifest.json",
+    "raw_source_manifest_sha256": "37043e48ab91ae9816f0bd2d6b3ac69c2a5402ce7f1822c2fafbe6f27ba8bc6e",
+    "raw_source_count": 4
   },
   "code_and_libraries": {
     "python": "3.12.13",
@@ -14,10 +17,11 @@
     "pandas": "3.0.3",
     "scikit_learn": "1.9.0",
     "tensorflow": "2.19.1",
-    "builder_code_sha256": "29571a6ad5692fdbd009104168af042d1a426eb3af4db9710c756791322203b0",
-    "feature_protocol_sha256": "8032751141f2af3a399651f605b96199bf56ab72720c7e933221af4965485125",
-    "training_code_sha256": "addef93873156d30e991b116e56eae5765dfc54c2c0158b1947187e41dde3f60",
-    "design_audit_code_sha256": "d571fd60a4ee0d3a5456c18230cccd1e051d9ff55148a193073ca3b902e8cce1"
+    "builder_code_sha256": "731694f566146e91f9a9e21225ff8e23c0feaf1caa824aa99048289cc0ed8b39",
+    "feature_protocol_sha256": "e840153c45f5334aac0654e96b07b0690535064c27d84a3b8ca0d6aa58412fa9",
+    "chronology_protocol_sha256": "e9f24c63236251ae9dbfcd145745233f64079231765bd09528498a309aec01e7",
+    "training_code_sha256": "8a9c4f65d0fb36b6be91e3d25dce308216015bf041b09cf7698683768dc250ec",
+    "design_audit_code_sha256": "fd80054db621899191ad31e770747a201abe4593381c616df58f3013d87194eb"
   },
   "splits": {
     "train": {
@@ -42,77 +46,98 @@
       "class_rate": 0.09946236559139784
     }
   },
-  "feature_count": 175,
+  "feature_count": 169,
   "architecture": {
-    "config_id": "MLP_32_16",
+    "config_id": "MLP_64_32",
     "hidden_units": [
-      32,
-      16
+      64,
+      32
     ],
-    "dropout": 0.25,
-    "l2": 0.0001,
-    "learning_rate": 0.001,
+    "dropout": 0.35,
+    "l2": 0.0003,
+    "learning_rate": 0.0005,
     "batch_size": 64,
-    "seed": 314,
+    "seed": 42,
     "weights_frozen": true,
     "architecture_search_rerun": false
   },
   "calibration": {
     "method": "platt",
-    "selection_policy": "Select the lowest 5-fold stratified OOF Brier score on 2023 validation; ties within 1e-12 use lower ECE, then prefer Platt for lower variance. Platt uses L2-regularized logistic regression with C=1.0 and liblinear.",
-    "selection_partition": "validation_2023_only",
-    "threshold_source": "OOF calibrated validation predictions"
+    "validation_policy": "Choose the lowest 5-fold stratified OOF Brier score on 2023 validation; ties within 1e-12 use lower ECE, then prefer Platt for lower variance. Platt uses L2-regularized logistic regression with C=1.0 and liblinear.",
+    "validation_partition": "calibration_threshold_validation_2023_only",
+    "threshold_source": "OOF calibrated 2023 validation predictions"
   },
   "thresholds": {
     "raw": {
-      "value": 0.8,
+      "value": 0.65,
       "probability_scale": "raw_mlp_sigmoid",
-      "source_partition": "validation_2023",
-      "policy": "maximum 2023 selection-period F1; ties recall, precision, higher threshold"
+      "source_partition": "threshold_validation_2023",
+      "policy": "maximum 2023 threshold-validation F1; ties recall, precision, higher threshold"
     },
     "calibrated": {
-      "value": 0.3,
+      "value": 0.15,
       "probability_scale": "platt_calibrated_probability",
-      "source_partition": "validation_2023_oof",
+      "source_partition": "threshold_validation_2023_oof",
       "policy": "max validation F1; ties: recall, precision, higher threshold"
     }
   },
+  "endpoint_open_gate": {
+    "design_rows_materialized_before_open": 6872,
+    "reference_rows_materialized_after_open": 2232,
+    "reference_period": "2024-2025",
+    "frozen_decision_artifact_hashes": {
+      "calibration_selection.json": "b2bb5088c5f8484adff0e20d275e12cbf34c63892ac784f79fc1a24be29bca14",
+      "calibrator.joblib": "f2a0b818c0f22ecedff7c1bb1a6980dfb29b6db43f93e4c46909a6e03ec16b8c",
+      "thresholds.json": "ceb6967903089122b6ecd3fcffd761115334cc84e56171d86d07a93a14d1c83e",
+      "feature_schema.json": "045cacaba8923169a138c9cd41793978be51975351886209c383d76c13924c2c"
+    }
+  },
   "artifact_hashes": {
-    "model.keras": "65d5e497da746d501f275b5bb80b133d7a1def989ff5610f79a3988d07d1fea9",
-    "scaler.joblib": "faead7452ee1abc2b28f76d8d5c398050968af3154a3c769efb9f8c2fdfce07f",
-    "encoders.joblib": "a24de4b2e922fb67cffcba2ef642b8d7ce0547f7758e23561a2cedbc26f53d2d",
-    "feature_list.json": "37efe7cf2a5bca38e35b4f5c44950587a92e51f2d7ee05a3c5c8965f73bc4104",
-    "calibrator.joblib": "9932447d1a7a06f66d524f5e68408d2a359b29b886eef38b1c8b2ae145bdb3aa",
-    "thresholds.json": "8b099d480c86329964303eabaab0216b5aafa840f93c4ca777459606c9fd3bc8",
-    "feature_schema.json": "a4e5cf4903204447d8870413ac3a9b335bb0ae485d49074386a1e47cf0870fb1",
-    "calibration_selection.json": "37d87533a14a55cdee8623813580c6a1cb66d9b95cba47a9debc99c61ee8dfab"
+    "model.keras": "54287e187fe487a29a6ff7e4cd24d880664663b03a35ff00ff8969d11cf2372a",
+    "scaler.joblib": "f5f77974515ad0025f366258476c2f1a1f484adc5493fe788021f22344eba49a",
+    "encoders.joblib": "3fc8f1073c8bc8fe0fb9ba41380f939545d02a9c6a7c7802797be72beedd18ef",
+    "feature_list.json": "dca3a9cc4ee7e1218e3a5205cc8b8f3e71e756f6ff456f2c9704a052d2e8b67a",
+    "calibrator.joblib": "f2a0b818c0f22ecedff7c1bb1a6980dfb29b6db43f93e4c46909a6e03ec16b8c",
+    "thresholds.json": "ceb6967903089122b6ecd3fcffd761115334cc84e56171d86d07a93a14d1c83e",
+    "feature_schema.json": "045cacaba8923169a138c9cd41793978be51975351886209c383d76c13924c2c",
+    "calibration_selection.json": "b2bb5088c5f8484adff0e20d275e12cbf34c63892ac784f79fc1a24be29bca14"
   },
   "selection_artifact_hashes": {
-    "model_selection.json": "6ad4eb059001c9a569b2c5e6a77d62625859ee4915ae272da630d648393b208a",
-    "model_selection_baseline_validation.csv": "41d1c0b3ee65ade281db4e37bc33ecd6318dc3fc88ab197f6bc9591b13526d09",
-    "model_selection_seed_grid_validation.csv": "fd39dbe6a763cd8914fe7052ce6b685358aa0cb498a5f5955749be0b9c4affa6",
-    "model_selection_robustness.csv": "e67fee010b5e3c92c2e62f23f90a6274f13d50192d6a3df98443dc2ad814d648"
+    "model_selection.json": "441a0d34732589684ac2e5b72b6d2688723d6ea6ef5cb5dedbc617faaddfc85c",
+    "model_selection_baseline_validation.csv": "2fece3e6b04a20d60168636e2943209728d9d2d72fe6db3b12abb0c30f8dc87d",
+    "model_selection_seed_grid_validation.csv": "58e13b902f8e5639a4cabbcb57a0cc198b82cd7ed33959b7de2fc47138e7b3e4",
+    "model_selection_robustness.csv": "3dba6540acbbbbda5c1f0f374a5d5126a03b9faf755f83a268d2b17fb7082435",
+    "model_learning_curves.csv": "6dde20cbf554c06d4bad9d5222075dff5f5d0d276ac41d610e507919d70129de",
+    "model_generalization_gap.json": "b595d4f187da0b55c753847dd430f4c55b3766df0001576703275adb2875a31b"
+  },
+  "temporal_diagnostic_artifact_hashes": {
+    "temporal_nested_fold_roles.csv": "8544ada04eba712bed98d2cefd45649efcb13757e930b452a00ef6b60f3d3391",
+    "temporal_nested_outer_metrics.csv": "f6301cfab84622e5887fe2f282702d6bbdf00859ed1397fff578db2b9c5cdbf6",
+    "temporal_nested_diagnostics.json": "646a85dd50e6268755f8c6ecb908eeef12efa94802ad3c601b2b58cb6568e086"
   },
   "reference_artifact_hashes": {
-    "final_reference_metrics_2024_2025.json": "d34ab62832c3760f2d88f3d1a2bbdac9bc65aafa3bae0945549ef0d7a69d18ae",
-    "final_reference_probabilities_2024_2025.csv": "9f8319307884db8200be6bfa032ce5e2f488a2061cba9d80d1c03db86da9aa31",
-    "final_reference_error_examples_2024_2025.csv": "777d7aff23343a64cb360b5cbfcfce8bad5ee9bbe676da41e4636b13e395aa4e",
-    "final_reference_confusion_matrix_2024_2025.csv": "5f018e27d6f730ee573fe940e03cc043b19bff47d41245b04c0c99c4d295d33c",
-    "final_reference_classification_report_2024_2025.csv": "a0c6e2c755f73f7c467ebf4add83129108fc2eb6ca02bbe948f389f6ed81d608",
-    "final_reference_bootstrap_ci_2024_2025.csv": "1a77b1087bea97c32ba03d375caae8b875fc47d654e2190b17b109141bdc8b53",
-    "final_reference_baseline_comparison_2024_2025.csv": "221065317cb43cf80e4ffbd0232eaeb3070f6ca0af7c097fa9aacfa15387e05c",
-    "final_model_protocol.md": "8e9dac6d50f5f243e9541d1d3706d8d2174d534f08fde3010ef0cc5bb66c3c47"
+    "final_reference_metrics_2024_2025.json": "871f33d786a369f580e64a9a543585af3f44e461e4ec61be853f30289a871c30",
+    "final_reference_probabilities_2024_2025.csv": "3d1dfddbb3fb3397509604d7db80a04db2bf2a49e82495b12ace41a43b55afb8",
+    "final_reference_error_examples_2024_2025.csv": "457b223d88420aeea08d4be9d19037f5a3e8506a203a0b148b0b0e7b3d9708c3",
+    "final_reference_confusion_matrix_2024_2025.csv": "dec9d2d4a40b924cbfd437a52eae3ce9c67eaa90e47754566aa8df0fb9b4e807",
+    "final_reference_classification_report_2024_2025.csv": "98b86b393d42e31bfacf2b1424696ec213df96845720d39dcfebda665bbc64b1",
+    "final_reference_bootstrap_ci_2024_2025.csv": "b57a8419843b4bbf0c518dea08fd426560b084d95af7ae97b3fe850bff67809c",
+    "final_reference_bootstrap_metadata.json": "ba1dfab3df1b17ecd91dc2253ad3980d615dbfc741717c0fbc93f05cdce25563",
+    "final_reference_baseline_comparison_2024_2025.csv": "a3797f43a88a0935efad7aacf842114c7876059fb867428ea74e203751b714cd",
+    "final_paired_bootstrap_2024_2025.csv": "d2af642f105a8837dfe29d76247ec1a924e50fb5390fd9d868d812f4697f1a3c",
+    "final_paired_bootstrap_2024_2025.json": "c062a7963b777a72649d0c2d02b30bb3c49f5c744609bd70c8d030c026783117",
+    "final_model_protocol.md": "7d7f9a0e5e18df4c174370426740b59072fbc33e581358ec510f834d062fd8f9"
   },
   "design_evidence_artifact_hashes": {
-    "design_annual_stability_2024_2025.csv": "2cda2533b2c44e80d7be1bfc7343f77a54a90cc58e0e27e7a9aa89595d6cee16",
-    "design_n_personas_paired_bootstrap.csv": "25554aabb4bbab20bc3f31583e547e10eb820be2f68d0361f96a9996e92d853d",
-    "design_n_personas_reference_comparison.csv": "4397d986bf0d137115de29dce1197a0214a311932dd21f58b3ccca3e9fd4c20c",
-    "design_network_strategy_bootstrap.csv": "b58d61eec5663b811be347c9d1dda507e8d514e82860f0ecbf597f33a51e0e5f",
-    "design_network_strategy_validation.csv": "981b247b0bb3a229a5ea7f776b8a2f6a04bf422d53c4b879eb9a130d63648670",
-    "design_regularization_runs.csv": "c2ab9d7a8ce812d51fa02bfc5ce5ff1b2d11d4627d11971acb601f3e5559e6c3",
-    "design_regularization_summary.csv": "e2dab6e76abbd925a46bb595d28cf80f2c0636678a981ff5395bd09c113cc83b",
-    "design_validation_audit.json": "0dc192a9d1eb1b4d7dc2e85bc1dea38b4f3d51b3331e939ad92fa42204c06437",
-    "report/figures/design_validation_evidence.png": "a82d540112cc8c3e845e2a2865a35aec974e8b58c14dbfcbf631c412d064510e"
+    "design_annual_stability_2024_2025.csv": "89e3e749eaf5ca99e163ec1161a90be9845e27c7523fb2c2c5de9d9dfc643e7a",
+    "design_network_strategy_bootstrap.csv": "9292e9e328ef4be680a9c4e27abfdbeb499b7462e50dbf051f8b9d7ffaaf783f",
+    "design_network_strategy_validation.csv": "cce5f4cc59009db3a7fbf9d55dafada1b88048c0da94dc8ae7c4ea19cfab4f13",
+    "design_regularization_runs.csv": "8af1b72df0d4fdabda0e187efc9d19f4afbd412bcef1228bb766371fdaf20f17",
+    "design_regularization_summary.csv": "fb9dd83b3ae2856d83610a6a4ba256f1bf7240ec180accfff879b003e4d2c144",
+    "design_validation_audit.json": "d615cf5a3b3eac1668534f5ce5f8743434ecf732ae1cbdae71b0f7b9a1af844d",
+    "personas_target_proxy_identity.csv": "e6942a595b41492f7f982407b3f5f2ec56a9788bd90eece8cedea07f18af9672",
+    "personas_target_proxy_identity.json": "f9d0cdc27ed94f6caaecc7efc6e47cf778dbc764d8518023dc1b7c997a6c4a21",
+    "report/figures/design_validation_evidence.png": "f32ebead88bac3adbed9db1f4f5ef3355d9eacbd2e08a285ce5439fcf7ca1877"
   },
   "reference_evaluation": {
     "status": "2024-2025 labels were already observed; metrics are historical reference and cannot justify further tuning",
@@ -125,171 +150,200 @@
         "n": 2232,
         "positives": 222,
         "class_rate": 0.09946236559139784,
-        "threshold": 0.8,
-        "f1_multifatal": 0.49572649572649574,
-        "precision_multifatal": 0.4715447154471545,
-        "recall_multifatal": 0.5225225225225225,
-        "pr_auc": 0.44161244798359095,
-        "roc_auc": 0.8841020124602215,
-        "brier": 0.10807232558727264,
-        "ece_10_bins": 0.10435607660550117
+        "threshold": 0.65,
+        "f1_multifatal": 0.4030075187969925,
+        "precision_multifatal": 0.30248306997742663,
+        "recall_multifatal": 0.6036036036036037,
+        "pr_auc": 0.3253659243334752,
+        "roc_auc": 0.7916207252028149,
+        "brier": 0.16421911120414734,
+        "ece_10_bins": 0.23384416398448757
       },
       "calibrated": {
         "n": 2232,
         "positives": 222,
         "class_rate": 0.09946236559139784,
-        "threshold": 0.3,
-        "f1_multifatal": 0.5058365758754864,
-        "precision_multifatal": 0.4452054794520548,
-        "recall_multifatal": 0.5855855855855856,
-        "pr_auc": 0.44161244798359095,
-        "roc_auc": 0.8841020124602215,
-        "brier": 0.0683364848239811,
-        "ece_10_bins": 0.016882211985580226
+        "threshold": 0.15,
+        "f1_multifatal": 0.39893617021276595,
+        "precision_multifatal": 0.2830188679245283,
+        "recall_multifatal": 0.6756756756756757,
+        "pr_auc": 0.3253659243334752,
+        "roc_auc": 0.7916207252028149,
+        "brier": 0.07771894431136563,
+        "ece_10_bins": 0.013263074379969311
       }
     },
     "bootstrap_ci": [
       {
         "probability_scale": "raw",
         "metric": "f1_multifatal",
-        "estimate": 0.49572649572649574,
-        "ci_2_5": 0.43788884424802466,
-        "ci_97_5": 0.5461697655748882,
+        "estimate": 0.4030075187969925,
+        "ci_2_5": 0.34959875378792493,
+        "ci_97_5": 0.4487384530693353,
         "bootstrap_iterations": 1000
       },
       {
         "probability_scale": "raw",
         "metric": "precision_multifatal",
-        "estimate": 0.4715447154471545,
-        "ci_2_5": 0.4078214774281806,
-        "ci_97_5": 0.5303795994410806,
+        "estimate": 0.30248306997742663,
+        "ci_2_5": 0.256568968066233,
+        "ci_97_5": 0.3460762384202195,
         "bootstrap_iterations": 1000
       },
       {
         "probability_scale": "raw",
         "metric": "recall_multifatal",
-        "estimate": 0.5225225225225225,
-        "ci_2_5": 0.45724412171507606,
-        "ci_97_5": 0.5850026595744681,
+        "estimate": 0.6036036036036037,
+        "ci_2_5": 0.5401717597250167,
+        "ci_97_5": 0.6619718309859155,
         "bootstrap_iterations": 1000
       },
       {
         "probability_scale": "raw",
         "metric": "pr_auc",
-        "estimate": 0.44161244798359095,
-        "ci_2_5": 0.37845798714237505,
-        "ci_97_5": 0.512383166632893,
+        "estimate": 0.3253659243334752,
+        "ci_2_5": 0.2702557905517203,
+        "ci_97_5": 0.3870531070301554,
         "bootstrap_iterations": 1000
       },
       {
         "probability_scale": "raw",
         "metric": "roc_auc",
-        "estimate": 0.8841020124602215,
-        "ci_2_5": 0.8613379416703911,
-        "ci_97_5": 0.9054890099575827,
+        "estimate": 0.7916207252028149,
+        "ci_2_5": 0.7595305819321428,
+        "ci_97_5": 0.8226611299086315,
         "bootstrap_iterations": 1000
       },
       {
         "probability_scale": "raw",
         "metric": "brier",
-        "estimate": 0.10807232558727264,
-        "ci_2_5": 0.09832577761262655,
-        "ci_97_5": 0.11750472187995911,
+        "estimate": 0.16421911120414734,
+        "ci_2_5": 0.15499318055808545,
+        "ci_97_5": 0.17340950593352317,
         "bootstrap_iterations": 1000
       },
       {
         "probability_scale": "raw",
         "metric": "ece_10_bins",
-        "estimate": 0.10435607660550117,
-        "ci_2_5": 0.09388877422444307,
-        "ci_97_5": 0.11855201730456646,
+        "estimate": 0.23384416398448757,
+        "ci_2_5": 0.22007553327146848,
+        "ci_97_5": 0.24854814546415585,
         "bootstrap_iterations": 1000
       },
       {
         "probability_scale": "calibrated",
         "metric": "f1_multifatal",
-        "estimate": 0.5058365758754864,
-        "ci_2_5": 0.45121646950002436,
-        "ci_97_5": 0.5566238597463244,
+        "estimate": 0.39893617021276595,
+        "ci_2_5": 0.35226419235271167,
+        "ci_97_5": 0.4423350436259401,
         "bootstrap_iterations": 1000
       },
       {
         "probability_scale": "calibrated",
         "metric": "precision_multifatal",
-        "estimate": 0.4452054794520548,
-        "ci_2_5": 0.3879494508800963,
-        "ci_97_5": 0.5,
+        "estimate": 0.2830188679245283,
+        "ci_2_5": 0.24301970948323495,
+        "ci_97_5": 0.32285826809528967,
         "bootstrap_iterations": 1000
       },
       {
         "probability_scale": "calibrated",
         "metric": "recall_multifatal",
-        "estimate": 0.5855855855855856,
-        "ci_2_5": 0.5193824892854019,
-        "ci_97_5": 0.6488888888888888,
+        "estimate": 0.6756756756756757,
+        "ci_2_5": 0.6142794486215539,
+        "ci_97_5": 0.7330321535393818,
         "bootstrap_iterations": 1000
       },
       {
         "probability_scale": "calibrated",
         "metric": "pr_auc",
-        "estimate": 0.44161244798359095,
-        "ci_2_5": 0.37845798714237505,
-        "ci_97_5": 0.512383166632893,
+        "estimate": 0.3253659243334752,
+        "ci_2_5": 0.2702557905517203,
+        "ci_97_5": 0.3870531070301554,
         "bootstrap_iterations": 1000
       },
       {
         "probability_scale": "calibrated",
         "metric": "roc_auc",
-        "estimate": 0.8841020124602215,
-        "ci_2_5": 0.861337941670391,
-        "ci_97_5": 0.9054890099575829,
+        "estimate": 0.7916207252028149,
+        "ci_2_5": 0.7595305819321428,
+        "ci_97_5": 0.8226611299086315,
         "bootstrap_iterations": 1000
       },
       {
         "probability_scale": "calibrated",
         "metric": "brier",
-        "estimate": 0.0683364848239811,
-        "ci_2_5": 0.06090497899550626,
-        "ci_97_5": 0.07562928617294959,
+        "estimate": 0.07771894431136563,
+        "ci_2_5": 0.06939957947975664,
+        "ci_97_5": 0.08567397770625401,
         "bootstrap_iterations": 1000
       },
       {
         "probability_scale": "calibrated",
         "metric": "ece_10_bins",
-        "estimate": 0.016882211985580226,
-        "ci_2_5": 0.011487993263610972,
-        "ci_97_5": 0.029670143297979987,
+        "estimate": 0.013263074379969311,
+        "ci_2_5": 0.008390125825424543,
+        "ci_97_5": 0.02687794982169282,
         "bootstrap_iterations": 1000
       }
-    ]
+    ],
+    "bootstrap_scope": {
+      "schema_version": 1,
+      "method": "row-level percentile bootstrap conditional on frozen predictions",
+      "pipeline_refit_per_resample": false,
+      "included_uncertainty": "row sampling variation within the already-observed historical reference",
+      "excluded_uncertainty": [
+        "training and model-selection uncertainty",
+        "calibration and threshold-selection uncertainty",
+        "temporal dependence",
+        "spatial dependence",
+        "repeated consultation of the reference period",
+        "future or external generalization",
+        "individual-prediction uncertainty"
+      ]
+    },
+    "confirmatory_independence": false,
+    "external_or_prospective_untouched_cohort": false
   },
   "claims": {
-    "supported": "On this fixed historical reference, nominal leaders derived from the canonical raw-score comparison are PR-AUC: Random Forest (0.4704); ROC-AUC: Random Forest (0.8937); F1: MLP cruda (0.4957).",
-    "not_supported": "Universal superiority is not established; paired differences against Random Forest are not statistically significant."
+    "supported": "On this fixed historical reference, nominal leaders derived from the canonical raw-score comparison are PR-AUC: MLP cruda (0.3254); ROC-AUC: MLP cruda (0.7916); F1: MLP cruda (0.4030).",
+    "not_supported": "Universal superiority is not established: paired PR-AUC and ROC-AUC differences against Random Forest include zero. F1 is the nominal exception and favors the MLP by 0.0252 (95% CI [0.00166, 0.04790]). All six paired intervals are nominal and unadjusted for multiplicity; no simultaneous familywise coverage is claimed."
   },
-  "evaluation_figure_hashes": {
-    "report/figures/final_seed_robustness.png": "85cde65a0ff3df47ca5d7a9290335c70b59a5c510dc57030329fa6910e3945bb",
-    "report/figures/final_model_evidence.png": "b09ed8d59d7200510754cf4aa0ddbd772fdc170f87f5319920802a5fbd006996"
-  },
-  "evaluation_figure_generator_sha256": "af3495bf71151164d7d495d19e19e925a7f5cc47e0d7bde0aab28594e01b5758",
   "explainability": {
     "method": "Gradient SHAP (shap.GradientExplainer)",
     "explained_output": "raw_mlp_sigmoid",
     "background_partition": "training_2021_2022_only",
-    "explanation_partition": "validation_2023_only",
+    "explanation_partition": "explanation_validation_2023_only",
     "background_sample_size": 256,
     "explanation_sample_size": 512,
     "shap_nsamples": 200,
     "seed": 20260709,
+    "stability_seeds": [
+      20260709,
+      20260810,
+      20260911
+    ],
+    "minimum_pairwise_spearman_rank_correlation": 0.9896800825593395,
+    "ranking_policy": "Report stability tiers; exact within-tier order is not interpreted as stable.",
     "association_not_causality": true,
     "local_explanations_generated": false,
-    "generator_sha256": "230dff431f6e4d7738c42169bad6ae1114e761589f64733b0a77f71b1f533776",
+    "generator_sha256": "36168ad4ccc5859dd8a80656c168a13f56a9340ccae85338bc8a91d5c213ee5f",
     "status": "generated"
   },
   "explainability_artifact_hashes": {
-    "report/tables/final_explainability_group_importance.csv": "b05dffbcbb51db62c4c8c7bed2962f444ffe19390098f2e23d80501183e8bf2a",
-    "report/tables/final_explainability_feature_importance.csv": "290eb88b01ff3ad1d303074debd5485d3b5755536751ea78947051716832185d",
-    "report/tables/final_explainability_provenance.json": "7c8634b249c71bf0221a98518368f438803a7f3246b018ae0e9ca8634dd29abb",
-    "report/figures/final_explainability_global.png": "89f0813d05a892c6e706ee5aa48e9bebf44270b2c56b419892aba34e6c1857f6"
-  }
+    "report/tables/final_explainability_group_importance.csv": "e0c76c037ca458c805d6beacd3216b6a0f545fae724726bcd8a6c2fd4d543437",
+    "report/tables/final_explainability_feature_importance.csv": "0a6c788387ffde4eb34f5d966a1920b4cbd75951b68c05da6e7f13868d4fe331",
+    "report/tables/final_explainability_stability.csv": "94df631f408c6d8bd5df4d77da489e0af21af17ad2ca077d436aae9db0c845cf",
+    "report/tables/final_explainability_provenance.json": "902bf8a9e8fd9d482e3afbc572a829c70b351684ca5cb60cf7d9bf36969180a3",
+    "report/figures/final_explainability_global.png": "8f9f683936d3a9d362fb390e12690216062e4e73115934d6367d247001d1641a"
+  },
+  "demo_artifacts": {
+    "data/processed/demo_cases.csv": "97a3c80e82496314e667f996c8c33b692c9ffc332de430d79eb63bed75d3a386",
+    "data/processed/demo_cases_manifest.json": "0f176ee2209a4dca4ed82ba8212e23009000d81bf773268fefe4448367c62595"
+  },
+  "evaluation_figure_hashes": {
+    "report/figures/final_seed_robustness.png": "161abcc8e8118b1ad3fd09ae6259c7f63d4c460fcb649686f62399f5357df19c",
+    "report/figures/final_model_evidence.png": "64e93bb0dc46e46b22b1f92732d65d87ac822cd6abfc7237e5b175a7baf96e0c"
+  },
+  "evaluation_figure_generator_sha256": "c6e515f7d38b77bfc0ece0dc6e83d3edb76caa2a6084e9fb1a5f493029481250"
 }

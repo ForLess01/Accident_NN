@@ -20,6 +20,11 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.features import assign_time_band, normalize_clase, normalize_clima, normalize_zona, parse_hour_value
+from src.chronology import (
+    CALIBRATION_THRESHOLD_VALIDATION_PARTITION,
+    EXPLANATION_VALIDATION_PARTITION,
+    canonical_selection_timeline as validate_canonical_selection_timeline,
+)
 from src.final_model_bundle import CanonicalModelBundle, sha256_file
 
 
@@ -29,6 +34,7 @@ TABLES_DIR = ROOT / "report" / "tables"
 FIGURES_DIR = ROOT / "report" / "figures"
 BASE_PATH = PROCESSED_DIR / "base_limpia.parquet"
 DEMO_PATH = PROCESSED_DIR / "demo_cases.csv"
+DEMO_MANIFEST_PATH = PROCESSED_DIR / "demo_cases_manifest.json"
 GEOJSON_PATH = ROOT / "data" / "geo" / "peru_departamentos_simple.geojson"
 INFERENCE_DATE_MIN = pd.Timestamp("2021-01-01")
 INFERENCE_DATE_MAX = pd.Timestamp("2025-12-31")
@@ -63,7 +69,7 @@ def _read_json(path: Path, label: str) -> dict[str, Any]:
 @lru_cache(maxsize=1)
 def load_manifest() -> dict[str, Any]:
     manifest = _read_json(FINAL_MODEL_DIR / "manifest.json", "el manifiesto canónico")
-    if manifest.get("model_version") != "canonical-2.0.0":
+    if manifest.get("model_version") != "canonical-3.0.0":
         raise RuntimeArtifactError(
             "La versión del bundle no es compatible con esta interfaz. Regenerá el bundle fuera de la app."
         )
@@ -92,6 +98,28 @@ def load_thresholds() -> dict[str, Any]:
         if not 0.0 <= value <= 1.0:
             raise RuntimeArtifactError(f"El umbral {scale} está fuera del intervalo [0, 1].")
     return thresholds
+
+
+@lru_cache(maxsize=1)
+def load_model_selection() -> dict[str, Any]:
+    """Load the frozen architecture-selection record under manifest hash control."""
+    path = FINAL_MODEL_DIR / "model_selection.json"
+    manifest = load_manifest()
+    expected = manifest.get("selection_artifact_hashes", {}).get("model_selection.json")
+    if not expected or sha256_file(path) != expected:
+        raise RuntimeArtifactError("La selección de arquitectura no coincide con el manifiesto canónico.")
+    return _read_json(path, "la selección canónica de arquitectura")
+
+
+def canonical_selection_timeline(
+    selection: dict[str, Any],
+    manifest: dict[str, Any],
+) -> dict[str, str]:
+    """Expose the shared chronology using application-specific errors."""
+    try:
+        return validate_canonical_selection_timeline(selection, manifest)
+    except ValueError as exc:
+        raise RuntimeArtifactError(f"La cronología canónica es incoherente: {exc}") from exc
 
 
 @lru_cache(maxsize=1)
@@ -127,6 +155,7 @@ def load_explainability_artifacts() -> dict[str, Any]:
     required = {
         "groups": TABLES_DIR / "final_explainability_group_importance.csv",
         "features": TABLES_DIR / "final_explainability_feature_importance.csv",
+        "stability": TABLES_DIR / "final_explainability_stability.csv",
         "provenance": TABLES_DIR / "final_explainability_provenance.json",
         "figure": FIGURES_DIR / "final_explainability_global.png",
     }
@@ -143,6 +172,7 @@ def load_explainability_artifacts() -> dict[str, Any]:
     try:
         groups = pd.read_csv(required["groups"])
         features = pd.read_csv(required["features"])
+        stability = pd.read_csv(required["stability"])
         provenance = _read_json(required["provenance"], "la procedencia de explicabilidad")
     except (OSError, ValueError) as exc:
         raise RuntimeArtifactError(f"No se pudo leer la explicabilidad canónica: {exc}") from exc
@@ -155,11 +185,23 @@ def load_explainability_artifacts() -> dict[str, Any]:
     numeric = groups[["mean_abs_grouped_shap", "mean_signed_grouped_shap", "importance_share"]]
     if groups.empty or not np.isfinite(numeric.to_numpy(dtype=float)).all():
         raise RuntimeArtifactError("La explicabilidad agrupada contiene valores vacíos o no finitos.")
-    if provenance.get("explanation_partition") != "validation_2023_only":
+    required_stability_columns = {
+        "raw_variable_group", "rank_median", "rank_min", "rank_max",
+        "importance_share_mean", "importance_share_sd", "rank_range", "stability_tier",
+    }
+    if stability.empty or not required_stability_columns.issubset(stability.columns):
+        raise RuntimeArtifactError("La estabilidad de explicabilidad no cumple su esquema.")
+    if provenance.get("explanation_partition") != EXPLANATION_VALIDATION_PARTITION:
         raise RuntimeArtifactError("La explicabilidad no respeta la partición de validación 2023.")
     if provenance.get("endpoint_2024_2025_data_loaded") is not False or provenance.get("labels_loaded") is not False:
         raise RuntimeArtifactError("La explicabilidad declara acceso a datos o etiquetas no permitidos.")
-    return {"groups": groups, "features": features, "provenance": provenance, "figure": required["figure"]}
+    return {
+        "groups": groups,
+        "features": features,
+        "stability": stability,
+        "provenance": provenance,
+        "figure": required["figure"],
+    }
 
 
 def load_input_options() -> dict[str, list[str | None]]:
@@ -222,6 +264,51 @@ def normalize_road_code(value: Any) -> str:
     if value is None or pd.isna(value) or not str(value).strip():
         return "DESCONOCIDO"
     return str(value).strip().upper()
+
+
+def _normalized_demo_value(field: str, value: Any) -> Any:
+    """Normalize a UI/demo value without hiding a user-visible edit."""
+    if field == "CODIGO_VIA":
+        return normalize_road_code(value)
+    if value is None or (not isinstance(value, (list, tuple, dict)) and pd.isna(value)):
+        return None
+    if field == "FECHA":
+        parsed = pd.to_datetime(value, errors="coerce")
+        return None if pd.isna(parsed) else parsed.strftime("%Y-%m-%d")
+    if field == "HORA":
+        text = str(value).strip()
+        match = re.match(r"^(\d{1,2}):(\d{2})(?::\d{2})?$", text)
+        if not match:
+            return text
+        return f"{int(match.group(1)):02d}:{int(match.group(2)):02d}"
+    if field in {
+        "LATITUD", "LONGITUD", "n_vehiculos", "n_bus", "n_pesado_carga",
+        "n_moto", "n_no_identificado", "n_interprovincial", "n_transporte_publico",
+    }:
+        numeric = pd.to_numeric(pd.Series([value]), errors="coerce").iloc[0]
+        return None if pd.isna(numeric) else float(numeric)
+    return str(value).strip()
+
+
+def demo_payload_matches_record(
+    demo: pd.Series | dict[str, Any],
+    record: pd.Series | dict[str, Any],
+    required_fields: list[str] | None = None,
+) -> bool:
+    """Return True only while the form still represents the exact demo input."""
+    if required_fields is None:
+        required_fields = [str(item["name"]) for item in load_feature_schema()["required_raw_fields"]]
+    demo_values = dict(demo)
+    record_values = dict(record)
+    for field in required_fields:
+        left = _normalized_demo_value(field, demo_values.get(field))
+        right = _normalized_demo_value(field, record_values.get(field))
+        if isinstance(left, float) or isinstance(right, float):
+            if left is None or right is None or not np.isclose(float(left), float(right), atol=1e-9, rtol=0):
+                return False
+        elif left != right:
+            return False
+    return True
 
 
 def is_known_road_code(value: Any) -> bool:
@@ -400,15 +487,14 @@ def _validate_records(records: pd.DataFrame) -> pd.DataFrame:
         )
     scene_counts = [
         "n_vehiculos", "n_bus", "n_pesado_carga", "n_moto", "n_no_identificado",
-        "n_interprovincial", "n_transporte_publico", "n_personas", "n_pasajeros",
-        "n_peatones", "n_conductor_fugado",
+        "n_interprovincial", "n_transporte_publico",
     ]
     for column in scene_counts:
         values = pd.to_numeric(clean[column], errors="coerce")
-        required_count = column in {"n_vehiculos", "n_personas"}
+        required_count = column == "n_vehiculos"
         if required_count and values.isna().any():
             raise InputContractError(
-                "Ingresá la cantidad de vehículos y de personas involucradas; son hechos de la escena requeridos."
+                "Ingresá la cantidad de vehículos involucrados; es un hecho consolidado requerido."
             )
         values = values.fillna(0)
         if (values < 0).any() or (values != values.round()).any():
@@ -416,19 +502,9 @@ def _validate_records(records: pd.DataFrame) -> pd.DataFrame:
         clean[column] = values.astype("int64")
     if (clean["n_vehiculos"] < 1).any():
         raise InputContractError("Debe haber al menos un vehículo involucrado.")
-    if (clean["n_personas"] < 1).any():
-        raise InputContractError("Debe haber al menos una persona involucrada.")
     vehicle_breakdown = clean[["n_bus", "n_pesado_carga", "n_moto", "n_no_identificado"]].sum(axis=1)
     if (vehicle_breakdown > clean["n_vehiculos"]).any():
         raise InputContractError("El detalle por tipo de vehículo no puede superar el total de vehículos involucrados.")
-    person_breakdown = clean[["n_pasajeros", "n_peatones"]].sum(axis=1)
-    if (person_breakdown > clean["n_personas"]).any():
-        raise InputContractError("Pasajeros y peatones no pueden superar el total de personas involucradas.")
-    ages = pd.to_numeric(clean["edad_media_involucrados"], errors="coerce")
-    provided_age = clean["edad_media_involucrados"].notna()
-    if (provided_age & (ages.isna() | ~ages.between(0, 110))).any():
-        raise InputContractError("La edad media de involucrados debe estar entre 0 y 110, o quedar como NO INFORMADO.")
-    clean["edad_media_involucrados"] = ages
 
     for row in clean.itertuples(index=False):
         validate_peru_location(float(row.LATITUD), float(row.LONGITUD), str(row.DEPARTAMENTO))
@@ -492,11 +568,95 @@ def load_clean_dataset() -> pd.DataFrame:
 
 @lru_cache(maxsize=1)
 def load_demo_cases() -> pd.DataFrame:
-    if not DEMO_PATH.exists():
-        return pd.DataFrame()
+    if not DEMO_PATH.exists() or not DEMO_MANIFEST_PATH.exists():
+        raise RuntimeArtifactError("Faltan los casos o el manifiesto de demostración canónico.")
     try:
-        return pd.read_csv(DEMO_PATH)
-    except (OSError, ValueError) as exc:
+        canonical = load_manifest()
+        canonical_hashes = canonical.get("demo_artifacts")
+        expected_paths = {
+            str(DEMO_PATH.relative_to(ROOT)),
+            str(DEMO_MANIFEST_PATH.relative_to(ROOT)),
+        }
+        if not isinstance(canonical_hashes, dict) or set(canonical_hashes) != expected_paths:
+            raise RuntimeArtifactError("El manifiesto canónico no declara exactamente los dos artefactos de demostración.")
+        for path in (DEMO_PATH, DEMO_MANIFEST_PATH):
+            relative = str(path.relative_to(ROOT))
+            if sha256_file(path) != canonical_hashes[relative]:
+                raise RuntimeArtifactError(f"La demostración {relative} no coincide con la raíz de confianza canónica.")
+
+        manifest = _read_json(DEMO_MANIFEST_PATH, "el manifiesto de demostraciones")
+        expected_roles = ["TN", "FP", "boundary_FN", "TP", "synthetic_unseen_code"]
+        threshold = float(load_thresholds()["calibrated"]["value"])
+        expected_manifest_values = {
+            "model_version": canonical["model_version"],
+            "calibration_threshold_validation_partition": CALIBRATION_THRESHOLD_VALIDATION_PARTITION,
+            "reference_2024_2025_loaded": False,
+            "roles_in_order": expected_roles,
+            "visible_decision_scale": "calibrated",
+            "csv_path": str(DEMO_PATH.relative_to(ROOT)),
+            "csv_sha256": sha256_file(DEMO_PATH),
+            "model_sha256": canonical["artifact_hashes"]["model.keras"],
+        }
+        if any(manifest.get(key) != value for key, value in expected_manifest_values.items()):
+            raise RuntimeArtifactError("El manifiesto de demostraciones no cumple el contrato canónico.")
+        if not np.isclose(float(manifest.get("visible_threshold", np.nan)), threshold, atol=1e-12, rtol=0):
+            raise RuntimeArtifactError("El umbral visible de las demostraciones no coincide con el bundle.")
+
+        frame = pd.read_csv(DEMO_PATH)
+        required_input_fields = [str(item["name"]) for item in load_feature_schema()["required_raw_fields"]]
+        required_columns = {
+            "caso_id", "role", "truth_status", "source_index", "actual_multifatal",
+            "expected_raw_probability", "expected_calibrated_probability",
+            "expected_calibrated_prediction", "source_expected_calibrated_probability",
+            *required_input_fields,
+        }
+        if not required_columns.issubset(frame.columns):
+            raise RuntimeArtifactError("Los casos de demostración no cumplen el esquema canónico.")
+        expected_ids = ["demo_01_tn", "demo_02_fp", "demo_03_boundary_fn", "demo_04_tp", "demo_05_unseen_code"]
+        if frame["caso_id"].tolist() != expected_ids:
+            raise RuntimeArtifactError("Los identificadores u orden de las demostraciones no son canónicos.")
+        if frame["role"].tolist() != expected_roles:
+            raise RuntimeArtifactError("Los roles u orden de las demostraciones no son canónicos.")
+        if len(frame) != 5 or pd.to_datetime(frame["FECHA"]).dt.year.ne(2023).any():
+            raise RuntimeArtifactError("Las cuatro demostraciones reales deben pertenecer solo a 2023.")
+
+        expected_truth = [(0, 0), (0, 1), (1, 0), (1, 1)]
+        real = frame.iloc[:4]
+        if real["truth_status"].tolist() != ["observed_2023"] * 4:
+            raise RuntimeArtifactError("La procedencia de verdad de los casos reales no es canónica.")
+        for row, (actual, predicted) in zip(real.itertuples(index=False), expected_truth):
+            if int(row.actual_multifatal) != actual or int(row.expected_calibrated_prediction) != predicted:
+                raise RuntimeArtifactError("La semántica TN/FP/FN/TP de las demostraciones fue alterada.")
+        synthetic = frame.iloc[4]
+        if synthetic["truth_status"] != "unavailable_synthetic" or not pd.isna(synthetic["actual_multifatal"]):
+            raise RuntimeArtifactError("El caso sintético no puede declarar verdad observada.")
+        if synthetic["CODIGO_VIA"] != "ZZ-UNSEEN" or int(synthetic["source_index"]) != int(frame.iloc[0]["source_index"]):
+            raise RuntimeArtifactError("El clon sintético no conserva su fuente canónica.")
+        changed = [
+            field for field in required_input_fields
+            if _normalized_demo_value(field, synthetic[field]) != _normalized_demo_value(field, frame.iloc[0][field])
+        ]
+        if changed != ["CODIGO_VIA"]:
+            raise RuntimeArtifactError("La sensibilidad sintética debe modificar únicamente CODIGO_VIA.")
+        if not np.isclose(
+            float(synthetic["source_expected_calibrated_probability"]),
+            float(frame.iloc[0]["expected_calibrated_probability"]),
+            atol=1e-7,
+            rtol=0,
+        ):
+            raise RuntimeArtifactError("La probabilidad fuente del clon sintético fue alterada.")
+
+        predictions = predict_records(frame)
+        for column in ("raw_probability", "calibrated_probability"):
+            if not np.allclose(predictions[column], frame[f"expected_{column}"], atol=1e-7):
+                raise RuntimeArtifactError(f"La paridad de demostración falló para {column}.")
+        if not np.array_equal(
+            predictions["calibrated_probability"].ge(threshold).astype(int).to_numpy(),
+            frame["expected_calibrated_prediction"].astype(int).to_numpy(),
+        ):
+            raise RuntimeArtifactError("Las clases esperadas de demostración no coinciden con el umbral canónico.")
+        return frame
+    except (OSError, ValueError, KeyError, TypeError) as exc:
         raise RuntimeArtifactError(f"No se pudieron leer los casos ilustrativos: {exc}") from exc
 
 

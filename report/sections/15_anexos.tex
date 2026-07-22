@@ -1,87 +1,37 @@
 \section{Anexos}\label{sec:anexos}
 
-\subsection{A1. Fuente y diccionario}
-La base ONSV conserva encabezados descriptivos en la hoja \texttt{SINIESTROS}. El mapeo a nombres canónicos está en \path{src/block_b_dataset_audit.py}; la auditoría agregada está en \path{report/tables/tab00_audit_summary_block_b.json}.
-
-\subsection{A2. Artefactos definitivos}
-\begin{itemize}
-  \item Bundle de inferencia y manifiesto: \path{models/final/}.
-  \item Protocolo: \path{report/tables/final_model_protocol.md}.
-  \item Métricas, probabilidades, confusión, errores e intervalos: tablas de referencia final.
-  \item Selección y robustez: tablas de selección y \path{models/final/model_selection.json}.
-  \item Explicabilidad: tablas y figura de importancia global.
-\end{itemize}
-
-\subsection{A3. Configuración congelada}
+\subsection{Configuración canónica}
 \begin{lstlisting}
 canonical = {
-    "config_id": "MLP_32_16",
-    "hidden_units": [32, 16],
-    "dropout": 0.25,
-    "l2": 1e-4,
-    "learning_rate": 1e-3,
-    "batch_size": 64,
-    "seed": 314,
-    "feature_count": 175,
-    "raw_threshold": 0.80,
-    "calibrated_threshold": 0.30,
-    "calibration": "platt",
+  "version": "canonical-3.0.0",
+  "raw_fields": 21,
+  "features": 169,
+  "hidden_units": [64, 32],
+  "dropout": 0.35,
+  "l2": 3e-4,
+  "learning_rate": 5e-4,
+  "batch_size": 64,
+  "seed": 42,
+  "fixed_refit_epochs": 14,
+  "parameters": 12993,
+  "raw_threshold": 0.65,
+  "calibrated_threshold": 0.15,
+  "calibration": "platt"
 }
 \end{lstlisting}
 
-\subsection{A4. Protocolo cronológico}
-\begin{lstlisting}
-train = data[data.FECHA.dt.year.isin([2021, 2022])]
-selection = data[data.FECHA.dt.year.eq(2023)]
-reference = data[data.FECHA.dt.year.isin([2024, 2025])]
+\subsection{Artefactos de evidencia}
+\begin{itemize}\small
+\item Procedencia: \path{data/raw/source_manifest.json} y \path{docs/data_provenance.md}.
+\item Proxy: \path{report/tables/personas_target_proxy_identity.json}.
+\item Curvas/brecha: \path{report/tables/model_learning_curves.csv};\\
+      \path{report/tables/model_generalization_gap.json}.
+\item Folds rolling: \path{report/tables/temporal_nested_fold_roles.csv};\\
+      \path{report/tables/temporal_nested_outer_metrics.csv}.
+\item Estabilidad SHAP: \path{report/tables/final_explainability_stability.csv}.
+\item Demos: \path{data/processed/demo_cases.csv} y su manifiesto.
+\item PDF: \path{report/build_manifest.json}; la frescura depende de hashes, no mtimes.
+\end{itemize}
 
-# Fit preprocessing and weights: train only.
-# Select architecture, seed, calibration and thresholds: selection only.
-# Reference 2024-2025: reporting only; no further tuning.
-\end{lstlisting}
-
-\subsection{A5. Decisiones metodológicas}
-\small
-\begin{longtable}{p{2.2cm}p{5.6cm}p{3cm}p{3.2cm}}
-\caption{Controles del modelo definitivo.}\label{tab:bitacora}\\
-\toprule
-Etapa & Decisión & Riesgo controlado & Evidencia \\
-\midrule
-\endfirsthead
-\toprule
-Etapa & Decisión & Riesgo controlado & Evidencia \\
-\midrule
-\endhead
-Protocolo & Separar 2021--22, 2023 y 2024--25 por rol & Fuga y optimismo por mezcla cronológica & Protocolo final \\
-Selección & Comparar 3 configuraciones completas $\times$ 3 semillas; congelar \texttt{MLP\_32\_16}, semilla 314 & Selección oportunista & Registro de selección \\
-Versión 2 & Incorporar bases companion (vehículos/personas) con desenlaces vetados; segunda evaluación divulgada & Fuga desde tablas enlazadas y multiplicidad silenciosa & Auditoría del join y \autoref{tab:v1-v2} \\
-Calibración & Elegir Platt mediante Brier OOF de 5 folds en 2023 & Ajustar y evaluar calibrador en los mismos casos & Registro de calibración \\
-Referencia & Tratar 2024--25 como periodo ya observado & Reutilizarlo para nuevos ajustes & Métricas finales \\
-SHAP & Gradient SHAP solo con entrenamiento y selección & Interpretación contaminada por la referencia & Procedencia SHAP \\
-Interfaz & Bundle verificado, solo lectura, decisión en escala calibrada & Divergencia informe/aplicación & Manifiesto canónico \\
-\bottomrule
-\end{longtable}
-
-\subsection{A6. Reproducción y verificación}
-\begin{lstlisting}[language=bash]
-# Canonical order: validation audit, manifest/protocol, figures, PDF
-.venv/bin/python src/validation_design_audit.py
-.venv/bin/python src/final_model_bundle.py
-.venv/bin/python src/final_evaluation_figures.py
-.venv/bin/python src/final_explainability.py
-cd report && latexmk -pdf -interaction=nonstopmode -halt-on-error main.tex
-cd ..
-
-# Contracts and GUI
-.venv/bin/python tests/test_model_protocol.py
-.venv/bin/python tests/test_final_model_bundle.py
-.venv/bin/python tests/test_final_explainability.py
-.venv/bin/python tests/test_app_inference.py
-.venv/bin/python src/block_g_app_check.py
-
-# Interface
-streamlit run app/streamlit_app.py
-
-\end{lstlisting}
-
-Las versiones exactas usadas para el bundle constan en el manifiesto. La reproducción no autoriza reoptimizar el modelo con la referencia 2024--2025.
+\subsection{Accesibilidad del PDF}
+Se añadieron título, autores, asunto y palabras clave. La toolchain pdfLaTeX disponible no genera ni valida PDF/UA etiquetado de manera confiable sin migración de motor/paquetes; no se simula cumplimiento. La accesibilidad interactiva y las alternativas tabulares se verifican en la aplicación.

@@ -28,6 +28,7 @@ from src.features import (
     normalize_superficie,
     normalize_zona,
 )
+from src.model_protocol import PERSONAS_DERIVED_COLUMNS
 
 PROCESSED_DIR = ROOT / "data" / "processed"
 FIGURES_DIR = ROOT / "report" / "figures"
@@ -47,6 +48,11 @@ def savefig(name: str) -> None:
 
 def prepare_eda_frame() -> pd.DataFrame:
     df = pd.read_parquet(PROCESSED_DIR / "base_limpia.parquet").copy()
+    leaked = sorted(PERSONAS_DERIVED_COLUMNS.intersection(df.columns))
+    if leaked:
+        raise RuntimeError(
+            "Canonical EDA rejected PERSONAS-derived columns: " + ", ".join(leaked)
+        )
     df["FECHA"] = pd.to_datetime(df["FECHA"])
     df["mes_periodo"] = df["FECHA"].dt.to_period("M").astype(str)
     df["mes"] = df["FECHA"].dt.month
@@ -191,11 +197,17 @@ def generate_figures(df: pd.DataFrame) -> dict[str, object]:
 
     # fig13
     missing = df.isna().mean().mul(100).sort_values(ascending=False)
-    ax = missing.plot(kind="bar", figsize=(10, 4), color="#64748B")
+    missing_visible = missing[missing.gt(0)].sort_values()
+    height = max(4.5, 0.42 * len(missing_visible))
+    ax = missing_visible.plot(kind="barh", figsize=(9, height), color="#64748B")
     ax.set_title("Porcentaje de faltantes por columna")
-    ax.set_xlabel("Columna")
-    ax.set_ylabel("Faltantes (%)")
-    ax.tick_params(axis="x", rotation=45)
+    ax.set_xlabel("Faltantes (%)")
+    ax.set_ylabel("")
+    ax.set_xlim(0, max(5.0, float(missing_visible.max()) * 1.14))
+    for index, value in enumerate(missing_visible):
+        label = f"{value:.1f}%" if value >= 0.05 else "<0.1%"
+        ax.text(value + 0.6, index, label, va="center", fontsize=9)
+    ax.grid(axis="y", visible=False)
     savefig("fig13_missing_values.png")
 
     # fig23: geographic scatter of fatal crashes

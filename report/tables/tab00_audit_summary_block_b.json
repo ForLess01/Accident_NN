@@ -1,5 +1,32 @@
 {
   "raw_file": "data/raw/BBDD_ONSV_SINIESTROS_FATALES_2021-2025.xlsx",
+  "raw_source_manifest": {
+    "manifest_path": "data/raw/source_manifest.json",
+    "manifest_sha256": "37043e48ab91ae9816f0bd2d6b3ac69c2a5402ce7f1822c2fafbe6f27ba8bc6e",
+    "source_count": 4,
+    "verified_sources": [
+      {
+        "path": "BBDD_ONSV_PERSONAS_2021-2025.xlsx",
+        "bytes": 4203578,
+        "sha256": "6bd03aa2b8918147f31d69c0be031d7011aa5e0df840bf0c05d111ef97b1373d"
+      },
+      {
+        "path": "BBDD_ONSV_SINIESTROS_FATALES_2021-2025.xlsx",
+        "bytes": 1519015,
+        "sha256": "4b815b6823cd558d55c8343ca0ab13023cbd63ef162c1c99b78e3dea4ae2762d"
+      },
+      {
+        "path": "BBDD_ONSV_VEHICULOS_2021-2025.xlsx",
+        "bytes": 1763791,
+        "sha256": "4335dbcdcf9dc0d46acd81723b64765fd65a58a151579384c8d15cc22db68f04"
+      },
+      {
+        "path": "Formato_2_Diccionario_de_datos.docx",
+        "bytes": 14887,
+        "sha256": "b1160523694486bb093e99ea083c8d32159d3177745b06ad181ff2814d163d5a"
+      }
+    ]
+  },
   "sheet": "SINIESTROS",
   "header_row": 4,
   "original_shape": [
@@ -8,7 +35,7 @@
   ],
   "final_shape": [
     9104,
-    39
+    34
   ],
   "original_columns": [
     "CÓDIGO SINIESTRO",
@@ -73,12 +100,7 @@
     "n_moto",
     "n_no_identificado",
     "n_interprovincial",
-    "n_transporte_publico",
-    "n_personas",
-    "n_pasajeros",
-    "n_peatones",
-    "n_conductor_fugado",
-    "edad_media_involucrados"
+    "n_transporte_publico"
   ],
   "header_noise_removed": 0,
   "fecha_min": "2021-01-01",
@@ -103,15 +125,24 @@
     "n_moto",
     "n_no_identificado",
     "n_interprovincial",
-    "n_transporte_publico",
-    "n_personas",
-    "n_pasajeros",
-    "n_peatones",
-    "n_conductor_fugado",
-    "edad_media_involucrados"
+    "n_transporte_publico"
   ],
   "companion_vehicle_coverage": 1.0,
-  "companion_person_coverage": 1.0,
+  "companion_person_coverage": null,
+  "personas_predictors_included": false,
+  "personas_proxy_audit": {
+    "schema_version": 1,
+    "purpose": "executable target-proxy lineage proof; PERSONAS is forbidden as predictor source",
+    "rows": 9104,
+    "deceased_count_identity_rows": 9104,
+    "person_rows_cover_deceased_rows": 9104,
+    "target_identity_rows": 9104,
+    "all_deceased_counts_equal_fallecidos": true,
+    "all_person_counts_cover_fallecidos": true,
+    "all_targets_reconstructed": true,
+    "decision": "exclude every PERSONAS-derived aggregate from the canonical input contract",
+    "personas_used_for_modeling": false
+  },
   "companion_banned_columns": [
     "GRAVEDAD",
     "LUGAR ATENCIÓN LESIONADO",
@@ -119,7 +150,7 @@
     "DOSAJE ETÍLICO (todas las variantes)",
     "SITUACIÓN DE PERSONA"
   ],
-  "companion_rationale": "Los agregados de vehiculos y personas pertenecen al registro consolidado. La extraccion no incluye timestamps por campo para probar disponibilidad al notificar. Las columnas de desenlace por persona y los dosajes posteriores quedan vetados.",
+  "companion_rationale": "Solo agregados de VEHICULOS pertenecen al contrato retrospectivo. PERSONAS queda completamente excluida porque su cardinalidad y GRAVEDAD reconstruyen el objetivo. La extracción no incluye timestamps por campo para probar disponibilidad al notificar.",
   "leakage_exclusions": [
     "LESIONADOS",
     "VEHICULOS_DANADOS",

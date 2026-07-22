@@ -45,22 +45,30 @@ from sklearn.model_selection import StratifiedKFold
 from tensorflow import keras
 
 from src.block_e_modeling import MLP_GRID, _platt_features, choose_threshold, ece
+from src.chronology import (
+    CALIBRATED_THRESHOLD_VALIDATION_PARTITION,
+    CALIBRATION_THRESHOLD_VALIDATION_PARTITION,
+    RAW_THRESHOLD_VALIDATION_PARTITION,
+    protocol_chronology_markdown,
+)
 from src.model_protocol import (
     EXCLUDED_COLUMNS,
-    split_chronological,
     transform_features,
 )
+from src.source_provenance import source_manifest_hash, verify_raw_sources
 
 
 BASE_PATH = ROOT / "data" / "processed" / "base_limpia.parquet"
 FINAL_MODEL_DIR = ROOT / "models" / "final"
 TABLES_DIR = ROOT / "report" / "tables"
-MODEL_VERSION = "canonical-2.0.0"
+MODEL_VERSION = "canonical-3.0.0"
 CALIBRATION_FOLDS = 5
 CALIBRATION_SEED = 20260709
 BOOTSTRAP_ITERATIONS = 1000
+ENDPOINT_START = pd.Timestamp("2024-01-01")
+ENDPOINT_END = pd.Timestamp("2026-01-01")
 CALIBRATION_POLICY = (
-    "Select the lowest 5-fold stratified OOF Brier score on 2023 validation; "
+    "Choose the lowest 5-fold stratified OOF Brier score on 2023 validation; "
     "ties within 1e-12 use lower ECE, then prefer Platt for lower variance. "
     "Platt uses L2-regularized logistic regression with C=1.0 and liblinear."
 )
@@ -71,15 +79,90 @@ REFERENCE_MODEL_NAMES = {
 }
 DESIGN_EVIDENCE_PATHS = (
     Path("report/tables/design_annual_stability_2024_2025.csv"),
-    Path("report/tables/design_n_personas_paired_bootstrap.csv"),
-    Path("report/tables/design_n_personas_reference_comparison.csv"),
     Path("report/tables/design_network_strategy_bootstrap.csv"),
     Path("report/tables/design_network_strategy_validation.csv"),
     Path("report/tables/design_regularization_runs.csv"),
     Path("report/tables/design_regularization_summary.csv"),
     Path("report/tables/design_validation_audit.json"),
+    Path("report/tables/personas_target_proxy_identity.csv"),
+    Path("report/tables/personas_target_proxy_identity.json"),
     Path("report/figures/design_validation_evidence.png"),
 )
+
+
+def _xy_partition(partition: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
+    return (
+        partition.drop(columns=[column for column in EXCLUDED_COLUMNS if column in partition]),
+        partition["target_multifatal"].astype("int8"),
+    )
+
+
+def _read_design_before_endpoint(
+    base_path: Path,
+    reader: Callable[..., pd.DataFrame],
+) -> tuple[pd.DataFrame, dict[str, pd.DataFrame | pd.Series]]:
+    """Read only 2021--2023; endpoint rows must not be materialized here."""
+    design = reader(base_path, filters=[("FECHA", "<", ENDPOINT_START)])
+    design = design.copy()
+    design["FECHA"] = pd.to_datetime(design["FECHA"], errors="coerce")
+    if (
+        design.empty
+        or design["FECHA"].isna().any()
+        or design["FECHA"].ge(ENDPOINT_START).any()
+        or not design["FECHA"].is_monotonic_increasing
+    ):
+        raise RuntimeError("The pre-endpoint read materialized invalid or 2024+ rows.")
+    years = design["FECHA"].dt.year
+    train = design[years.isin([2021, 2022])].copy()
+    validation = design[years.eq(2023)].copy()
+    if min(len(train), len(validation)) == 0:
+        raise RuntimeError("The design protocol requires non-empty 2021--22 and 2023 partitions.")
+    X_train, y_train = _xy_partition(train)
+    X_validation, y_validation = _xy_partition(validation)
+    return design, {
+        "X_train_raw": X_train,
+        "y_train": y_train,
+        "X_validation_raw": X_validation,
+        "y_validation": y_validation,
+    }
+
+
+def _read_endpoint_after_freeze(
+    base_path: Path,
+    final_dir: Path,
+    frozen_decision_hashes: dict[str, str],
+    reader: Callable[..., pd.DataFrame],
+    endpoint_opened_hook: Callable[[], None] | None = None,
+) -> tuple[pd.DataFrame, pd.Series]:
+    """Open 2024--2025 only after every decision artifact is present and frozen."""
+    required = {
+        "calibration_selection.json",
+        "calibrator.joblib",
+        "thresholds.json",
+        "feature_schema.json",
+    }
+    if set(frozen_decision_hashes) != required:
+        raise RuntimeError("Endpoint gate requires the complete frozen decision artifact set.")
+    for name, expected in frozen_decision_hashes.items():
+        path = final_dir / name
+        if not path.is_file() or sha256_file(path) != expected:
+            raise RuntimeError(f"Endpoint gate rejected an unfrozen decision artifact: {name}")
+    if endpoint_opened_hook is not None:
+        endpoint_opened_hook()
+    endpoint = reader(
+        base_path,
+        filters=[("FECHA", ">=", ENDPOINT_START), ("FECHA", "<", ENDPOINT_END)],
+    ).copy()
+    endpoint["FECHA"] = pd.to_datetime(endpoint["FECHA"], errors="coerce")
+    if (
+        endpoint.empty
+        or endpoint["FECHA"].isna().any()
+        or endpoint["FECHA"].lt(ENDPOINT_START).any()
+        or endpoint["FECHA"].ge(ENDPOINT_END).any()
+        or not endpoint["FECHA"].is_monotonic_increasing
+    ):
+        raise RuntimeError("The endpoint read must contain only 2024--2025 rows.")
+    return _xy_partition(endpoint)
 
 
 def sha256_file(path: Path) -> str:
@@ -133,34 +216,46 @@ def canonical_protocol_text(
     raw_threshold: float,
     calibrated_threshold: float,
     comparison: pd.DataFrame,
+    paired_summary: dict[str, Any],
 ) -> str:
     leaders = reference_metric_leaders(comparison)
     raw_mlp = comparison[
         (comparison["model"] == "MLP_definitiva")
         & (comparison["probability_scale"] == "raw")
     ].iloc[0]
+    rf_f1 = paired_summary["results"]["RandomForest_balanced"]["f1_multifatal"]
     return f"""# Protocolo del modelo canónico {MODEL_VERSION}
 
 ## Alcance
-La salida estima retrospectivamente multifatalidad (2 o más fallecidos) condicionada a un siniestro ya fatal registrado. La extracción no aporta timestamps por variable para afirmar disponibilidad al instante de notificación y no demuestra causalidad.
+La salida estima retrospectivamente multifatalidad (2 o más fallecidos) condicionada a un siniestro ya fatal registrado. Todo agregado de PERSONAS está excluido porque su cardinalidad y el conteo de fallecidos reconstruyen el objetivo. La extracción no aporta timestamps por variable para afirmar disponibilidad al instante de notificación y no demuestra causalidad.
 
-## Particiones y selección
-- Entrenamiento de la MLP congelada: 2021--2022.
-- Selección de configuración completa, semilla y umbral crudo: validación 2023.
-- Calibración definitiva: comparación Platt/isotónica con 5 folds OOF estratificados exclusivamente en 2023; selección por menor Brier OOF. Método seleccionado: {method}.
-- Umbral calibrado: máximo F1 sobre las probabilidades OOF 2023 del método seleccionado, con desempates predeclarados.
-- Referencia 2024--2025: sus etiquetas ya fueron observadas. Se conserva como referencia histórica y NO puede usarse para nuevos ajustes.
+## Cronología canónica
+{protocol_chronology_markdown()}
+- Épocas del reajuste final: 14, fijadas por el protocolo de selección de 2022.
+- Calibración: comparación Platt/isotónica con 5 folds OOF estratificados y criterio de menor Brier OOF. Método resultante: {method}.
+- Umbral crudo y calibrado: máximo F1 de validación; el calibrado usa las probabilidades OOF del método resultante. Ambos aplican los desempates predeclarados.
 
 ## Artefacto congelado
-La arquitectura y los pesos no se reentrenan ni se vuelven a buscar al materializar `models/final/`. Los umbrales crudo ({raw_threshold:.2f}) y calibrado ({calibrated_threshold:.2f}) pertenecen a escalas distintas y nunca deben intercambiarse.
+La arquitectura y los pesos no se reentrenan ni se vuelven a buscar al materializar `models/final/`. Los umbrales crudo ({raw_threshold:.2f}) y calibrado ({calibrated_threshold:.2f}) pertenecen a escalas distintas y nunca deben intercambiarse. La finalidad del artefacto de entrega no convierte 2024--2025 en una cohorte confirmatoria independiente.
 
 ## Lectura honesta
-En la referencia 2024--2025 la MLP cruda obtiene PR-AUC {raw_mlp['pr_auc']:.4f}, ROC-AUC {raw_mlp['roc_auc']:.4f} y F1 {raw_mlp['f1_multifatal']:.4f}. Los liderazgos nominales derivados de la tabla canónica son: PR-AUC, {leaders['pr_auc']['display_name']} ({leaders['pr_auc']['value']:.4f}); ROC-AUC, {leaders['roc_auc']['display_name']} ({leaders['roc_auc']['value']:.4f}); F1, {leaders['f1_multifatal']['display_name']} ({leaders['f1_multifatal']['value']:.4f}). Esto no prueba superioridad universal ni estadística de la red.
+En la referencia 2024--2025 la MLP cruda obtiene PR-AUC {raw_mlp['pr_auc']:.4f}, ROC-AUC {raw_mlp['roc_auc']:.4f} y F1 {raw_mlp['f1_multifatal']:.4f}. Los liderazgos nominales derivados de la tabla canónica son: PR-AUC, {leaders['pr_auc']['display_name']} ({leaders['pr_auc']['value']:.4f}); ROC-AUC, {leaders['roc_auc']['display_name']} ({leaders['roc_auc']['value']:.4f}); F1, {leaders['f1_multifatal']['display_name']} ({leaders['f1_multifatal']['value']:.4f}). Frente a Random Forest, PR-AUC y ROC-AUC no muestran diferencia nominal; F1 sí favorece nominalmente a la MLP por {rf_f1['delta_mlp_minus_baseline']:.4f}, IC95% [{rf_f1['delta_ci95_low']:.4f}, {rf_f1['delta_ci95_high']:.4f}]. Son seis comparaciones con intervalos nominales al 95% sin ajuste por multiplicidad; no se ofrece cobertura familiar simultánea ni se prueba superioridad universal.
 """
 
 
-def canonical_claims(comparison: pd.DataFrame) -> dict[str, str]:
+def canonical_claims(comparison: pd.DataFrame, paired_summary: dict[str, Any]) -> dict[str, str]:
     leaders = reference_metric_leaders(comparison)
+    rf_f1 = paired_summary["results"]["RandomForest_balanced"]["f1_multifatal"]
+    rf_pr = paired_summary["results"]["RandomForest_balanced"]["pr_auc"]
+    rf_roc = paired_summary["results"]["RandomForest_balanced"]["roc_auc"]
+    if (
+        paired_summary.get("comparison_family_size") != 6
+        or paired_summary.get("multiplicity_adjustment") != "none"
+        or paired_summary.get("simultaneous_familywise_coverage") is not False
+    ):
+        raise RuntimeError("Paired-comparison multiplicity metadata is incomplete.")
+    if not rf_f1.get("nominal_significant_at_5pct") or rf_pr.get("nominal_significant_at_5pct") or rf_roc.get("nominal_significant_at_5pct"):
+        raise RuntimeError("Paired Random Forest conclusions do not match the canonical metric-level evidence.")
     return {
         "supported": (
             "On this fixed historical reference, nominal leaders derived from the canonical raw-score comparison are "
@@ -169,7 +264,11 @@ def canonical_claims(comparison: pd.DataFrame) -> dict[str, str]:
             f"F1: {leaders['f1_multifatal']['display_name']} ({leaders['f1_multifatal']['value']:.4f})."
         ),
         "not_supported": (
-            "Universal superiority is not established; paired differences against Random Forest are not statistically significant."
+            "Universal superiority is not established: paired PR-AUC and ROC-AUC differences against Random Forest "
+            "include zero. F1 is the nominal exception and favors the MLP by "
+            f"{rf_f1['delta_mlp_minus_baseline']:.4f} (95% CI "
+            f"[{rf_f1['delta_ci95_low']:.5f}, {rf_f1['delta_ci95_high']:.5f}]). "
+            "All six paired intervals are nominal and unadjusted for multiplicity; no simultaneous familywise coverage is claimed."
         ),
     }
 
@@ -239,20 +338,20 @@ def select_calibrator_validation_only(
     )[0]
     final_calibrator = _fit_calibrator(selected_method, probabilities, labels)
     evidence = {
-        "source_partition": "validation_2023_only",
-        "test_labels_used_for_selection": False,
+        "source_partition": CALIBRATION_THRESHOLD_VALIDATION_PARTITION,
+        "reference_labels_used_for_calibration_or_threshold_validation": False,
         "folds": folds,
         "splitter": "StratifiedKFold(shuffle=True)",
         "seed": seed,
-        "selection_policy": CALIBRATION_POLICY,
+        "validation_policy": CALIBRATION_POLICY,
         "method_configuration": {
             "platt": "LogisticRegression(C=1.0, solver=liblinear, random_state=42) on clipped logits",
             "isotonic": "IsotonicRegression(out_of_bounds=clip)",
         },
         "selected_method": selected_method,
         "methods": method_results,
-        "threshold_source": "selected method OOF calibrated validation predictions",
-        "final_fit": "selected calibrator refit on all 2023 raw validation predictions",
+        "threshold_source": "resulting method OOF calibrated validation predictions",
+        "final_fit": "resulting calibrator refit on all 2023 raw validation predictions",
     }
     return selected_method, final_calibrator, evidence, method_oof[selected_method]
 
@@ -336,12 +435,11 @@ def _input_schema(base: pd.DataFrame, feature_list: list[str]) -> dict[str, Any]
         "FECHA", "HORA", "DEPARTAMENTO", "CODIGO_VIA", "LATITUD", "LONGITUD",
         "CLASE", "ZONA", "RED_VIAL", "TIPO_VIA", "CLIMA", "CARACTERISTICA_VIA",
         "PERFIL_VIA", "SUPERFICIE",
-        # v2 scene aggregates from the companion tables.
+        # Consolidated VEHICULOS aggregates only. PERSONAS is structurally banned.
         "n_vehiculos", "n_bus", "n_pesado_carga", "n_moto", "n_no_identificado",
-        "n_interprovincial", "n_transporte_publico", "n_personas", "n_pasajeros",
-        "n_peatones", "n_conductor_fugado", "edad_media_involucrados",
+        "n_interprovincial", "n_transporte_publico",
     ]
-    non_nullable_runtime_fields = {"LATITUD", "LONGITUD", "n_vehiculos", "n_personas"}
+    non_nullable_runtime_fields = {"LATITUD", "LONGITUD", "n_vehiculos"}
     fields = []
     for column in required:
         fields.append(
@@ -358,7 +456,7 @@ def _input_schema(base: pd.DataFrame, feature_list: list[str]) -> dict[str, Any]
             }
         )
     return {
-        "schema_version": "1.1",
+        "schema_version": "2.0",
         "target": {
             "name": "target_multifatal",
             "definition": "1 when FALLECIDOS >= 2, conditional on an already-fatal crash",
@@ -375,7 +473,10 @@ def _input_schema(base: pd.DataFrame, feature_list: list[str]) -> dict[str, Any]
         "processed_feature_count": len(feature_list),
         "processed_feature_dtype": "float32",
         "processed_feature_order": feature_list,
-        "scope": "retrospective post-registry multifatality classification; field-level availability timestamps are absent",
+        "forbidden_source_families": {
+            "PERSONAS": ["n_personas", "n_pasajeros", "n_peatones", "n_conductor_fugado", "edad_media_involucrados", "edad_faltante"]
+        },
+        "scope": "retrospective historical classification on consolidated records; field-level availability timestamps are absent",
     }
 
 
@@ -419,7 +520,7 @@ def _baseline_reference(
             {
                 "model": name,
                 "probability_scale": "raw",
-                "threshold_source": "2023 selection-period policy",
+                "threshold_source": "2023 threshold-validation policy",
                 **_metrics(y_test, probabilities, threshold),
             }
         )
@@ -430,6 +531,7 @@ def build_canonical_bundle(
     root: Path = ROOT,
     bootstrap_iterations: int = BOOTSTRAP_ITERATIONS,
     endpoint_opened_hook: Callable[[], None] | None = None,
+    parquet_reader: Callable[..., pd.DataFrame] | None = None,
 ) -> dict[str, Any]:
     """Complete the selected model bundle and create reference outputs."""
     base_path = root / "data" / "processed" / "base_limpia.parquet"
@@ -438,8 +540,10 @@ def build_canonical_bundle(
     final_dir.mkdir(parents=True, exist_ok=True)
     tables_dir.mkdir(parents=True, exist_ok=True)
 
-    base = pd.read_parquet(base_path)
-    splits = split_chronological(base)
+    source_verification = verify_raw_sources(root=root)
+
+    reader = parquet_reader or pd.read_parquet
+    design_base, splits = _read_design_before_endpoint(base_path, reader)
     scaler = joblib.load(final_dir / "scaler.joblib")
     encoders = joblib.load(final_dir / "encoders.joblib")
     feature_list = json.loads((final_dir / "feature_list.json").read_text(encoding="utf-8"))
@@ -463,37 +567,50 @@ def build_canonical_bundle(
     calibrated_threshold = float(calibrated_selection["threshold"])
     calibration_evidence["selected_calibrated_threshold"] = calibrated_selection
 
-    # Persist all selection evidence before opening the historical endpoint.
+    # Persist every calibration/threshold/schema decision before the endpoint
+    # reader can materialize a single 2024--2025 row.
     (final_dir / "calibration_selection.json").write_text(
         json.dumps(calibration_evidence, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    if endpoint_opened_hook is not None:
-        endpoint_opened_hook()
-
-    X_test = transform_features(splits["X_test_raw"], scaler, encoders)  # type: ignore[arg-type]
-    endpoint_labels_series = splits["y_test"]
-    endpoint_labels = np.asarray(endpoint_labels_series, dtype=int)
-    raw_test = model.predict(X_test, verbose=0).reshape(-1)
-    calibrated_test = apply_calibrator(calibrator, method, raw_test)
-
     joblib.dump(calibrator, final_dir / "calibrator.joblib")
     thresholds = {
         "raw": {
             "value": raw_threshold,
             "probability_scale": "raw_mlp_sigmoid",
-            "source_partition": "validation_2023",
-            "policy": "maximum 2023 selection-period F1; ties recall, precision, higher threshold",
+            "source_partition": RAW_THRESHOLD_VALIDATION_PARTITION,
+            "policy": "maximum 2023 threshold-validation F1; ties recall, precision, higher threshold",
         },
         "calibrated": {
             "value": calibrated_threshold,
             "probability_scale": f"{method}_calibrated_probability",
-            "source_partition": "validation_2023_oof",
+            "source_partition": CALIBRATED_THRESHOLD_VALIDATION_PARTITION,
             "policy": str(calibrated_selection["selection_policy"]),
         },
     }
     (final_dir / "thresholds.json").write_text(json.dumps(thresholds, ensure_ascii=False, indent=2), encoding="utf-8")
-    schema = _input_schema(base, feature_list)
+    schema = _input_schema(design_base, feature_list)
     (final_dir / "feature_schema.json").write_text(json.dumps(schema, ensure_ascii=False, indent=2), encoding="utf-8")
+    frozen_decision_hashes = {
+        name: sha256_file(final_dir / name)
+        for name in (
+            "calibration_selection.json",
+            "calibrator.joblib",
+            "thresholds.json",
+            "feature_schema.json",
+        )
+    }
+
+    X_test_raw, endpoint_labels_series = _read_endpoint_after_freeze(
+        base_path,
+        final_dir,
+        frozen_decision_hashes,
+        reader,
+        endpoint_opened_hook,
+    )
+    X_test = transform_features(X_test_raw, scaler, encoders)
+    endpoint_labels = np.asarray(endpoint_labels_series, dtype=int)
+    raw_test = model.predict(X_test, verbose=0).reshape(-1)
+    calibrated_test = apply_calibrator(calibrator, method, raw_test)
 
     raw_metrics = _metrics(endpoint_labels, raw_test, raw_threshold)
     calibrated_metrics = _metrics(endpoint_labels, calibrated_test, calibrated_threshold)
@@ -508,9 +625,13 @@ def build_canonical_bundle(
     )
     probability_table = pd.DataFrame(
         {
-            "row_index": np.asarray(splits["X_test_raw"].index, dtype=int),  # type: ignore[union-attr]
-            "fecha": pd.to_datetime(splits["X_test_raw"]["FECHA"]).dt.strftime("%Y-%m-%d").to_numpy(),  # type: ignore[index]
-            "departamento": splits["X_test_raw"]["DEPARTAMENTO"].to_numpy(),  # type: ignore[index]
+            # A filtered read of a parquet RangeIndex is re-based at zero by
+            # pyarrow. Reconstruct the stable canonical row identifier from
+            # the chronologically sorted design-prefix length without opening
+            # the endpoint early.
+            "row_index": np.arange(len(design_base), len(design_base) + len(X_test_raw), dtype=int),
+            "fecha": pd.to_datetime(X_test_raw["FECHA"]).dt.strftime("%Y-%m-%d").to_numpy(),
+            "departamento": X_test_raw["DEPARTAMENTO"].to_numpy(),
             "actual_multifatal": endpoint_labels,
             "raw_probability": raw_test,
             "raw_threshold": raw_threshold,
@@ -560,22 +681,44 @@ def build_canonical_bundle(
         ignore_index=True,
     )
     ci.to_csv(tables_dir / "final_reference_bootstrap_ci_2024_2025.csv", index=False)
+    bootstrap_metadata = {
+        "schema_version": 1,
+        "method": "row-level percentile bootstrap conditional on frozen predictions",
+        "pipeline_refit_per_resample": False,
+        "included_uncertainty": "row sampling variation within the already-observed historical reference",
+        "excluded_uncertainty": [
+            "training and model-selection uncertainty",
+            "calibration and threshold-selection uncertainty",
+            "temporal dependence",
+            "spatial dependence",
+            "repeated consultation of the reference period",
+            "future or external generalization",
+            "individual-prediction uncertainty",
+        ],
+    }
+    (tables_dir / "final_reference_bootstrap_metadata.json").write_text(
+        json.dumps(bootstrap_metadata, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     baseline = _baseline_reference(X_train, y_train, X_test, endpoint_labels)  # type: ignore[arg-type]
     mlp_rows = pd.DataFrame(
         [
-            {"model": "MLP_definitiva", "probability_scale": "raw", "threshold_source": "2023 selection-period policy", **raw_metrics},
-            {"model": "MLP_definitiva", "probability_scale": method, "threshold_source": "2023 OOF calibration policy", **calibrated_metrics},
+            {"model": "MLP_definitiva", "probability_scale": "raw", "threshold_source": "2023 threshold-validation policy", **raw_metrics},
+            {"model": "MLP_definitiva", "probability_scale": method, "threshold_source": "2023 OOF calibration/threshold-validation policy", **calibrated_metrics},
         ]
     )
     reference_comparison = pd.concat([mlp_rows, baseline], ignore_index=True)
     reference_comparison.to_csv(
         tables_dir / "final_reference_baseline_comparison_2024_2025.csv", index=False
     )
+    paired_summary = json.loads(
+        (tables_dir / "final_paired_bootstrap_2024_2025.json").read_text(encoding="utf-8")
+    )
     protocol_text = canonical_protocol_text(
         method=method,
         raw_threshold=raw_threshold,
         calibrated_threshold=calibrated_threshold,
         comparison=reference_comparison,
+        paired_summary=paired_summary,
     )
     (tables_dir / "final_model_protocol.md").write_text(protocol_text, encoding="utf-8")
 
@@ -583,7 +726,7 @@ def build_canonical_bundle(
     for name, labels, raw_partition in (
         ("train", splits["y_train"], splits["X_train_raw"]),
         ("validation", splits["y_validation"], splits["X_validation_raw"]),
-        ("reference", splits["y_test"], splits["X_test_raw"]),
+        ("reference", endpoint_labels_series, X_test_raw),
     ):
         dates = pd.to_datetime(raw_partition["FECHA"])  # type: ignore[index]
         split_metadata[name] = {
@@ -608,7 +751,10 @@ def build_canonical_bundle(
         "final_reference_confusion_matrix_2024_2025.csv",
         "final_reference_classification_report_2024_2025.csv",
         "final_reference_bootstrap_ci_2024_2025.csv",
+        "final_reference_bootstrap_metadata.json",
         "final_reference_baseline_comparison_2024_2025.csv",
+        "final_paired_bootstrap_2024_2025.csv",
+        "final_paired_bootstrap_2024_2025.json",
         "final_model_protocol.md",
     ]
     reference_hashes = {name: sha256_file(tables_dir / name) for name in reference_files}
@@ -630,7 +776,10 @@ def build_canonical_bundle(
         "dataset": {
             "path": str(base_path.relative_to(root)),
             "sha256": sha256_file(base_path),
-            "row_count": int(len(base)),
+            "row_count": int(len(design_base) + len(X_test_raw)),
+            "raw_source_manifest_path": source_verification["manifest_path"],
+            "raw_source_manifest_sha256": source_verification["manifest_sha256"],
+            "raw_source_count": source_verification["source_count"],
         },
         "code_and_libraries": {
             "python": platform.python_version(),
@@ -640,6 +789,7 @@ def build_canonical_bundle(
             "tensorflow": tf.__version__,
             "builder_code_sha256": sha256_file(Path(__file__)),
             "feature_protocol_sha256": sha256_file(root / "src" / "model_protocol.py"),
+            "chronology_protocol_sha256": sha256_file(root / "src" / "chronology.py"),
             "training_code_sha256": sha256_file(training_source),
             "design_audit_code_sha256": sha256_file(design_audit_source),
         },
@@ -653,17 +803,33 @@ def build_canonical_bundle(
         },
         "calibration": {
             "method": method,
-            "selection_policy": CALIBRATION_POLICY,
-            "selection_partition": "validation_2023_only",
-            "threshold_source": "OOF calibrated validation predictions",
+            "validation_policy": CALIBRATION_POLICY,
+            "validation_partition": CALIBRATION_THRESHOLD_VALIDATION_PARTITION,
+            "threshold_source": "OOF calibrated 2023 validation predictions",
         },
         "thresholds": thresholds,
+        "endpoint_open_gate": {
+            "design_rows_materialized_before_open": int(len(design_base)),
+            "reference_rows_materialized_after_open": int(len(X_test_raw)),
+            "reference_period": "2024-2025",
+            "frozen_decision_artifact_hashes": frozen_decision_hashes,
+        },
         "artifact_hashes": artifact_hashes,
         "selection_artifact_hashes": {
             "model_selection.json": sha256_file(final_dir / "model_selection.json"),
             "model_selection_baseline_validation.csv": sha256_file(tables_dir / "model_selection_baseline_validation.csv"),
             "model_selection_seed_grid_validation.csv": sha256_file(tables_dir / "model_selection_seed_grid_validation.csv"),
             "model_selection_robustness.csv": sha256_file(tables_dir / "model_selection_robustness.csv"),
+            "model_learning_curves.csv": sha256_file(tables_dir / "model_learning_curves.csv"),
+            "model_generalization_gap.json": sha256_file(tables_dir / "model_generalization_gap.json"),
+        },
+        "temporal_diagnostic_artifact_hashes": {
+            name: sha256_file(tables_dir / name)
+            for name in (
+                "temporal_nested_fold_roles.csv",
+                "temporal_nested_outer_metrics.csv",
+                "temporal_nested_diagnostics.json",
+            )
         },
         "reference_artifact_hashes": reference_hashes,
         "design_evidence_artifact_hashes": design_hashes,
@@ -673,8 +839,11 @@ def build_canonical_bundle(
             "used_for_calibration_selection": False,
             "metrics": metrics,
             "bootstrap_ci": ci.to_dict(orient="records"),
+            "bootstrap_scope": bootstrap_metadata,
+            "confirmatory_independence": False,
+            "external_or_prospective_untouched_cohort": False,
         },
-        "claims": canonical_claims(reference_comparison),
+        "claims": canonical_claims(reference_comparison, paired_summary),
     }
     (final_dir / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     return manifest

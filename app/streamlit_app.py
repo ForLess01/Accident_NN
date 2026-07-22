@@ -22,6 +22,8 @@ if str(ROOT) not in sys.path:
 from src.app_inference import (
     InputContractError,
     RuntimeArtifactError,
+    canonical_selection_timeline,
+    demo_payload_matches_record,
     departments_for_point,
     historical_comparison,
     load_clean_dataset,
@@ -31,6 +33,7 @@ from src.app_inference import (
     load_input_options,
     load_known_road_codes,
     load_manifest,
+    load_model_selection,
     load_thresholds,
     mask_unsupported_regional_rates,
     predict_records,
@@ -94,7 +97,7 @@ code { color: #7D3213; background: #F4E9DE; border-radius: .25rem; }
   text-transform: uppercase; margin-bottom: .5rem;
 }
 .scope-strip {
-  border: 1px solid var(--rule); border-left: 5px solid var(--accent);
+  border: 1px solid var(--rule);
   background: var(--surface); padding: .9rem 1rem; margin: .6rem 0 1.25rem;
 }
 .scope-strip strong { color: var(--ink); }
@@ -210,9 +213,9 @@ def overview_provenance(manifest: dict[str, Any]) -> dict[str, str]:
 
 
 STRATEGY_PRESENTATION = {
-    "single_seed314_frozen": ("1 MLP congelada", ORANGE),
+    "single_canonical_frozen": ("1 MLP congelada", ORANGE),
     "ensemble_mean_3_seeds": ("Ensemble 3 semillas", BLUE),
-    "multibranch_162_context_13_companion_mean_3_seeds": ("Multirrama 162+13", "#7E9187"),
+    "multibranch_context_vehicle_mean_3_seeds": ("Multirrama contexto+vehículos", "#7E9187"),
 }
 
 
@@ -236,21 +239,6 @@ def strategy_ci_zero_summary(strategy_ci: pd.DataFrame) -> dict[str, int | str]:
     total = int(len(strategy_ci))
     noun = "intervalo incluye" if total == 1 else "intervalos incluyen"
     return {"including_zero": count, "total": total, "copy": f"{count} de {total} {noun} 0"}
-
-
-def person_strategy_labels(persons: pd.DataFrame, audit: dict[str, Any]) -> dict[str, str]:
-    """Derive the count-rule label from the frozen validation-only threshold."""
-    indexed = persons.set_index("model")
-    required = {"regla_n_personas", "MLP_canónica_cruda"}
-    if indexed.index.duplicated().any() or set(indexed.index) != required:
-        raise RuntimeArtifactError("La comparación con n_personas no coincide con el contrato canónico.")
-    threshold = float(audit["n_personas_rule_selected_on_validation"])
-    if not np.isclose(float(indexed.loc["regla_n_personas", "threshold"]), threshold):
-        raise RuntimeArtifactError("El umbral de n_personas no coincide entre las evidencias de diseño.")
-    return {
-        "regla_n_personas": f"Regla n_personas ≥ {format_number_es(threshold)}",
-        "MLP_canónica_cruda": "MLP canónica cruda",
-    }
 
 
 def format_date_es(value: date | pd.Timestamp) -> str:
@@ -351,8 +339,7 @@ def load_design_artifacts() -> dict[str, pd.DataFrame | dict[str, Any]]:
         "regularization": tables / "design_regularization_summary.csv",
         "strategies": tables / "design_network_strategy_validation.csv",
         "strategy_bootstrap": tables / "design_network_strategy_bootstrap.csv",
-        "persons": tables / "design_n_personas_reference_comparison.csv",
-        "persons_bootstrap": tables / "design_n_personas_paired_bootstrap.csv",
+        "proxy": tables / "personas_target_proxy_identity.json",
         "annual": tables / "design_annual_stability_2024_2025.csv",
     }
     expected = load_manifest().get("design_evidence_artifact_hashes", {})
@@ -361,7 +348,8 @@ def load_design_artifacts() -> dict[str, pd.DataFrame | dict[str, Any]]:
             raise RuntimeArtifactError(f"La evidencia de diseño {path.name} falta o no coincide con el manifiesto.")
     return {
         "audit": json.loads(required["audit"].read_text(encoding="utf-8")),
-        **{key: pd.read_csv(path) for key, path in required.items() if key != "audit"},
+        "proxy": json.loads(required["proxy"].read_text(encoding="utf-8")),
+        **{key: pd.read_csv(path) for key, path in required.items() if key not in {"audit", "proxy"}},
     }
 
 
@@ -612,7 +600,7 @@ def overview_page(manifest: dict[str, Any]) -> None:
     st.markdown(
         f"""
         <div class="nn-pipeline" role="img" aria-label="Flujo de {design['raw_input_fields']} campos crudos a una clasificación multifatal">
-          <div class="nn-stage"><strong>{design['raw_input_fields']} campos</strong><span>Evento, ubicación, vía, entorno, vehículos y personas</span></div>
+          <div class="nn-stage"><strong>{design['raw_input_fields']} campos</strong><span>Evento, ubicación, vía, entorno y vehículos consolidados</span></div>
           <div class="nn-stage"><strong>{design['processed_features']} features</strong><span>Escalado, ciclos temporales, categorías e interacciones</span></div>
           <div class="nn-stage accent"><strong>Dense {hidden_units[0]} + ReLU</strong><span>L2 {architecture['l2']:.0e} · Dropout {architecture['dropout']:.2f} durante entrenamiento</span></div>
           <div class="nn-stage accent"><strong>Dense {hidden_units[1]} + ReLU</strong><span>L2 {architecture['l2']:.0e} · Dropout {architecture['dropout']:.2f} durante entrenamiento</span></div>
@@ -704,11 +692,13 @@ def overview_page(manifest: dict[str, Any]) -> None:
         st.warning(f"No se pudo cargar la evidencia congelada para la demostración: {exc}")
 
     with st.expander("Diseño experimental y garantías metodológicas"):
+        timeline = canonical_selection_timeline(load_model_selection(), manifest)
         protocol = pd.DataFrame(
             [
-                {"Etapa": "Entrenamiento", "Periodo": "2021–2022", "n": manifest["splits"]["train"]["count"], "Uso": "Ajuste de pesos y preprocesamiento"},
-                {"Etapa": "Selección", "Periodo": "2023", "n": manifest["splits"]["validation"]["count"], "Uso": "Configuración completa, semilla, calibración y umbrales"},
-                {"Etapa": "Referencia histórica", "Periodo": "2024–2025", "n": manifest["splits"]["reference"]["count"], "Uso": "Evaluación descriptiva; sin ajustes"},
+                {"Etapa": "Selección interna", "Periodo": timeline["architecture_selection_label"], "n": "—", "Uso": "Arquitectura, configuración completa y semilla"},
+                {"Etapa": "Reajuste final", "Periodo": timeline["final_refit_period"], "n": format_number_es(manifest["splits"]["train"]["count"]), "Uso": "Preprocesamiento y ajuste definitivo de pesos"},
+                {"Etapa": "Calibración y umbrales", "Periodo": timeline["calibration_threshold_period"], "n": format_number_es(manifest["splits"]["validation"]["count"]), "Uso": "Platt OOF y umbrales; sin buscar arquitectura"},
+                {"Etapa": "Referencia histórica", "Periodo": timeline["reference_period"], "n": format_number_es(manifest["splits"]["reference"]["count"]), "Uso": "Evaluación descriptiva; sin ajustes"},
             ]
         )
         st.dataframe(protocol, width="stretch", hide_index=True)
@@ -872,10 +862,24 @@ def estimate_page() -> None:
     known_road_codes = load_known_road_codes()
 
     def option_label(value: str | None) -> str:
-        return "NO INFORMADO" if value is None else value
+        return "NO INFORMADO" if value is None else str(value)
 
     def optional_values(field: str) -> list[str | None]:
-        return [None, *[value for value in options[field] if value is not None]]
+        return field_values(field, optional=True)
+
+    def field_values(field: str, *, optional: bool = False) -> list[str | None]:
+        values: list[str | None] = ([None] if optional else []) + [
+            value for value in options[field] if value is not None
+        ]
+        # Sealed demos may retain valid raw aliases (for example JIRÓN) whose
+        # encoder category is represented in the generic form as CALLE. Keep
+        # those exact values available even after provenance is cleared by an
+        # edit; otherwise Streamlit would silently reset the widget to None.
+        if field in demos:
+            for demo_value in demos[field].dropna().tolist():
+                if demo_value not in values:
+                    values.append(demo_value)
+        return values
 
     def number_default(key: str, default: int | float | None) -> int | float | None:
         """Avoid Streamlit's session-state/default conflict after loading a demo."""
@@ -898,11 +902,12 @@ def estimate_page() -> None:
             st.error("No se encontró el caso de demostración canónico.")
         else:
             demo = demos.loc[demos["caso_id"].eq(demo_choice)].iloc[0]
+            demo_road_code = normalize_road_code(demo["CODIGO_VIA"])
             widget_values = {
                 "input_date": pd.Timestamp(demo["FECHA"]).date(),
                 "input_time": pd.Timestamp(str(demo["HORA"])).time(),
                 "input_department": demo["DEPARTAMENTO"],
-                "input_road_code": demo["CODIGO_VIA"],
+                "input_road_code": None if demo_road_code == "DESCONOCIDO" else demo_road_code,
                 "input_class": demo["CLASE"],
                 "input_zone": demo["ZONA"],
                 "input_network": demo["RED_VIAL"],
@@ -920,15 +925,15 @@ def estimate_page() -> None:
                 "input_n_no_identificado": int(demo["n_no_identificado"]),
                 "input_n_interprovincial": int(demo["n_interprovincial"]),
                 "input_n_transporte_publico": int(demo["n_transporte_publico"]),
-                "input_n_personas": int(demo["n_personas"]),
-                "input_n_pasajeros": int(demo["n_pasajeros"]),
-                "input_n_peatones": int(demo["n_peatones"]),
-                "input_n_conductor_fugado": int(demo["n_conductor_fugado"]),
-                "input_edad_media": float(demo["edad_media_involucrados"]) if pd.notna(demo["edad_media_involucrados"]) else None,
             }
             st.session_state.update(widget_values)
+            st.session_state["active_demo"] = demo.to_dict()
+            st.session_state.pop("demo_provenance_modified", None)
             st.session_state.pop("canonical_result", None)
             st.toast("Escenario cargado. Modificá un campo por vez para observar la respuesta del modelo; el cambio no implica causalidad.")
+            # Re-render from the updated widget state before comparing the
+            # form payload with the sealed demo provenance.
+            st.rerun()
 
     st.subheader("Ubicación")
     _location_picker()
@@ -951,7 +956,7 @@ def estimate_page() -> None:
         with top[2]:
             department = st.selectbox(
                 "Departamento",
-                options["DEPARTAMENTO"],
+                field_values("DEPARTAMENTO"),
                 index=None,
                 placeholder="Seleccioná un departamento…",
                 format_func=option_label,
@@ -983,7 +988,7 @@ def estimate_page() -> None:
         st.markdown("#### Vía y entorno")
         middle = st.columns(4)
         with middle[0]:
-            crash_class = st.selectbox("Clase de siniestro", options["CLASE"], index=None, placeholder="Seleccioná una clase…", format_func=option_label, key="input_class")
+            crash_class = st.selectbox("Clase de siniestro", field_values("CLASE"), index=None, placeholder="Seleccioná una clase…", format_func=option_label, key="input_class")
         with middle[1]:
             zone = st.selectbox("Zona", optional_values("ZONA"), index=0, format_func=option_label, key="input_zone")
         with middle[2]:
@@ -1009,78 +1014,77 @@ def estimate_page() -> None:
             longitude = st.number_input("Longitud", min_value=-180.0, max_value=180.0, value=None, format="%.6f", placeholder="Ej.: -77.042793…", key="input_longitude")
         st.caption("Ingresá ambas coordenadas. El esquema canónico exige ubicación para la inferencia final; la app no imputa una localización silenciosamente.")
 
-        st.markdown("#### Vehículos y personas")
+        st.markdown("#### Vehículos registrados")
         scene_top = st.columns(4)
         with scene_top[0]:
             n_vehiculos = st.number_input("Vehículos involucrados", min_value=1, max_value=10, value=None, step=1, placeholder="Ej.: 2", key="input_n_vehiculos")
         with scene_top[1]:
-            n_personas = st.number_input("Personas involucradas", min_value=1, max_value=120, value=None, step=1, placeholder="Ej.: 4", key="input_n_personas")
-        with scene_top[2]:
-            n_pasajeros = st.number_input("De ellas, pasajeros/ocupantes", min_value=0, max_value=120, value=number_default("input_n_pasajeros", 0), step=1, key="input_n_pasajeros")
-        with scene_top[3]:
-            n_peatones = st.number_input("De ellas, peatones", min_value=0, max_value=120, value=number_default("input_n_peatones", 0), step=1, key="input_n_peatones")
-        scene_bottom = st.columns(4)
-        with scene_bottom[0]:
             n_bus = st.number_input("Buses / minibuses", min_value=0, max_value=10, value=number_default("input_n_bus", 0), step=1, key="input_n_bus")
-        with scene_bottom[1]:
+        with scene_top[2]:
             n_pesado_carga = st.number_input("Pesados de carga", min_value=0, max_value=10, value=number_default("input_n_pesado_carga", 0), step=1, key="input_n_pesado_carga")
-        with scene_bottom[2]:
+        with scene_top[3]:
             n_moto = st.number_input("Motos / trimotos / bicis", min_value=0, max_value=10, value=number_default("input_n_moto", 0), step=1, key="input_n_moto")
-        with scene_bottom[3]:
+        scene_bottom = st.columns(3)
+        with scene_bottom[0]:
             n_no_identificado = st.number_input("Vehículos no identificados", min_value=0, max_value=10, value=number_default("input_n_no_identificado", 0), step=1, key="input_n_no_identificado")
-        scene_extra = st.columns(4)
-        with scene_extra[0]:
+        with scene_bottom[1]:
             n_interprovincial = st.number_input("Servicio interprovincial", min_value=0, max_value=10, value=number_default("input_n_interprovincial", 0), step=1, key="input_n_interprovincial")
-        with scene_extra[1]:
+        with scene_bottom[2]:
             n_transporte_publico = st.number_input("Transporte público / taxi", min_value=0, max_value=10, value=number_default("input_n_transporte_publico", 0), step=1, key="input_n_transporte_publico")
-        with scene_extra[2]:
-            n_conductor_fugado = st.number_input("Conductores fugados", min_value=0, max_value=10, value=number_default("input_n_conductor_fugado", 0), step=1, key="input_n_conductor_fugado")
-        with scene_extra[3]:
-            edad_media = st.number_input("Edad media involucrados (opcional)", min_value=0.0, max_value=110.0, value=None, step=1.0, placeholder="NO INFORMADO", key="input_edad_media")
         st.caption(
-            "Conteos registrados en las tablas complementarias. La fuente no permite probar que todos estuvieran disponibles en el instante de la notificación; "
-            "por eso la demostración se interpreta retrospectivamente. No se ingresa ningún desenlace por persona."
+            "Solo se usan agregados de VEHICULOS del registro consolidado. PERSONAS fue excluida por completo porque su cardinalidad reconstruye el desenlace. "
+            "Sin timestamps por campo, el alcance defendible es histórico retrospectivo."
         )
         submitted = st.form_submit_button("Calcular clase estimada", type="primary")
+
+    record = pd.DataFrame(
+        [{
+            "FECHA": incident_date.isoformat() if incident_date is not None else None,
+            "HORA": incident_time.strftime("%H:%M") if incident_time is not None else None,
+            "DEPARTAMENTO": department,
+            "CODIGO_VIA": normalize_road_code(road_code),
+            "LATITUD": latitude,
+            "LONGITUD": longitude,
+            "CLASE": crash_class,
+            "ZONA": zone,
+            "RED_VIAL": road_network,
+            "TIPO_VIA": road_type,
+            "CLIMA": weather,
+            "CARACTERISTICA_VIA": characteristic,
+            "PERFIL_VIA": profile,
+            "SUPERFICIE": surface,
+            "n_vehiculos": n_vehiculos,
+            "n_bus": n_bus,
+            "n_pesado_carga": n_pesado_carga,
+            "n_moto": n_moto,
+            "n_no_identificado": n_no_identificado,
+            "n_interprovincial": n_interprovincial,
+            "n_transporte_publico": n_transporte_publico,
+        }]
+    )
+    required_fields = [str(item["name"]) for item in load_feature_schema()["required_raw_fields"]]
+    active_demo = st.session_state.get("active_demo")
+    if active_demo and not demo_payload_matches_record(active_demo, record.iloc[0], required_fields):
+        # Ground truth and pedagogical role belong to the original observation,
+        # not to a counterfactual record edited by the user.
+        st.session_state.pop("active_demo", None)
+        st.session_state.pop("canonical_result", None)
+        st.session_state["demo_provenance_modified"] = True
+        active_demo = None
 
     if submitted:
         st.session_state.pop("canonical_result", None)
         st.session_state.pop("prediction_result", None)
-        record = pd.DataFrame(
-            [{
-                "FECHA": incident_date.isoformat() if incident_date is not None else None,
-                "HORA": incident_time.strftime("%H:%M") if incident_time is not None else None,
-                "DEPARTAMENTO": department,
-                "CODIGO_VIA": normalize_road_code(road_code),
-                "LATITUD": latitude,
-                "LONGITUD": longitude,
-                "CLASE": crash_class,
-                "ZONA": zone,
-                "RED_VIAL": road_network,
-                "TIPO_VIA": road_type,
-                "CLIMA": weather,
-                "CARACTERISTICA_VIA": characteristic,
-                "PERFIL_VIA": profile,
-                "SUPERFICIE": surface,
-                "n_vehiculos": n_vehiculos,
-                "n_bus": n_bus,
-                "n_pesado_carga": n_pesado_carga,
-                "n_moto": n_moto,
-                "n_no_identificado": n_no_identificado,
-                "n_interprovincial": n_interprovincial,
-                "n_transporte_publico": n_transporte_publico,
-                "n_personas": n_personas,
-                "n_pasajeros": n_pasajeros,
-                "n_peatones": n_peatones,
-                "n_conductor_fugado": n_conductor_fugado,
-                "edad_media_involucrados": edad_media,
-            }]
-        )
         try:
             with st.spinner("Verificando contrato y ejecutando el modelo…"):
                 prediction = predict_records(record).iloc[0]
                 comparison = historical_comparison(record.iloc[0], float(prediction["calibrated_probability"]))
-            st.session_state["canonical_result"] = {"prediction": prediction.to_dict(), "comparison": comparison}
+            st.session_state["canonical_result"] = {
+                "prediction": prediction.to_dict(),
+                "comparison": comparison,
+                "demo_context": dict(active_demo) if active_demo else None,
+                "demo_payload_modified": bool(st.session_state.get("demo_provenance_modified", False)),
+            }
         except InputContractError as exc:
             st.error(f"Revisá el formulario: {exc}")
         except RuntimeArtifactError as exc:
@@ -1098,6 +1102,23 @@ def estimate_page() -> None:
     multifatal_class = calibrated_probability >= calibrated_threshold
 
     st.subheader("Resultado")
+    demo_context = result.get("demo_context")
+    if demo_context:
+        role = str(demo_context.get("role"))
+        if role == "synthetic_unseen_code":
+            delta = calibrated_probability - float(demo_context.get("source_expected_calibrated_probability", calibrated_probability))
+            st.info(
+                f"Sensibilidad sintética: solo cambió CODIGO_VIA; verdad observada no disponible. "
+                f"Δ probabilidad calibrada frente al clon base: {delta:+.4f}. Esto no implica causalidad."
+            )
+        else:
+            observed = "2+ fallecidos" if int(demo_context.get("actual_multifatal", 0)) == 1 else "1 fallecido"
+            st.info(f"Rol pedagógico {role}. Observado en 2023: {observed}; estimación visible: {'2+ fallecidos' if multifatal_class else '1 fallecido'}.")
+    elif result.get("demo_payload_modified"):
+        st.info(
+            "El escenario fue editado: la salida corresponde al registro modificado. "
+            "La verdad observada y el rol pedagógico del caso original se ocultaron porque ya no describen esta entrada."
+        )
     left, right = st.columns([1.15, .85])
     with left:
         st.plotly_chart(probability_gauge(calibrated_probability, calibrated_threshold), width="stretch", config={"displayModeBar": False})
@@ -1109,7 +1130,8 @@ def estimate_page() -> None:
             f'<div class="decision-panel"><div class="evidence-label">Clase estimada</div>'
             f'<div class="decision-title">{symbol} · {estimated_class}</div>'
             '<div class="decision-copy">Clasificación académica de multifatalidad obtenida con Platt y el umbral '
-            'seleccionado exclusivamente en validación 2023. No es una explicación causal del caso.</div></div>',
+            'definido exclusivamente con la partición de calibración y validación de umbral de 2023. '
+            'No es una explicación causal del caso.</div></div>',
             unsafe_allow_html=True,
         )
     st.subheader("Contexto histórico")
@@ -1465,28 +1487,12 @@ def evidence_page(manifest: dict[str, Any]) -> None:
     st.info(_model_leadership_text(comparison))
     _table_fallback("comparación de modelos", comparison[["Modelo", "F1", "PR-AUC", "ROC-AUC", "precision_multifatal", "recall_multifatal", "threshold"]].round(4), key="modelos")
 
-    st.subheader("¿La MLP aporta más que contar personas?")
-    persons = design["persons"].copy()  # type: ignore[union-attr]
-    persons_ci = design["persons_bootstrap"].copy()  # type: ignore[union-attr]
-    person_names = person_strategy_labels(persons, audit)
-    persons["Modelo"] = persons["model"].map(person_names)
-    persons_fig = go.Figure()
-    for metric, color, symbol in (("pr_auc", ORANGE, "diamond"), ("roc_auc", BLUE, "circle"), ("f1_multifatal", "#7E9187", "square")):
-        persons_fig.add_trace(go.Scatter(
-            x=persons[metric], y=persons["Modelo"], mode="markers", name=metric.replace("_multifatal", "").upper(),
-            marker=dict(color=color, symbol=symbol, size=12),
-            hovertemplate=f"<b>%{{y}}</b><br>{metric}: %{{x:.4f}}<extra></extra>",
-        ))
-    persons_fig.update_layout(title="Referencia histórica post-hoc · umbrales elegidos solo en 2023")
-    persons_fig.update_xaxes(title="Valor", range=[0, 1])
-    persons_fig.update_yaxes(title=None)
-    st.plotly_chart(_plot_layout(persons_fig, height=330, legend=True), width="stretch", config={"displayModeBar": False})
-    pr_delta = persons_ci.loc[persons_ci["metric"].eq("pr_auc")].iloc[0]
-    roc_delta = persons_ci.loc[persons_ci["metric"].eq("roc_auc")].iloc[0]
-    st.caption(
-        f"La MLP supera a la regla n_personas en ranking: ΔPR-AUC {pr_delta['delta']:+.4f} "
-        f"[IC 95 % {pr_delta['ci_2_5']:+.4f}, {pr_delta['ci_97_5']:+.4f}] y ΔROC-AUC {roc_delta['delta']:+.4f} "
-        f"[{roc_delta['ci_2_5']:+.4f}, {roc_delta['ci_97_5']:+.4f}]. Esta comparación de referencia es post-hoc; no reajusta la red."
+    st.subheader("Control de fuga por PERSONAS")
+    proxy = design["proxy"]  # type: ignore[assignment]
+    st.warning(
+        f"La auditoría reconstruyó el objetivo en {proxy['target_identity_rows']} de {proxy['rows']} registros "
+        "a partir del conteo de fallecidos en PERSONAS. Por eso se excluyó toda esa familia del modelo; "
+        "no se usa como baseline operativo ni como entrada."
     )
 
     st.subheader("Estabilidad temporal descriptiva")
@@ -1576,6 +1582,7 @@ def evidence_page(manifest: dict[str, Any]) -> None:
     st.subheader("Explicabilidad")
     explainability = load_explainability_artifacts()
     groups = explainability["groups"].copy().sort_values("mean_abs_grouped_shap", ascending=True)
+    stability = explainability["stability"].copy().sort_values(["rank_median", "raw_variable_group"])
     provenance = explainability["provenance"]
     groups["Dirección media"] = groups["mean_signed_grouped_shap"].map(
         lambda value: "Aumenta el score bruto" if value > 0 else "Reduce el score bruto" if value < 0 else "Neutra"
@@ -1627,6 +1634,33 @@ def evidence_page(manifest: dict[str, Any]) -> None:
         "importancia global agrupada",
         display_groups[["Grupo interpretable", "Features agrupadas", "Importancia global", "Contribución media firmada", "Proporción positiva", "Dirección media"]].round(5),
         key="explicabilidad_global",
+    )
+    st.markdown("#### Estabilidad de los grupos explicativos")
+    tier_labels = {
+        "stable_top": "Núcleo superior estable",
+        "stable_band": "Banda estable",
+        "variable": "Orden variable",
+    }
+    stability["Nivel de estabilidad"] = stability["stability_tier"].map(tier_labels).fillna(stability["stability_tier"])
+    display_stability = stability.rename(columns={
+        "raw_variable_group": "Grupo interpretable",
+        "rank_median": "Rango mediano",
+        "rank_min": "Mejor rango",
+        "rank_max": "Peor rango",
+        "importance_share_mean": "Participación media",
+        "importance_share_sd": "Desviación entre semillas",
+    })
+    _table_fallback(
+        "estabilidad de explicabilidad",
+        display_stability[[
+            "Grupo interpretable", "Nivel de estabilidad", "Rango mediano", "Mejor rango", "Peor rango",
+            "Participación media", "Desviación entre semillas",
+        ]].round(5),
+        key="estabilidad_explicabilidad",
+    )
+    st.caption(
+        "Los niveles se estiman con tres semillas deterministas. Se interpreta la pertenencia a una banda estable, "
+        "no el orden exacto entre variables cercanas."
     )
     with st.expander("Arquitectura y trazabilidad"):
         architecture = manifest["architecture"]

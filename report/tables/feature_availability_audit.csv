@@ -1,9 +1,10 @@
-source_fields,availability,post_incident_prioritization,prevention,decision
-"FECHA, HORA",Consolidated registry,timestamp not supplied,not evaluated,Calendar and cyclic-time features
-"DEPARTAMENTO, coordenadas, red/tipo de vía",Consolidated registry,timestamp not supplied,not evaluated,Location and road context
-"ZONA, CLIMA, geometría, superficie",Consolidated registry,timestamp not supplied,not evaluated,Scene and infrastructure context
-CLASE,Consolidated registry,timestamp not supplied,no,Retrospective classification
-"Vehiculos/personas involucradas (conteos, tipo, edad)",Companion registry,timestamp not supplied,no,Retrospective v2 aggregates; per-person outcomes stay banned
-"FALLECIDOS, LESIONADOS, VEHICULOS_DANADOS",Outcome/count after event,no,no,Excluded: direct outcome leakage
-"CAUSA_FACTOR, CAUSA_ESPECIFICA",Investigation conclusion,no,no,Excluded: post-investigation leakage
-"SENAL_VERTICAL, SENAL_HORIZONTAL",Sparse recording field,not reliable,not reliable,Excluded: missingness is period-dependent
+source_fields,source_stage,timestamp_evidence,target_dependency,allowed_scope,decision
+"FECHA, HORA",Consolidated registry,timestamp not supplied,not evaluated,retrospective historical classification,Calendar and cyclic-time features
+"DEPARTAMENTO, coordenadas, red/tipo de vía",Consolidated registry,timestamp not supplied,not evaluated,retrospective historical classification,Location and road context
+"ZONA, CLIMA, geometría, superficie",Consolidated registry,timestamp not supplied,not evaluated,retrospective historical classification,Scene and infrastructure context
+CLASE,Consolidated registry,timestamp not supplied,no,retrospective historical classification,Retrospective classification
+VEHICULOS involucrados (conteos y tipo),VEHICULOS companion registry,timestamp not supplied,not evaluated,retrospective historical classification,include with scope restriction
+Todos los agregados de PERSONAS,PERSONAS companion registry,not usable: cardinality/deceased counts encode target,yes,none,exclude entire source from predictors
+"FALLECIDOS, LESIONADOS, VEHICULOS_DANADOS",Outcome/count after event,no,no,retrospective historical classification,Excluded: direct outcome leakage
+"CAUSA_FACTOR, CAUSA_ESPECIFICA",Investigation conclusion,no,no,retrospective historical classification,Excluded: post-investigation leakage
+"SENAL_VERTICAL, SENAL_HORIZONTAL",Sparse recording field,not reliable,not reliable,retrospective historical classification,Excluded: missingness is period-dependent

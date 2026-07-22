@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "purpose": "executable target-proxy lineage proof; PERSONAS is forbidden as predictor source",
+  "rows": 9104,
+  "deceased_count_identity_rows": 9104,
+  "person_rows_cover_deceased_rows": 9104,
+  "target_identity_rows": 9104,
+  "all_deceased_counts_equal_fallecidos": true,
+  "all_person_counts_cover_fallecidos": true,
+  "all_targets_reconstructed": true,
+  "decision": "exclude every PERSONAS-derived aggregate from the canonical input contract",
+  "personas_used_for_modeling": false
+}

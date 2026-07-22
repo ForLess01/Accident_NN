@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "method": "row-level percentile bootstrap conditional on frozen predictions",
+  "pipeline_refit_per_resample": false,
+  "included_uncertainty": "row sampling variation within the already-observed historical reference",
+  "excluded_uncertainty": [
+    "training and model-selection uncertainty",
+    "calibration and threshold-selection uncertainty",
+    "temporal dependence",
+    "spatial dependence",
+    "repeated consultation of the reference period",
+    "future or external generalization",
+    "individual-prediction uncertainty"
+  ]
+}

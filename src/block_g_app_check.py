@@ -44,7 +44,7 @@ def run_block_g_check(run_apptest: bool = True) -> dict[str, object]:
     checklist: list[dict[str, object]] = [
         {
             "check": "canonical_manifest_loaded",
-            "passed": manifest["model_version"] == "canonical-2.0.0",
+            "passed": manifest["model_version"] == "canonical-3.0.0",
             "detail": str(manifest["model_version"]),
         },
         {
@@ -60,8 +60,8 @@ def run_block_g_check(run_apptest: bool = True) -> dict[str, object]:
         {
             "check": "probability_scales_are_explicit",
             "passed": bool(
-                float(thresholds["raw"]["value"]) == 0.8
-                and float(thresholds["calibrated"]["value"]) == 0.3
+                float(thresholds["raw"]["value"]) == float(manifest["thresholds"]["raw"]["value"])
+                and float(thresholds["calibrated"]["value"]) == float(manifest["thresholds"]["calibrated"]["value"])
                 and "raw_probability" in predictions
                 and "calibrated_probability" in predictions
             ),
@@ -140,7 +140,9 @@ def run_block_g_check(run_apptest: bool = True) -> dict[str, object]:
                 demo_test.run()
                 demo_test.selectbox[0].set_value(demo_id)
                 demo_test.button[0].click().run()
-                expected_road_code = str(demos.loc[demos["caso_id"].eq(demo_id), "CODIGO_VIA"].iloc[0])
+                demo_row = demos.loc[demos["caso_id"].eq(demo_id)].iloc[0]
+                normalized_code = app_inference.normalize_road_code(demo_row["CODIGO_VIA"])
+                expected_road_code = None if normalized_code == "DESCONOCIDO" else normalized_code
                 loaded = bool(
                     demo_test.date_input[0].value is not None
                     and demo_test.time_input[0].value is not None
@@ -152,13 +154,19 @@ def run_block_g_check(run_apptest: bool = True) -> dict[str, object]:
                 load_errors = [str(item.value) for item in demo_test.error]
                 load_exceptions = [str(item.value) for item in demo_test.exception]
                 warnings = [str(item.value) for item in demo_test.warning]
-                unseen_warning = demo_id != "demo_04_codigo_no_visto" or any(
+                unseen_warning = demo_row["role"] != "synthetic_unseen_code" or any(
                     "no observado en entrenamiento" in item.lower() for item in warnings
                 )
                 demo_test.button[1].click().run()
                 submit_errors = [str(item.value) for item in demo_test.error]
                 submit_exceptions = [str(item.value) for item in demo_test.exception]
                 result_rendered = any(item.value == "Resultado" for item in demo_test.subheader)
+                info_messages = [str(item.value) for item in demo_test.info]
+                provenance_rendered = (
+                    any("Sensibilidad sintética" in item for item in info_messages)
+                    if demo_row["role"] == "synthetic_unseen_code"
+                    else any(f"Rol pedagógico {demo_row['role']}" in item for item in info_messages)
+                )
                 demo_runs[demo_id] = {
                     "loaded": loaded,
                     "unseen_warning": unseen_warning,
@@ -167,6 +175,7 @@ def run_block_g_check(run_apptest: bool = True) -> dict[str, object]:
                     "submit_errors": submit_errors,
                     "submit_exceptions": submit_exceptions,
                     "result": result_rendered,
+                    "provenance": provenance_rendered,
                 }
 
             demos_ok = all(
@@ -177,11 +186,47 @@ def run_block_g_check(run_apptest: bool = True) -> dict[str, object]:
                 and not result["submit_errors"]
                 and not result["submit_exceptions"]
                 and bool(result["result"])
+                and bool(result["provenance"])
                 for result in demo_runs.values()
             )
 
+            def edited_demo_semantics(demo_id: str) -> dict[str, object]:
+                edited = AppTest.from_file(app_path, default_timeout=45)
+                edited.query_params["section"] = "estimar"
+                edited.run()
+                edited.selectbox[0].set_value(demo_id)
+                edited.button[0].click().run()
+                total = next(item for item in edited.number_input if item.label == "Vehículos involucrados")
+                total.set_value(int(total.value) + 1).run()
+                stale_before_submit = any(item.value == "Resultado" for item in edited.subheader)
+                edited.button[1].click().run()
+                messages = [str(item.value) for item in edited.info]
+                return {
+                    "errors": [str(item.value) for item in edited.error],
+                    "exceptions": [str(item.value) for item in edited.exception],
+                    "result": any(item.value == "Resultado" for item in edited.subheader),
+                    "stale_before_submit": stale_before_submit,
+                    "edited_notice": any("escenario fue editado" in item.lower() for item in messages),
+                    "leaked_role_or_truth": any(
+                        "Rol pedagógico" in item or "Observado en 2023" in item or "Sensibilidad sintética" in item
+                        for item in messages
+                    ),
+                }
+
+            edited_real = edited_demo_semantics("demo_01_tn")
+            edited_synthetic = edited_demo_semantics("demo_05_unseen_code")
+            edited_semantics_ok = all(
+                not result["errors"]
+                and not result["exceptions"]
+                and bool(result["result"])
+                and not bool(result["stale_before_submit"])
+                and bool(result["edited_notice"])
+                and not bool(result["leaked_role_or_truth"])
+                for result in (edited_real, edited_synthetic)
+            )
+
             # Reuse a clean canonical demo for the stale-result regression.
-            test.selectbox[0].set_value("demo_01_tipico_letalidad_simple")
+            test.selectbox[0].set_value("demo_01_tn")
             test.button[0].click().run()
             test.button[1].click().run()
             valid_errors = [str(item.value) for item in test.error]
@@ -210,6 +255,7 @@ def run_block_g_check(run_apptest: bool = True) -> dict[str, object]:
                 navigation_ok
                 and empty_defaults
                 and demos_ok
+                and edited_semantics_ok
                 and not valid_errors
                 and not valid_exceptions
                 and valid_result_rendered
@@ -223,13 +269,15 @@ def run_block_g_check(run_apptest: bool = True) -> dict[str, object]:
                     "check": "streamlit_apptest_smoke",
                     "passed": app_ok,
                     "detail": (
-                        "All 5 URL sections and all 5 inferred demos passed, including unseen PE-999X; mismatch stale-state guard + chart tables passed"
+                        "All 5 URL sections and all 5 canonical demos passed; edited real/synthetic provenance was cleared; mismatch stale-state guard + chart tables passed"
                         if app_ok
                         else json.dumps(
                             {
                                 "navigation": navigation_runs,
                                 "empty_defaults": empty_defaults,
                                 "demo_runs": demo_runs,
+                                "edited_real": edited_real,
+                                "edited_synthetic": edited_synthetic,
                                 "valid_errors": valid_errors,
                                 "valid_exceptions": valid_exceptions,
                                 "valid_result": valid_result_rendered,

@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "purpose": "diagnostic estimate of temporal variability; not a new untouched test",
+  "source_boundary": "FECHA < 2024-01-01 enforced before materialization",
+  "within_fold_roles_disjoint": true,
+  "folds": [
+    {
+      "fold": "rolling_1",
+      "config_id": "MLP_32_16",
+      "seed": 42,
+      "calibration_method": "platt",
+      "calibrated_threshold": 0.2,
+      "f1_multifatal": 0.39603960396039606,
+      "precision_multifatal": 0.3041825095057034,
+      "recall_multifatal": 0.5673758865248227,
+      "pr_auc": 0.34585738175263225,
+      "roc_auc": 0.7960670535138621
+    },
+    {
+      "fold": "rolling_2",
+      "config_id": "MLP_32",
+      "seed": 42,
+      "calibration_method": "platt",
+      "calibrated_threshold": 0.15,
+      "f1_multifatal": 0.36772486772486773,
+      "precision_multifatal": 0.24821428571428572,
+      "recall_multifatal": 0.7091836734693877,
+      "pr_auc": 0.3259471767185608,
+      "roc_auc": 0.8089647721616363
+    }
+  ],
+  "limitations": "Only two rolling folds are possible with annual 2021-2023 data; folds share historical rows and do not replace external/prospective validation."
+}
