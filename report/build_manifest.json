@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "built_utc": "2026-07-22T09:56:28.351213+00:00",
+  "built_utc": "2026-07-27T15:20:35.276787+00:00",
   "python": "3.12.13",
   "engine": {
     "command": "latexmk -pdf -interaction=nonstopmode -halt-on-error main.tex",
@@ -26,10 +26,10 @@
     "report/figures/final_explainability_global.png": "8f9f683936d3a9d362fb390e12690216062e4e73115934d6367d247001d1641a",
     "report/figures/final_model_evidence.png": "64e93bb0dc46e46b22b1f92732d65d87ac822cd6abfc7237e5b175a7baf96e0c",
     "report/figures/final_seed_robustness.png": "161abcc8e8118b1ad3fd09ae6259c7f63d4c460fcb649686f62399f5357df19c",
-    "report/main.tex": "6eb8a316a12cc079e90d4c6fa76fca0232e05199aecaece417a83d3b7ad29d86",
-    "report/sections/00_resumen.tex": "180905c11ee2adf229ac2e40fa133129413813916f0442b5a5bee2c7a1f6fe7d",
+    "report/main.tex": "5ea0d7388aeb1e1ba567c70755d0a9fbc85e22f0f2c80b42ab84d125c3943198",
+    "report/sections/00_resumen.tex": "f14584d5d3e7c29fe6534b08f8585e33bc77664990dc7bb203f1181c588decc1",
     "report/sections/01_introduccion.tex": "75a999cad74246e785dff2d505d7310fbebb907eb7bcc42470a834ad0b266fce",
-    "report/sections/02_objetivos.tex": "37bf1d5c8962e8daaeb8b2d5991fff12196dde2dad058c82c2c0825b0def6c23",
+    "report/sections/02_objetivos.tex": "81930d15642b524fabd6f476add385ad063067772cb3666ce79d214ad1571a6a",
     "report/sections/03_marco_teorico.tex": "18e34703dea2f60a0835feaa00d686c72601c3d7a4678e552d19d375c5fc17d5",
     "report/sections/04_metodologia.tex": "e2d7656f8b3b5792fd67635fbd3aebbc0c38240b53193e7119ea682763567ba8",
     "report/sections/05_dataset.tex": "b35219c769fcb9585435d82a75ff75ed25e6958e63fc4178ac0a841fb33e5610",
@@ -39,9 +39,9 @@
     "report/sections/09_modelo.tex": "57a1f2f837a26d54beeb47e1cdf42b2a8db7a66190205f4cdf3bd790c0ba39c2",
     "report/sections/10_resultados.tex": "802dc43271998ea7ac39ad3da925247b9b4f50463bd970465bd25013faa40ea6",
     "report/sections/11_interfaz_grafica.tex": "99901d56a6a368415f6cbf7c18c5ad54a643c4b463e1b6c8441a3401aad5f444",
-    "report/sections/12_discusion.tex": "3af6357f721c36b350f3e5da7888736d8b235c37f3af94a2c0712edc8e8c1e5f",
-    "report/sections/13_conclusiones.tex": "cb2c54a202058f304b00d18662c1f7ca9a05cd1728f5906277d6fa9fb13cfba5",
-    "report/sections/15_anexos.tex": "eac48cc0d30bd0d09f638f8b50eb6f709c969b525120ac7cdcc1729a6a9c3395",
+    "report/sections/12_discusion.tex": "deb6ff8cfe1d2c45bc709a4898da2f3edef11dafa2dd44c9f9a7e78fdc8cd197",
+    "report/sections/13_conclusiones.tex": "dae2ce1e9647094fcbea0382e4aa2cff07fb6c333c1ef1cf76a9877bb57e4fb2",
+    "report/sections/14_anexos.tex": "0139824840ffabc775de61952912fd750cc4a641bced2a68f420bf2612c1047c",
     "report/sections/eda_hallazgos.md": "1ada2a19d91096cb27a1a5830d0e8ca3b07faac243de0941ec5a2fd6dae2ca5f",
     "report/tables/design_annual_stability_2024_2025.csv": "89e3e749eaf5ca99e163ec1161a90be9845e27c7523fb2c2c5de9d9dfc643e7a",
     "report/tables/design_network_strategy_bootstrap.csv": "9292e9e328ef4be680a9c4e27abfdbeb499b7462e50dbf051f8b9d7ffaaf783f",
@@ -84,8 +84,8 @@
   },
   "pdf": {
     "path": "report/main.pdf",
-    "bytes": 1599034,
-    "sha256": "a309c546f6c6c2e16334717d0e4aa920c4d11d15b8351efdab531bd356c47574"
+    "bytes": 1605506,
+    "sha256": "c3f01fc2ae0262873290f9ed3bf8e76131dbe05ad9e6530b1cade04ed103333a"
   },
   "freshness_rule": "content hashes only; checkout mtimes are irrelevant"
 }

@@ -13,7 +13,7 @@ Desarrollar una red neuronal de clasificación binaria de alta letalidad en sini
 \end{itemize}
 
 \subsection{Métricas comprometidas antes de entrenar}
-El dataset es desbalanceado: la clase multifatal es minoritaria (10.2\,\%). Por ello se fijaron las métricas antes de ver los datos, como hace un profesional:
+El dataset es desbalanceado: la clase multifatal es minoritaria (10.2\,\%). Por ello las métricas y las reglas de decisión se fijaron antes de entrenar:
 \begin{itemize}
   \item Selección de configuración completa: \textbf{mayor mediana de PR-AUC en selección 2022 entre semillas}; desempates por mayor F1 mediana y, después, menor IQR de PR-AUC. Cada configuración combina capas, dropout, L2 y tasa de aprendizaje.
   \item Métricas de reporte obligatorio: \emph{precision} y \emph{recall} de la clase multifatal, PR-AUC, ROC-AUC, matriz de confusión completa y \emph{accuracy} solo como referencia.

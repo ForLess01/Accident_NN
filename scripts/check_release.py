@@ -46,7 +46,6 @@ FORBIDDEN_TIMELINE_PATTERNS = (
 )
 TIMELINE_SCAN_FILES = (
     Path("README.md"),
-    Path("Plan.md"),
     Path("src/block_e_modeling.py"),
     Path("src/final_model_bundle.py"),
     Path("src/final_explainability.py"),
@@ -226,7 +225,7 @@ def verify_timeline_labels() -> None:
 def scan_forbidden_references() -> None:
     hits: list[str] = []
     roots = [ROOT / "app", ROOT / "src", ROOT / "tests", ROOT / "report", ROOT / "docs"]
-    files = [ROOT / "README.md", ROOT / "Plan.md"]
+    files = [ROOT / "README.md"]
     for directory in roots:
         files.extend(path for path in directory.rglob("*") if path.is_file() and path.suffix.lower() in TEXT_SUFFIXES)
     for path in sorted(set(files)):
@@ -250,7 +249,7 @@ def verify_pdf_freshness() -> None:
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise RuntimeError("Falta report/build_manifest.json válido; ejecutá scripts/build_report.py.") from exc
+        raise RuntimeError("Falta report/build_manifest.json válido; ejecute scripts/build_report.py.") from exc
     mismatches = []
     for relative, expected in manifest.get("canonical_input_hashes", {}).items():
         path = ROOT / relative
@@ -297,7 +296,7 @@ def verify_git_tracking(local_content: bool) -> None:
     if local_content:
         announce("ADVERTENCIA: " + message)
     else:
-        raise RuntimeError(message + ". Usá --local-content solo durante desarrollo.")
+        raise RuntimeError(message + ". Utilice --local-content solo durante desarrollo.")
 
 
 def main() -> int:
@@ -311,7 +310,7 @@ def main() -> int:
     if os.environ.get(RELEASE_PYTEST_ACTIVE_ENV) == "1":
         raise RuntimeError("Se bloqueó una invocación recursiva del release gate desde pytest.")
     if not PYTHON.exists():
-        raise RuntimeError("No existe .venv/bin/python. Creá el entorno indicado en README.md.")
+        raise RuntimeError("No existe .venv/bin/python. Cree el entorno indicado en README.md.")
 
     require_paths()
     announce("artefactos requeridos presentes")

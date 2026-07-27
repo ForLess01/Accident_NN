@@ -1,5 +1,24 @@
 \section{Anexos}\label{sec:anexos}
 
+\subsection{Repositorio y estructura del proyecto}
+El código fuente completo, los datos, el modelo y este informe están versionados en el repositorio público \url{https://github.com/ForLess01/Accident_NN}. El cuaderno \path{notebooks/modelo.ipynb} documenta el proyecto de forma ejecutable y es compatible con Google Colab.
+
+\begin{lstlisting}[language={}, numbers=none]
+Accident_NN/
+|-- app/            Interfaz Streamlit (solo lectura del bundle)
+|-- data/
+|   |-- raw/        Libros oficiales ONSV + manifiesto SHA-256
+|   |-- processed/  base_limpia.parquet y casos de demostracion
+|   `-- geo/        GeoJSON de departamentos del Peru
+|-- docs/           Procedencia y disponibilidad de los datos
+|-- models/final/   Bundle canonico: modelo, encoders, calibrador
+|-- notebooks/      modelo.ipynb (cuaderno academico integral)
+|-- report/         Informe LaTeX, figuras, tablas y PDF final
+|-- scripts/        Construccion del informe y gate de release
+|-- src/            Pipeline: auditoria, EDA, entrenamiento
+`-- tests/          Suite de regresion (pytest)
+\end{lstlisting}
+
 \subsection{Configuración canónica}
 \begin{lstlisting}
 canonical = {

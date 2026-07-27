@@ -1,6 +1,6 @@
 \section{Discusión}\label{sec:discusion}
 
-La corrección principal cambia la interpretación del proyecto. PERSONAS no era una variable fuerte legítima sino una familia estructuralmente contaminada: el número de fallecidos por persona reproduce el target. Eliminarla reduce las métricas frente al resultado anterior, pero aumenta de forma decisiva la validez del experimento. Un resultado menor y honesto es científicamente superior a un resultado alto producido por un proxy del desenlace.
+La decisión metodológica central condiciona la interpretación del proyecto. PERSONAS no es una familia de variables predictoras legítima sino una fuente estructuralmente contaminada: el conteo de fallecidos por persona reproduce el target. Excluirla reduce las métricas frente a un modelo que la incluyera, pero aumenta de forma decisiva la validez del experimento. Un resultado menor y honesto es científicamente superior a un resultado alto producido por un proxy del desenlace.
 
 La MLP conserva señal por encima de la prevalencia: PR-AUC 0.325 frente a 0.099 y ROC-AUC 0.792. Sin embargo, 380 FP y 72 FN en la escala calibrada impiden describir el modelo como excelente. La calibración es buena en Brier/ECE, pero no resuelve límites de ranking.
 
