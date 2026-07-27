@@ -284,9 +284,19 @@ def _fit_calibrator(method: str, probabilities: np.ndarray, labels: np.ndarray) 
 
 
 def apply_calibrator(calibrator: object, method: str, probabilities: np.ndarray) -> np.ndarray:
+    """Apply the fitted calibrator to raw sigmoid scores.
+
+    Platt is evaluated from the fitted coefficient and intercept rather than
+    through ``predict_proba``. The arithmetic is identical for a binary
+    logistic regression, and reading only the two stored arrays keeps the
+    bundle usable when the scikit-learn version that loads it differs from the
+    one that fitted it.
+    """
     raw = np.asarray(probabilities, dtype=float).reshape(-1)
     if method == "platt":
-        calibrated = calibrator.predict_proba(_platt_features(raw))[:, 1]  # type: ignore[attr-defined]
+        weight = float(np.asarray(calibrator.coef_).ravel()[0])  # type: ignore[attr-defined]
+        bias = float(np.asarray(calibrator.intercept_).ravel()[0])  # type: ignore[attr-defined]
+        calibrated = 1.0 / (1.0 + np.exp(-(weight * _platt_features(raw).reshape(-1) + bias)))
     elif method == "isotonic":
         calibrated = calibrator.predict(raw)  # type: ignore[attr-defined]
     else:
