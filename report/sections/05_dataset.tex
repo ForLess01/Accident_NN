@@ -5,6 +5,42 @@ La fuente es el catálogo oficial ONSV \url{https://www.onsv.gob.pe/datosabierto
 \subsection{Objetivo}
 El universo contiene solo siniestros fatales. Por tanto, $y=1$ cuando \texttt{FALLECIDOS}$\geq2$ y $y=0$ cuando \texttt{FALLECIDOS}=1. El modelo no estima la probabilidad de que cualquier accidente sea fatal.
 
+\subsection{Variables de entrada}
+El contrato de entrada persistido en \path{models/final/feature_schema.json} exige exactamente 21 campos crudos, listados en el cuadro~\ref{tab:variables-crudas}. Catorce provienen del registro SINIESTROS y siete son agregados del registro acompañante VEHICULOS. Ese conjunto es el único admitido en inferencia: la aplicación rechaza un registro con campos faltantes, adicionales o de tipo incompatible.
+
+\begin{table}[tbp]\centering\footnotesize
+\caption{Campos crudos del contrato de entrada. La columna ``Nulo'' indica si el campo admite ausencia, en cuyo caso el preprocesamiento asigna la categoría \texttt{DESCONOCIDO} o un indicador explícito de falta.}
+\label{tab:variables-crudas}
+\begin{tabularx}{\textwidth}{@{}p{4.3cm}p{1.3cm}c X@{}}\toprule
+Campo & Tipo & Nulo & Contenido \\\midrule
+\multicolumn{4}{@{}l}{\textit{Registro SINIESTROS}}\\
+\texttt{FECHA} & fecha & no & Fecha del siniestro; origen de mes, día de semana y feriado \\
+\texttt{HORA} & texto & no & Hora del siniestro; origen de codificación cíclica y franja \\
+\texttt{DEPARTAMENTO} & texto & no & Departamento; origen de la región natural \\
+\texttt{CODIGO\_VIA} & texto & sí & Código oficial de la vía; origen de prefijo y frecuencia \\
+\texttt{LATITUD} & decimal & no & Latitud geográfica \\
+\texttt{LONGITUD} & decimal & no & Longitud geográfica \\
+\texttt{CLASE} & texto & no & Mecánica del siniestro: choque, atropello, despiste, volcadura \\
+\texttt{ZONA} & texto & sí & Zona rural o urbana \\
+\texttt{RED\_VIAL} & texto & sí & Jerarquía: nacional, departamental, provincial, urbana \\
+\texttt{TIPO\_VIA} & texto & no & Carretera, avenida, calle, vía expresa \\
+\texttt{CLIMA} & texto & sí & Condición climática registrada en la escena \\
+\texttt{CARACTERISTICA\_VIA} & texto & sí & Geometría: tramo recto, curva, intersección, estructura \\
+\texttt{PERFIL\_VIA} & texto & sí & Perfil longitudinal: plana o inclinada \\
+\texttt{SUPERFICIE} & texto & sí & Superficie de calzada: pavimentada, afirmado, trocha \\\midrule
+\multicolumn{4}{@{}l}{\textit{Registro VEHICULOS (agregados por siniestro)}}\\
+\texttt{n\_vehiculos} & entero & no & Vehículos involucrados \\
+\texttt{n\_bus} & entero & no & Buses y minibuses \\
+\texttt{n\_pesado\_carga} & entero & no & Vehículos pesados de carga \\
+\texttt{n\_moto} & entero & no & Motos, trimotos y bicicletas \\
+\texttt{n\_no\_identificado} & entero & no & Vehículos sin identificación \\
+\texttt{n\_interprovincial} & entero & no & Unidades de servicio interprovincial \\
+\texttt{n\_transporte\_publico} & entero & no & Transporte público urbano y taxis \\\bottomrule
+\end{tabularx}
+\end{table}
+
+Quedan deliberadamente fuera del contrato los campos que describen el desenlace (\texttt{FALLECIDOS}, \texttt{LESIONADOS}, \texttt{VEHICULOS\_DANADOS}), las conclusiones de la investigación posterior (\texttt{CAUSA\_FACTOR}, \texttt{CAUSA\_ESPECIFICA}), los identificadores administrativos y las señales viales, cuya ausencia depende del periodo de registro.
+
 \subsection{Prueba de fuga PERSONAS}
 La auditoría por código comparó SINIESTROS con PERSONAS. El conteo \texttt{GRAVEDAD} $=$ \texttt{FALLECIDO} coincide con \texttt{FALLECIDOS} y reconstruye el target en los 9\,104 registros; además, el número de filas PERSONAS cubre necesariamente a los fallecidos. Excluir solamente \texttt{GRAVEDAD} era insuficiente. La decisión final excluye toda la fuente PERSONAS de los predictores; solo permanece como prueba de linaje.
 

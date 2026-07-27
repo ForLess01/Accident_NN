@@ -5,8 +5,8 @@ Desarrollar una red neuronal de clasificación binaria de alta letalidad en sini
 
 \subsection{Objetivos específicos}
 \begin{itemize}
-  \item \textbf{OE1.} Caracterizar la siniestralidad fatal nacional mediante análisis exploratorio de datos, con al menos ocho hallazgos interpretados.
-  \item \textbf{OE2.} Construir al menos doce características derivadas de las variables pre-impacto del registro, cada una justificada.
+  \item \textbf{OE1.} Caracterizar la siniestralidad fatal nacional mediante análisis exploratorio de datos, interpretando cada hallazgo en función de su consecuencia para el modelado.
+  \item \textbf{OE2.} Derivar el conjunto de características a partir de las variables pre-impacto del registro, justificando cada familia por su correspondencia con un hallazgo del análisis o con una restricción de disponibilidad.
   \item \textbf{OE3.} Entrenar un perceptrón multicapa (MLP) y compararlo contra tres líneas base: \texttt{DummyClassifier(strategy=prior)}, regresión logística y \emph{random forest}. Si la MLP no supera a un método clásico, se reporta y discute honestamente.
   \item \textbf{OE4.} Identificar familias de variables asociadas al score mediante Gradient SHAP y comprobar la estabilidad de sus bandas de importancia.
   \item \textbf{OE5.} Desplegar una interfaz gráfica en Streamlit que consuma exactamente el bundle de inferencia canónico, con verificación de hashes y paridad.
@@ -16,7 +16,7 @@ Desarrollar una red neuronal de clasificación binaria de alta letalidad en sini
 El dataset es desbalanceado: la clase multifatal es minoritaria (10.2\,\%). Por ello las métricas y las reglas de decisión se fijaron antes de entrenar:
 \begin{itemize}
   \item Selección de configuración completa: \textbf{mayor mediana de PR-AUC en selección 2022 entre semillas}; desempates por mayor F1 mediana y, después, menor IQR de PR-AUC. Cada configuración combina capas, dropout, L2 y tasa de aprendizaje.
-  \item Métricas de reporte obligatorio: \emph{precision} y \emph{recall} de la clase multifatal, PR-AUC, ROC-AUC, matriz de confusión completa y \emph{accuracy} solo como referencia.
-  \item Se prohíbe argumentar calidad con \emph{accuracy} aislada: un modelo que responde siempre ``letalidad simple'' alcanza \emph{accuracy} alta y es inútil.
+  \item Métricas reportadas sin excepción: \emph{precision} y \emph{recall} de la clase multifatal, PR-AUC, ROC-AUC, matriz de confusión completa y \emph{accuracy} únicamente como referencia.
+  \item No se argumenta calidad con \emph{accuracy} aislada: un modelo que responde siempre ``letalidad simple'' alcanza \emph{accuracy} alta y es inútil.
   \item Selección de umbral: máximo F1 en validación, con desempates predeclarados por \emph{recall}, precisión y mayor umbral; no se ajusta después de observar 2024--2025.
 \end{itemize}

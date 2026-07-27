@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "generated_by": "src/capacity_design_audit.py",
+  "architectures_evaluated": 9,
+  "seeds": [
+    42,
+    314,
+    2718
+  ],
+  "selection_surface": "fit 2021 / select 2022 (same as the canonical selection)",
+  "best_architecture_on_selection": "64",
+  "best_median_pr_auc": 0.39061371011241713,
+  "canonical_median_pr_auc": 0.37343205690446163,
+  "canonical_is_best": false,
+  "margin_over_canonical": 0.017181653207955505,
+  "canonical_iqr": 0.016240268983978012,
+  "epoch_curve_is_diagnostic_not_selection": true,
+  "reference_period_opened": false,
+  "canonical_artifacts_modified": false
+}

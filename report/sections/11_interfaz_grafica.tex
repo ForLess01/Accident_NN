@@ -32,7 +32,7 @@ La decisión visible usa probabilidad Platt y umbral 0.15; la sigmoide cruda y s
 \label{fig:ui-resultado}
 \end{figure}
 
-Los cinco escenarios están sellados por hash y orden: TN, FP, FN limítrofe y TP reales de 2023, más un clon sintético que cambia solo \texttt{CODIGO\_VIA} a un código no visto. Para los cuatro reales se separa observado de estimado. El sintético declara verdad no disponible y muestra el delta respecto al clon base, sin lenguaje causal. La carga valida roles, fechas, paridad de predicción y hash; cualquier alteración falla cerrada.
+Los cinco escenarios corresponden a un verdadero negativo, un falso positivo, un falso negativo limítrofe y un verdadero positivo reales de 2023, más un clon sintético que modifica únicamente \texttt{CODIGO\_VIA} por un código no observado. Para los cuatro reales la interfaz separa lo observado de lo estimado; el sintético declara que su desenlace no está disponible y muestra la diferencia respecto del caso base, sin lenguaje causal. Al cargar un escenario, la aplicación comprueba que sus campos y su predicción coincidan con los valores registrados y rechaza la carga si difieren, de modo que la demostración no pueda alterarse sin que se advierta.
 
 \subsection{Evidencia y límites}
 La sección de evidencia (figura~\ref{fig:ui-evidencia}) publica las métricas de la referencia histórica con sus intervalos bootstrap y encabeza el bloque con la advertencia de que 2024--2025 ya fue consultado. Debajo reproduce la auditoría de diseño: la ablación de regularización y la comparación entre una y varias redes, con las barras de error que sostienen la decisión de conservar una sola MLP.

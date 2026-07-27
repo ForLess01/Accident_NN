@@ -9,11 +9,72 @@ La única red canónica es:
 \rightarrow \operatorname{Dropout}(0.35)
 \rightarrow \operatorname{Dense}(1,\sigma).
 \end{align*}
-Tiene dos capas ocultas, tres capas Dense entrenables y 12\,993 parámetros: $(169+1)64+(64+1)32+(32+1)1$.
+Tiene dos capas ocultas, tres capas Dense entrenables y 12\,993 parámetros: $(169+1)64+(64+1)32+(32+1)1$. La figura~\ref{fig:arquitectura-canonica} representa esa topología: cada capa está totalmente conectada con la siguiente, de modo que el número de pesos entre dos capas es el producto de sus anchos, más un sesgo por neurona de destino.
+
+\begin{figure}[tbp]
+\centering
+\resizebox{0.96\textwidth}{!}{%
+\begin{tikzpicture}[
+  neurona/.style={circle, draw=darkslate, line width=0.7pt, minimum size=9mm, inner sep=0pt},
+  entrada/.style={neurona, fill=blue!8},
+  oculta/.style={neurona, fill=orange!16},
+  salida/.style={neurona, fill=teal!18},
+  enlace/.style={draw=darkslate, opacity=0.20, line width=0.3pt},
+  titulo/.style={align=center, font=\bfseries},
+  detalle/.style={align=center, font=\small, text=darkslate},
+  regul/.style={align=center, font=\small, draw=orange!75!black, fill=orange!8,
+                rounded corners=3pt, inner sep=4pt}
+]
+
+\foreach \i/\y/\etiqueta in {1/2.2/{$x_{1}$}, 2/1.2/{$x_{2}$}, 3/0.2/{$x_{3}$}, 4/-2.2/{$x_{169}$}}
+  \node[entrada] (E\i) at (0,\y) {\etiqueta};
+\node at (0,-1.0) {$\vdots$};
+
+\foreach \i/\y in {1/1.9, 2/0.9, 3/-0.1, 4/-1.9}
+  \node[oculta] (A\i) at (4.6,\y) {};
+\node at (4.6,-1.0) {$\vdots$};
+
+\foreach \i/\y in {1/1.4, 2/0.4, 3/-1.4}
+  \node[oculta] (B\i) at (9.2,\y) {};
+\node at (9.2,-0.5) {$\vdots$};
+
+\node[salida] (S) at (13.2,0) {$\sigma$};
+
+\begin{scope}[on background layer]
+  \foreach \i in {1,2,3,4} \foreach \j in {1,2,3,4} \draw[enlace] (E\i) -- (A\j);
+  \foreach \i in {1,2,3,4} \foreach \j in {1,2,3} \draw[enlace] (A\i) -- (B\j);
+  \foreach \i in {1,2,3} \draw[enlace] (B\i) -- (S);
+\end{scope}
+
+\node[titulo] at (0,3.4) {Capa de entrada};
+\node[detalle] at (0,2.85) {169 características};
+\node[titulo] at (4.6,3.4) {Capa oculta 1};
+\node[detalle] at (4.6,2.85) {64 neuronas, ReLU};
+\node[titulo] at (9.2,3.4) {Capa oculta 2};
+\node[detalle] at (9.2,2.85) {32 neuronas, ReLU};
+\node[titulo] at (13.2,3.4) {Capa de salida};
+\node[detalle] at (13.2,2.85) {1 neurona, sigmoide};
+
+\node[regul] at (4.6,-3.0) {Dropout 0.35\\\scriptsize solo en entrenamiento};
+\node[regul] at (9.2,-3.0) {Dropout 0.35\\\scriptsize solo en entrenamiento};
+\node[detalle, anchor=west] at (12.1,-1.7) {$\hat{p}\in[0,1]$\\umbral $\rightarrow$ clase};
+
+\node[detalle] at (2.3,-4.3) {$(169+1)\times 64$\\$=10\,880$};
+\node[detalle] at (6.9,-4.3) {$(64+1)\times 32$\\$=2\,080$};
+\node[detalle] at (11.2,-4.3) {$(32+1)\times 1$\\$=33$};
+\node[align=center, font=\bfseries, text=darkslate] at (6.6,-5.2)
+  {Total entrenable: 12\,993 parámetros \quad L2 $=3\times10^{-4}$ en los kernels ocultos};
+\end{tikzpicture}
+}
+\caption{Topología de la red canónica. Las tres capas Dense son de conexión total: los 169 valores de entrada alcanzan las 64 neuronas de la primera capa oculta, estas las 32 de la segunda, y estas la única neurona sigmoide de salida. Los puntos suspensivos indican las neuronas no dibujadas; el dropout no es una capa con parámetros, sino una desactivación aleatoria de salidas que opera únicamente durante el entrenamiento.}
+\label{fig:arquitectura-canonica}
+\end{figure}
 
 La configuración \texttt{MLP\_64\_32}, semilla 42, usa L2 $3\times10^{-4}$, Adam con tasa $5\times10^{-4}$ y lote 64. La implementación reproducible usa TensorFlow/Keras \cite{tensorflow_2024,keras_2024}. La arquitectura se elige por mediana PR-AUC entre tres semillas en la selección 2022; la corrida mediana determina 14 épocas para el reajuste 2021--2022. El umbral crudo 0.65 y el calibrado 0.15 se validan y fijan en 2023.
 
-\begin{figure}[H]
+La figura~\ref{fig:robustez-semillas} justifica esa regla de decisión. Las nueve corridas de la búsqueda muestran que la dispersión entre semillas de una misma configuración es comparable a la distancia entre configuraciones: la mejor corrida individual pertenece a \texttt{MLP\_64\_32}, pero su peor corrida queda por debajo de la mediana de las otras dos. Elegir por el máximo habría premiado una semilla afortunada; por eso el criterio predeclarado usa la mediana y conserva la corrida mediana, no la extrema.
+
+\begin{figure}[tbp]
 \centering
 \includegraphics[width=0.92\textwidth]{figures/final_seed_robustness.png}
 \caption{PR-AUC por configuración completa y semilla durante la selección. La regla usa la mediana; la dispersión impide elegir por una corrida afortunada.}
@@ -23,7 +84,7 @@ La configuración \texttt{MLP\_64\_32}, semilla 42, usa L2 $3\times10^{-4}$, Ada
 \subsection{Entrenamiento y generalización}
 La figura~\ref{fig:curvas-aprendizaje} documenta el entrenamiento de la corrida seleccionada. Ambas series usan PR-AUC no ponderada, de modo que son directamente comparables; la curva de 2021 se calcula con \emph{dropout} activo, mientras que la de 2022 se evalúa en modo inferencia, lo que explica que la serie de ajuste quede por debajo durante las primeras épocas. La época 14 es el máximo de PR-AUC en la partición de comparación y fija la duración del reajuste posterior en 2021--2022, sin \emph{callbacks} de validación.
 
-\begin{figure}[H]
+\begin{figure}[tbp]
 \centering
 \includegraphics[width=0.93\textwidth]{figures/fig14_learning_curves.png}
 \caption{Curvas de aprendizaje de la corrida seleccionada. La meseta de la serie de comparación a partir de la época 12 indica que épocas adicionales no aportan capacidad de generalización: el criterio de parada no se eligió a posteriori.}
@@ -35,17 +96,116 @@ Para el modelo reajustado, la PR-AUC de entrenamiento es 0.4332 y la de la parti
 \subsection{Una red, no dos}
 La auditoría comparó una MLP congelada, un promedio de tres semillas y una multirrama contexto/VEHICULOS. Los IC pareados del ensemble frente a la red única incluyen cero en todas las métricas reportadas. Sin evidencia concluyente y sin una nueva cohorte, una segunda red agregaría complejidad y otra decisión de selección. Se conserva una sola MLP.
 
-\begin{figure}[H]
+La figura~\ref{fig:auditoria-diseno} reúne las dos preguntas de diseño en una misma validación de 2023. El panel izquierdo compara la configuración canónica contra sus ablaciones (solo L2, solo dropout, y sin ninguna de las dos): las cuatro variantes quedan muy por encima de la prevalencia, y sus diferencias son pequeñas frente a la dispersión entre semillas, de modo que la regularización se conserva por criterio de parsimonia y no porque produzca un salto de desempeño. El panel derecho muestra las diferencias pareadas del ensemble respecto de la red única; los tres intervalos cruzan el cero.
+
+\begin{figure}[tbp]
 \centering
 \includegraphics[width=\textwidth]{figures/design_validation_evidence.png}
 \caption{Auditoría 2023 de regularización y número de redes. El eje derecho muestra diferencias pareadas del ensemble respecto de la red única; los intervalos incluyen cero.}
 \label{fig:auditoria-diseno}
 \end{figure}
 
+\subsection{Ancho, profundidad y presupuesto de épocas}\label{sec:capacidad}
+La búsqueda que fijó la arquitectura comparó tres configuraciones. Esa cifra es corta, y la objeción evidente es que un modelo con más neuronas, más capas o más épocas podría rendir mejor. La objeción se resolvió por medición: se amplió la grilla a nueve arquitecturas, de una a tres capas ocultas y de 32 a 384 neuronas totales, evaluadas sobre la misma superficie legítima de selección ---ajuste en 2021 y comparación en 2022--- con la misma regla predeclarada y las mismas tres semillas.
+
+\begin{table}[tbp]\centering\small
+\caption{Barrido de capacidad en la partición de selección de 2022. La columna IQR mide la dispersión entre semillas de cada configuración.}
+\label{tab:capacidad}
+\begin{tabular}{lrrrr}\toprule
+Arquitectura & Capas & Parámetros & PR-AUC mediana & IQR \\\midrule
+64 & 1 & 10\,945 & 0.3906 & 0.0123 \\
+128 & 1 & 21\,889 & 0.3847 & 0.0043 \\
+128--64 & 2 & 30\,081 & 0.3833 & 0.0108 \\
+128--64--32 & 3 & 32\,129 & 0.3831 & 0.0103 \\
+64--32--16 & 3 & 13\,505 & 0.3822 & 0.0064 \\
+256--128 & 2 & 76\,545 & 0.3801 & 0.0046 \\
+32 & 1 & 5\,473 & 0.3763 & 0.0035 \\
+64--32 (canónica) & 2 & 12\,993 & 0.3734 & 0.0162 \\
+32--16 & 2 & 5\,985 & 0.3727 & 0.0030 \\\bottomrule
+\end{tabular}
+\end{table}
+
+El cuadro~\ref{tab:capacidad} contiene el resultado central: la diferencia entre la mejor y la peor de las nueve arquitecturas es 0.0179, mientras que la dispersión entre semillas de la propia configuración canónica es 0.0162. \textbf{El rango completo del espacio de arquitecturas es del mismo orden que el ruido de una sola arquitectura.} Aumentar la capacidad no ayuda de forma monótona: la red de 256--128, con 76\,545 parámetros, queda por debajo de una única capa de 64 neuronas que usa siete veces menos. Tampoco ayuda la profundidad: la mejor configuración tiene una sola capa oculta y las de tres capas ocupan posiciones intermedias. La superficie de respuesta es plana dentro del ruido.
+
+\begin{figure}[tbp]
+\centering
+\includegraphics[width=\textwidth]{figures/design_capacity_evidence.png}
+\caption{Auditoría de capacidad. Izquierda: desempeño frente a número de parámetros en escala logarítmica. Centro: divergencia entre ajuste y validación al extender el reajuste. Derecha: curva de aprendizaje frente al número de registros de entrenamiento.}
+\label{fig:auditoria-capacidad}
+\end{figure}
+
+El panel central de la figura~\ref{fig:auditoria-capacidad} responde a la pregunta del presupuesto de épocas, y lo hace con la forma canónica del sobreajuste. La PR-AUC de entrenamiento crece de manera sostenida hasta 0.727 en la época 70, mientras que la de validación alcanza su máximo en la época 22 con 0.3326 y a partir de ahí se deteriora hasta 0.3054. En la época 14 la validación vale 0.3282, apenas 0.0044 por debajo del máximo observado y dentro del rango entre semillas de esa misma época. Entrenar más no mejora el modelo: lo memoriza. El presupuesto fijo de épocas es, en consecuencia, el mecanismo de control efectivo del ajuste, y su valor canónico es conservador pero correcto.
+
+\subsection{Curva de aprendizaje frente al tamaño de muestra}\label{sec:muestra}
+Descartadas la capacidad y el presupuesto de épocas, queda por distinguir entre dos limitaciones que suelen confundirse: la del conjunto de variables y la del número de observaciones. El panel derecho de la figura~\ref{fig:auditoria-capacidad} las separa, entrenando la configuración canónica sobre fracciones crecientes de la partición 2021--2022 y evaluando siempre en 2023.
+
+\begin{table}[tbp]\centering\small
+\caption{Desempeño en la validación de 2023 según el número de registros de entrenamiento, con la configuración y el presupuesto de épocas canónicos.}
+\label{tab:muestra}
+\begin{tabular}{rrrr}\toprule
+Fracción & Registros & PR-AUC mediana & Rango entre semillas \\\midrule
+25\,\% & 1\,218 & 0.2957 & 0.2251--0.3150 \\
+50\,\% & 2\,436 & 0.3106 & 0.3029--0.3251 \\
+75\,\% & 3\,654 & 0.3156 & 0.3103--0.3206 \\
+100\,\% & 4\,872 & 0.3296 & 0.3194--0.3356 \\\bottomrule
+\end{tabular}
+\end{table}
+
+La curva del cuadro~\ref{tab:muestra} \textbf{no se ha estabilizado}: crece 0.0339 entre el 25\,\% y el 100\,\% de los datos, y el último tramo aporta todavía 0.0140, el mayor incremento parcial después del primero. Un modelo que hubiera agotado la información de sus variables mostraría una curva plana en el extremo derecho; esta sigue subiendo. La conclusión es que el modelo está limitado también por el tamaño de muestra, y no únicamente por el conjunto de variables disponible.
+
+Esta observación matiza el diagnóstico y tiene una consecuencia práctica inmediata. Como la fuente publica un nuevo periodo cada año, el desempeño del modelo debería mejorar por acumulación de registros sin necesidad de modificar la arquitectura ni de incorporar fuentes externas. Es la vía de mejora más barata y más segura de las examinadas en este trabajo.
+
+\subsection{Representación de entrada: embeddings frente a codificación dispersa}\label{sec:embeddings}
+El contrato canónico entrega a la red 169 columnas, de las cuales 153 son indicadores binarios y 48 son cruces categóricos calculados a mano. Esa representación merece un examen específico por dos razones. La primera es de diagnóstico: en la partición de ajuste, 50 de esas columnas se activan en menos de 30 registros y 18 permanecen siempre en cero, de modo que 1\,152 pesos ---el 8.9\,\% de la red--- nunca reciben gradiente. La segunda es conceptual: entregar interacciones ya cruzadas en forma de indicadores equivale a resolver por adelantado la tarea que justifica el uso de una red, y a hacerlo en la forma más costosa en parámetros.
+
+Se contrastó entonces una representación alternativa mediante \emph{embeddings} de entidad: cada variable categórica se proyecta en un vector denso aprendido durante el entrenamiento, en lugar de expandirse en indicadores. El tronco (64--32--1), el optimizador, la tasa de aprendizaje, el tamaño de lote, las tres semillas, el protocolo temporal, la política de umbral y los vocabularios de categorías se mantuvieron idénticos; los cruces y las interacciones binarias construidas a mano se retiraron para que la red deba recuperarlas por sí misma. La única diferencia entre ambos modelos es, por tanto, la representación de la entrada, y el cuadro~\ref{tab:embeddings} resume el contraste.
+
+\begin{table}[tbp]\centering\small
+\caption{Contraste de representaciones bajo protocolo idéntico. La evaluación se realiza en la partición de validación de 2023; la referencia 2024--2025 no se abre en esta auditoría.}
+\label{tab:embeddings}
+\begin{tabular}{lrrrrr}\toprule
+Representación & Entradas & Parámetros & PR-AUC & ROC-AUC & F1 \\\midrule
+One-hot canónica & 169 & 12\,993 & 0.3367 & 0.8151 & 0.3942 \\
+Embeddings de entidad & 54 & 6\,042 & 0.3181 & 0.8133 & 0.4000 \\\bottomrule
+\end{tabular}
+\end{table}
+
+El resultado, representado en la figura~\ref{fig:auditoria-embeddings}, es negativo respecto de la hipótesis de partida y positivo respecto de la comprensión del problema. Los tres intervalos del bootstrap pareado incluyen el cero: $-0.0186$ [$-0.0406$; $0.0061$] en PR-AUC, $-0.0018$ [$-0.0112$; $0.0067$] en ROC-AUC y $+0.0058$ [$-0.0175$; $0.0305$] en F1. Más revelador aún es que el orden se invierte según la partición: en la comparación interna de 2022 los \emph{embeddings} superan a la codificación dispersa por mediana de PR-AUC (0.3960 frente a 0.3859), mientras que en 2023 quedan por debajo. Una diferencia que cambia de signo entre dos particiones contiguas no es una diferencia real, sino ruido de selección.
+
+\begin{figure}[tbp]
+\centering
+\includegraphics[width=\textwidth]{figures/design_embedding_evidence.png}
+\caption{Auditoría de representación. Los dos modelos alcanzan discriminación estadísticamente indistinguible, pero la representación densa lo consigue con 54 entradas en lugar de 169 y 6\,042 parámetros en lugar de 12\,993, sin columnas muertas.}
+\label{fig:auditoria-embeddings}
+\end{figure}
+
+De aquí se desprenden dos conclusiones con consecuencias distintas. La primera es que \textbf{la representación no es el factor limitante}: si lo fuera, densificar la entrada habría producido una mejora sistemática, y no la produce. La segunda es que \textbf{el modelo canónico está sobredimensionado}: la misma información cabe en 6\,042 parámetros y 54 dimensiones, menos de la mitad de la capacidad del artefacto entregado. El techo de desempeño lo fija el conjunto de variables disponible, no la manera de codificarlo; esta evidencia se retoma en la sección~\ref{sec:discusion}.
+
+\subsection{Enriquecimiento del contrato VEHICULOS}\label{sec:enriquecimiento}
+La sección anterior descarta la representación como factor limitante. Queda por examinar si el contrato desaprovecha información ya disponible. El libro VEHICULOS publica 25 columnas y el pipeline canónico consume tres, que colapsa en siete conteos. Entre las restantes hay atributos previos al impacto que son candidatos naturales a aproximar la ocupación y el estado del vehículo: qué transportaba la unidad, el ámbito territorial del servicio y la situación reglamentaria del seguro, la revisión técnica y la habilitación del operador.
+
+Dos columnas se rechazaron antes de cualquier medición, por criterio y no por resultado: \texttt{SITUACIÓN VEHÍCULO} distingue al vehículo que se dio a la fuga, un hecho posterior al siniestro, y \texttt{TIPO SINIESTRO} reitera \texttt{CLASE}. Con las demás se construyeron diez agregados por siniestro que cuentan vehículos y nunca personas, de modo que están acotados por el número de unidades involucradas, magnitud que el contrato ya contiene.
+
+La primera prueba fue de fuga, con el mismo criterio que excluyó a PERSONAS. Ningún agregado reproduce \texttt{FALLECIDOS} ni separa perfectamente el objetivo, y la correlación de rangos con el número de fallecidos no supera 0.068 en valor absoluto para ninguno de los diez. El contrato enriquecido es, por tanto, admisible. Pero esa misma prueba ya anticipa el resultado: una correlación de ese orden indica que las variables aportan muy poca información marginal sobre el desenlace.
+
+\begin{table}[tbp]\centering\small
+\caption{Contrato canónico frente a contrato enriquecido, ambos entrenados bajo el mismo protocolo y evaluados en la validación de 2023.}
+\label{tab:enriquecimiento}
+\begin{tabular}{lrrrr}\toprule
+Contrato & Entradas & PR-AUC & ROC-AUC & F1 \\\midrule
+Canónico & 169 & 0.3282 & 0.8128 & 0.3915 \\
+Enriquecido con VEHICULOS & 179 & 0.3029 & 0.8080 & 0.3937 \\\bottomrule
+\end{tabular}
+\end{table}
+
+El resultado, recogido en el cuadro~\ref{tab:enriquecimiento}, es que el enriquecimiento \textbf{no mejora y empeora levemente} la capacidad de ordenamiento: la diferencia pareada en PR-AUC es $-0.0252$ con IC 95\,\% $[-0.0505;\,-0.0007]$, nominalmente significativa y de signo negativo, mientras que ROC-AUC y F1 resultan indistinguibles. La explicación es coherente con el resto de la evidencia. La señal de ocupación que se buscaba ya estaba capturada por los conteos de buses y de servicio interprovincial del contrato canónico, de modo que los nuevos agregados son en buena medida redundantes; además arrastran una ausencia masiva, pues el ámbito del servicio es desconocido en el 76\,\% de los registros de vehículos. Añadir diez dimensiones a un modelo que ya dispone de unos 25 parámetros por caso positivo agrega varianza sin aportar información.
+
 \subsection{Explicabilidad estable}
 Gradient SHAP usa fondo 2021--2022 y ejemplos 2023, sin etiquetas ni filas 2024--2025. Tres muestras/semillas deterministas producen correlación de rangos Spearman mínima 0.9897. Se reportan bandas de estabilidad; el orden exacto dentro de una banda no se interpreta como estable ni causal.
 
-\begin{figure}[H]
+La figura~\ref{fig:explicabilidad-global} agrupa las 169 columnas por variable cruda de origen, de modo que una familia con muchas columnas \emph{one-hot} no aparente importancia solo por su ancho. Los agregados de VEHICULOS concentran el 21.6\,\% de la importancia global con apenas siete columnas, seguidos por la clase de siniestro (12.2\,\% en seis columnas) y la interacción red vial$\times$clase (11.7\,\%). El orden coincide con los hallazgos H5 y H8 del análisis exploratorio, lo que indica que la red aprovecha la misma estructura que el análisis descriptivo había anticipado, y no un patrón espurio. La lectura sigue siendo asociativa.
+
+\begin{figure}[tbp]
 \centering
 \includegraphics[width=0.76\textwidth]{figures/final_explainability_global.png}
 \caption{Importancia global agrupada mediante Gradient SHAP. La magnitud resume asociación con el score congelado; el color no representa un efecto causal.}

@@ -68,6 +68,9 @@ python src/block_e_modeling.py         # 4. Selección 2021/2022 y reajuste 2021
 python src/final_model_bundle.py       # 5. Calibración y umbrales en 2023; referencia 2024-2025
 python src/temporal_diagnostics.py     # 6. Folds rolling internos con roles disjuntos
 python src/validation_design_audit.py  # 7. Auditoría de regularización y número de redes
+python src/embedding_design_audit.py   # 7b. Auditoría de representación: embeddings vs one-hot
+python src/vehicle_enrichment_audit.py # 7c. Auditoría de enriquecimiento del contrato VEHICULOS
+python src/capacity_design_audit.py    # 7d. Auditoría de capacidad: ancho, profundidad, épocas y muestra
 python src/final_paired_comparison.py  # 8. Bootstrap pareado contra líneas base
 python src/final_explainability.py     # 9. Gradient SHAP y estabilidad
 python src/demo_cases.py               # 10. Casos de demostración sellados
@@ -87,6 +90,8 @@ La reconstrucción del modelo es deliberadamente explícita y costosa. No existe
 - `report/tables/temporal_nested_*`: diagnósticos rolling con fit, selección, calibración y outer disjuntos dentro de cada fold.
 - `report/tables/model_learning_curves.csv` y `model_generalization_gap.json`: curvas de aprendizaje y brecha con métricas no ponderadas comparables.
 - `report/tables/final_explainability_stability.csv`: estabilidad SHAP en tres muestras y semillas; se interpretan bandas, no el orden exacto.
+- `report/tables/design_embedding_*`: auditoría de representación con embeddings de entidad bajo protocolo idéntico; discriminación equivalente con 54 entradas y 6 042 parámetros frente a 169 y 12 993.
+- `report/tables/design_capacity_*`: barrido de nueve arquitecturas (1 a 3 capas ocultas, 32 a 384 neuronas), curva de épocas del reajuste y curva de aprendizaje frente al tamaño de muestra.
 - `data/processed/demo_cases.csv`: casos TN, FP, FN limítrofe y TP reales de 2023, más un clon sintético con código de vía no visto.
 - `report/build_manifest.json`: frescura del PDF verificada por hashes de contenido.
 

@@ -1,0 +1,4 @@
+comparison,partition,metric,canonical_estimate,enriched_estimate,delta,ci_2_5,ci_97_5,prob_enriched_better,nominal_significant_at_5pct,bootstrap_iterations,seed
+contrato_enriquecido - contrato_canonico,validation_2023,pr_auc,0.32815605704106965,0.30294399850404774,-0.02521205853702191,-0.05053905999817679,-0.0006994036268533851,0.022,True,2000,20260728
+contrato_enriquecido - contrato_canonico,validation_2023,roc_auc,0.8128224127788588,0.8079607674555411,-0.004861645323317676,-0.013493651832253128,0.0034999806532397225,0.1355,False,2000,20260728
+contrato_enriquecido - contrato_canonico,validation_2023,f1_multifatal,0.3915022761760243,0.3937007874015748,0.002198511225550537,-0.019689073739224006,0.023422621833522478,0.57,False,2000,20260728

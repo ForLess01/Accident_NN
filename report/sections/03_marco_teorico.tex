@@ -6,32 +6,7 @@ La red estima un score $\hat p=\sigma(z)$ para la clase multifatal. La BCE guía
 \subsection{Red neuronal multicapa}
 Cada capa Dense calcula $h=\operatorname{ReLU}(Wx+b)$ y la salida aplica sigmoide \cite{goodfellow_deep_learning_2016}. Backpropagation obtiene gradientes de BCE más L2, y Adam actualiza pesos \cite{kingma_adam_2014}. Dropout desactiva aleatoriamente unidades solo durante entrenamiento \cite{srivastava_dropout_2014}. Early stopping y reducción de tasa controlan la trayectoria durante selección; no agregan capas ni parámetros \cite{prechelt_early_stopping_1998}.
 
-\begin{figure}[H]
-\centering
-\resizebox{0.98\textwidth}{!}{%
-\begin{tikzpicture}[
-  node distance=1.2cm,
-  block/.style={draw=darkslate, rounded corners=3pt, minimum width=3.4cm, minimum height=1.05cm, align=center, fill=blue!5},
-  reg/.style={draw=orange!75!black, rounded corners=3pt, minimum width=2.5cm, minimum height=.8cm, align=center, fill=orange!8},
-  arrow/.style={-{Latex[length=3mm]}, thick, darkslate}
-]
-\node[block] (input) {Entrada procesada\\$x\in\mathbb{R}^{169}$};
-\node[block, right=of input] (dense1) {Dense 64 + ReLU\\$(169+1)64=10\,880$};
-\node[reg, above=.55cm of dense1] (drop1) {Dropout 0.35};
-\node[block, right=of dense1] (dense2) {Dense 32 + ReLU\\$(64+1)32=2\,080$};
-\node[reg, above=.55cm of dense2] (drop2) {Dropout 0.35};
-\node[block, right=of dense2] (out) {Dense 1 + sigmoide\\$(32+1)=33$};
-\draw[arrow] (input) -- (dense1);
-\draw[arrow] (dense1) -- (dense2);
-\draw[arrow] (dense2) -- (out);
-\draw[-{Latex[length=2mm]}, orange!75!black] (drop1) -- (dense1);
-\draw[-{Latex[length=2mm]}, orange!75!black] (drop2) -- (dense2);
-\node[below=.8cm of dense2, align=center, text=darkslate] {L2 $=3\times10^{-4}$ en kernels Dense ocultos\\Total entrenable: 12\,993 parámetros};
-\end{tikzpicture}
-}
-\caption{Arquitectura canónica derivada del manifiesto final. Dropout opera solo durante entrenamiento.}
-\label{fig:arquitectura-canonica}
-\end{figure}
+La arquitectura concreta empleada en este trabajo, con sus anchos y su conteo de parámetros, se presenta en la sección~\ref{sec:modelo}.
 
 \subsection{Calibración y decisión}
 Platt aprende una regresión logística sobre el logit del score crudo. La calibración puede reducir Brier y ECE, pero una transformación monótona no mejora PR-AUC o ROC-AUC. El umbral crudo 0.65 y el calibrado 0.15 pertenecen a escalas distintas.

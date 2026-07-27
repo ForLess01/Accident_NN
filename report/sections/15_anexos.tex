@@ -14,7 +14,7 @@ Accident_NN/
 |-- models/final/   Bundle canonico: modelo, encoders, calibrador
 |-- notebooks/      modelo.ipynb (cuaderno academico integral)
 |-- report/         Informe LaTeX, figuras, tablas y PDF final
-|-- scripts/        Construccion del informe y gate de release
+|-- scripts/        Construccion del informe y verificacion final
 |-- src/            Pipeline: auditoria, EDA, entrenamiento
 `-- tests/          Suite de regresion (pytest)
 \end{lstlisting}
@@ -48,6 +48,8 @@ canonical = {
 \item Folds rolling: \path{report/tables/temporal_nested_fold_roles.csv};\\
       \path{report/tables/temporal_nested_outer_metrics.csv}.
 \item Estabilidad SHAP: \path{report/tables/final_explainability_stability.csv}.
-\item Demos: \path{data/processed/demo_cases.csv} y su manifiesto.
-\item PDF: \path{report/build_manifest.json}; la frescura depende de hashes, no mtimes.
+\item Escenarios de demostración: \path{data/processed/demo_cases.csv}.
+\item Auditoría de capacidad:\\
+      \path{report/tables/design_capacity_architecture_summary.csv};\\
+      \path{report/tables/design_capacity_sample_curve.csv}.
 \end{itemize}

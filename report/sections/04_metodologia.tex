@@ -1,9 +1,9 @@
 \section{Metodología}\label{sec:metodologia}
 
 \subsection{Protocolo temporal}
-La arquitectura se seleccionó sin utilizar 2023 ni la referencia: fit 2021 y selección 2022. El número de épocas de la corrida seleccionada se fijó en 14; luego se reajustó una sola MLP con todo 2021--2022. En 2023 se compararon calibradores mediante predicciones OOF, se ajustó Platt y se fijaron los umbrales. Los 2\,232 registros 2024--2025 se conservan como referencia histórica ya consultada.
+La arquitectura se seleccionó sin utilizar 2023 ni la referencia: fit 2021 y selección 2022. El número de épocas de la corrida seleccionada se fijó en 14; luego se reajustó una sola MLP con todo 2021--2022. En 2023 se compararon calibradores mediante predicciones OOF, se ajustó Platt y se fijaron los umbrales. Los 2\,232 registros 2024--2025 se conservan como referencia histórica ya consultada. El cuadro~\ref{tab:roles-cronologicos} resume el tamaño, los positivos y el rol asignado a cada periodo; ningún periodo cumple dos roles.
 
-\begin{table}[H]\centering\caption{Roles cronológicos del artefacto final.}\begin{tabular}{lrrl}\toprule
+\begin{table}[H]\centering\caption{Roles cronológicos del artefacto final.}\label{tab:roles-cronologicos}\begin{tabular}{lrrl}\toprule
 Periodo & $n$ & Positivos & Rol \\\midrule
 2021--2022 & 4\,872 & 510 & Reajuste final tras selección interna 2021/2022 \\
 2023 & 2\,000 & 196 & Calibración OOF y umbrales \\
@@ -13,8 +13,30 @@ Periodo & $n$ & Positivos & Rol \\\midrule
 \subsection{Diagnóstico rolling anidado}
 Se ejecutaron dos folds usando exclusivamente fechas anteriores a 2024. En cada fold, fit, selección, calibración y ventana outer son cronológicos y no se solapan. El primer outer corresponde a julio--diciembre de 2022 y el segundo a 2023. Los resultados son diagnósticos de variabilidad, no un test externo; los folds comparten historia y solo existen dos ventanas viables.
 
-\subsection{Técnicas aplicadas}
-La búsqueda cerrada comparó tres configuraciones por tres semillas. El paquete final usa BCE, pesos de clase, Adam, L2, \emph{dropout}, \emph{early stopping} y \emph{ReduceLROnPlateau} durante selección. La calibración Platt corrige escala; no cambia ranking. No se aplicaron L1, SMOTE \cite{chawla_smote_2002}, \emph{stacking} ni \emph{batch normalization}, porque añadirlos sin evidencia y sin una cohorte nueva aumentaría multiplicidad.
+\subsection{Técnicas aplicadas y técnicas descartadas}
+La búsqueda cerrada comparó tres configuraciones por tres semillas. El cuadro~\ref{tab:tecnicas} declara qué se aplicó y qué no, con el motivo en cada caso, de modo que ninguna decisión quede como preferencia implícita. El criterio general fue admitir una técnica solo cuando resolvía un problema observado en este conjunto de datos, y no por ser habitual en la literatura.
+
+\begin{table}[tbp]\centering\small
+\caption{Inventario de técnicas. Las descartadas se documentan con el mismo detalle que las aplicadas.}
+\label{tab:tecnicas}
+\begin{tabularx}{\textwidth}{@{}p{3.6cm}c X@{}}\toprule
+Técnica & Uso & Motivo \\\midrule
+Entropía cruzada binaria & Sí & Función de pérdida propia de la clasificación binaria probabilística. \\
+Pesos de clase balanceados & Sí & La clase positiva es el 10\,\%; sin ponderación el gradiente queda dominado por la clase mayoritaria. \\
+Adam & Sí & Convergencia estable con tasa inicial baja en un problema de gradiente ruidoso. \\
+Regularización L2 & Sí & Se conserva por parsimonia; la ablación muestra un efecto de 0.0044, inferior al ruido entre semillas. \\
+\emph{Dropout} 0.35 & Sí & Mismo criterio que L2; su efecto medido es igualmente pequeño. \\
+\emph{Early stopping} & Sí & Determina el número de épocas durante la selección; es el control de ajuste efectivo. \\
+ReduceLROnPlateau & Sí & Refina el descenso al estancarse la métrica de selección. \\
+Calibración Platt & Sí & Corrige la escala de probabilidad: ECE de 0.2338 a 0.0133. Se eligió frente a isotónica por menor Brier OOF. \\\midrule
+Regularización L1 & No & No se busca selección de variables: el contrato ya está fijado por criterios de disponibilidad y fuga. \\
+SMOTE y remuestreo \cite{chawla_smote_2002} & No & Genera positivos sintéticos interpolando entre casos reales, lo que distorsiona la calibración; el desbalance ya se trata con pesos de clase, que no altera la distribución. \\
+\emph{Batch normalization} & No & Su beneficio se concentra en redes profundas; con dos capas ocultas y entradas ya estandarizadas no resuelve ningún problema observado. \\
+\emph{Stacking} y ensamblado & No & El bootstrap pareado del promedio de tres semillas frente a la red única incluye el cero en todas las métricas. \\
+Aumento de capacidad & No & Nueve arquitecturas de 32 a 384 neuronas cubren un rango de desempeño (0.0179) equiparable al ruido entre semillas. \\
+\emph{Embeddings} de entidad & No & Alcanzan desempeño equivalente con menos parámetros, pero sin mejora medible; se documentan como auditoría. \\\bottomrule
+\end{tabularx}
+\end{table}
 
 \subsection{Incertidumbre}
 Los IC bootstrap son percentiles por remuestreo de filas con pipeline y predicciones congeladas, sin reajuste. No incluyen incertidumbre de entrenamiento o selección, dependencia temporal/espacial, consulta repetida de la referencia, generalización externa/futura ni incertidumbre individual.

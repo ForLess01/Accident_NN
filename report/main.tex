@@ -42,6 +42,16 @@
 
 \geometry{margin=2.5cm}
 
+% Política de flotantes: permitir más material flotante por página y tolerar
+% menos texto residual, de modo que figuras y tablas no dejen huecos.
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\bottomfraction}{0.8}
+\renewcommand{\textfraction}{0.07}
+\renewcommand{\floatpagefraction}{0.75}
+\setcounter{topnumber}{3}
+\setcounter{bottomnumber}{2}
+\setcounter{totalnumber}{5}
+
 \hypersetup{
   pdfauthor={Rendo Alfonte Tarqui; Yimmy Yeyson Cuyo Zamata},
   pdftitle={Clasificación retrospectiva de multifatalidad vial},
@@ -84,23 +94,6 @@
   framesep=6pt
 }
 
-% Caja de arquitectura de red neuronal
-\newtcolorbox{archbox}[1]{
-  colback=#1!8!white,
-  colframe=#1!75!black,
-  width=2.5cm,
-  height=2.2cm,
-  arc=3pt,
-  boxrule=0.8pt,
-  left=2pt,
-  right=2pt,
-  top=4pt,
-  bottom=4pt,
-  valign=center,
-  halign=center,
-  nobeforeafter
-}
-
 
 \title{Clasificación de alta letalidad en siniestros viales fatales del Perú\\[0.3em]
 \large Red neuronal para clasificación retrospectiva de multifatalidad (ONSV 2021--2025)}
@@ -113,6 +106,11 @@
 \maketitle
 
 \input{sections/00_resumen}
+
+\newpage
+\tableofcontents
+\newpage
+
 \input{sections/01_introduccion}
 \input{sections/02_objetivos}
 \input{sections/03_marco_teorico}
@@ -126,7 +124,8 @@
 \input{sections/11_interfaz_grafica}
 \input{sections/12_discusion}
 \input{sections/13_conclusiones}
-\input{sections/14_anexos}
+\input{sections/14_trabajo_futuro}
+\input{sections/15_anexos}
 
 \bibliographystyle{plain}
 \bibliography{bib/referencias}

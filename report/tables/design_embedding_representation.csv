@@ -1,0 +1,3 @@
+representation,input_width,binary_columns,columns_active_in_fewer_than_30_rows,columns_always_zero_in_training
+one-hot canónica,169,153,50,18
+embeddings de entidad,54,0,0,0

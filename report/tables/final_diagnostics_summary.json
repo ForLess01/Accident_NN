@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "generated_by": "src/final_diagnostic_figures.py",
+  "source": "frozen canonical predictions; no model is fitted here",
+  "captured_at_10_pct": 0.31981981981981983,
+  "captured_at_20_pct": 0.6081081081081081,
+  "captured_at_30_pct": 0.7387387387387387,
+  "best_f1_threshold_on_reference": 0.17,
+  "operating_threshold": 0.15,
+  "segment_lift_min": 1.7579569718555217,
+  "segment_lift_max": 3.5240122082302174
+}

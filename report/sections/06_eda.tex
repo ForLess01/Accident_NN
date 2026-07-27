@@ -1,6 +1,6 @@
 \section{Análisis exploratorio de datos}\label{sec:eda}
 
-Se ejecutó el análisis exploratorio sobre \texttt{base\_limpia.parquet}: cada figura se guardó numerada en \texttt{report/figures/} (150 dpi, títulos y ejes en español) y cada figura tiene 2--4 líneas de interpretación escrita. Se generaron 14 figuras y un conjunto de hallazgos numerados H1--H11 que alimentaron las decisiones de ingeniería de características.
+El análisis exploratorio se ejecutó sobre \texttt{base\_limpia.parquet} y produjo catorce figuras y once hallazgos numerados H1--H11. Cada hallazgo se interpreta en función de su consecuencia para la ingeniería de características, de modo que las decisiones de la sección~\ref{sec:ingenieria} tengan respaldo empírico y no queden libradas a la intuición. Las figuras se regeneran de forma reproducible desde \path{src/block_c_eda.py}.
 
 \subsection{Distribución del objetivo y desbalance}
 \begin{figure}[H]
@@ -11,6 +11,8 @@ Se ejecutó el análisis exploratorio sobre \texttt{base\_limpia.parquet}: cada 
 \end{figure}
 
 \subsection{Patrones temporales}
+La serie mensual de la figura~\ref{fig:fig02} muestra que la frecuencia de siniestros fatales no es constante: el máximo se alcanza en junio de 2021 con 229 registros y la caída de 2024--2025 responde en parte al cierre preliminar del registro, no necesariamente a una mejora real. Esa variación temporal es la que justifica derivar variables de calendario en lugar de tratar la fecha como un número.
+
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.8\textwidth]{figures/fig02_monthly_accidents.png}
@@ -31,6 +33,8 @@ Se ejecutó el análisis exploratorio sobre \texttt{base\_limpia.parquet}: cada 
     \label{fig:fig04}
   \end{minipage}
 \end{figure}
+
+La figura~\ref{fig:fig05} repite ese contraste sobre el día de la semana: el volumen y la tasa multifatal no se mueven juntos, de modo que ambas señales aportan información distinta y se conservan como características separadas.
 
 \begin{figure}[H]
   \centering
@@ -70,6 +74,8 @@ Se ejecutó el análisis exploratorio sobre \texttt{base\_limpia.parquet}: cada 
 \end{figure}
 
 \subsection{Vías y condiciones pre-impacto}
+La concentración por corredor vial de la figura~\ref{fig:fig10} motiva tratar el código de vía por su frecuencia y su prefijo, y no como una etiqueta arbitraria: unas pocas rutas acumulan una fracción desproporcionada de los siniestros fatales.
+
 \begin{figure}[H]
   \centering
   \begin{minipage}{0.49\textwidth}\centering
@@ -87,6 +93,8 @@ Se ejecutó el análisis exploratorio sobre \texttt{base\_limpia.parquet}: cada 
 El hallazgo H8 es el más importante del análisis: la zona rural presenta una tasa multifatal de 15.1\,\% frente a 3.6\,\% en zona urbana (4.2 veces mayor), y el clima lluvioso 17.6\,\% frente a 9.8\,\% en despejado. Ambas separaciones anticipan que la red dispone de señal estructural real.
 
 \subsection{Patrones combinados, calidad de datos y geografía}
+Las dos últimas comprobaciones del análisis atienden a la interacción entre variables y a la calidad del registro. El mapa de calor de la figura~\ref{fig:fig12} cruza mes y hora y revela concentraciones que ninguna de las dos variables explica por separado, lo que sostiene el uso de codificaciones cíclicas y de franja. La figura~\ref{fig:fig13} cuantifica la ausencia de datos por columna y es la evidencia que motiva excluir las señales viales del contrato de entrada: su ausencia no es aleatoria, sino dependiente del periodo de registro.
+
 \begin{figure}[H]
   \centering
   \begin{minipage}{0.49\textwidth}\centering
@@ -109,7 +117,7 @@ El hallazgo H8 es el más importante del análisis: la zona rural presenta una t
 \end{figure}
 
 \subsection{Hallazgos H1--H11}
-Se redactaron once hallazgos en prosa, cada uno con referencia a su figura. Los más relevantes para el modelado:
+Los once hallazgos se documentan junto a la figura que los sustenta. Los más relevantes para el modelado son los siguientes:
 \begin{itemize}
   \item \textbf{H1}: la clase multifatal representa 10.2\,\% de los siniestros fatales (figura~\ref{fig:fig01}), confirma desbalance y justifica las métricas.
   \item \textbf{H3}: la hora con más siniestros (19:00) no coincide con la de mayor tasa multifatal (14:00, 16.3\,\%) (figuras~\ref{fig:fig03} y \ref{fig:fig04}).

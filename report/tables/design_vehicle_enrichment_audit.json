@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "generated_by": "src/vehicle_enrichment_audit.py",
+  "new_aggregates": [
+    "veh_lleva_personas",
+    "veh_lleva_carga",
+    "veh_elemento_desconocido",
+    "veh_ambito_larga_distancia",
+    "veh_ambito_regional",
+    "veh_ambito_local",
+    "veh_ambito_desconocido",
+    "veh_soat_irregular",
+    "veh_citv_irregular",
+    "veh_no_habilitado"
+  ],
+  "refused_before_measurement": [
+    "SITUACIÓN VEHÍCULO",
+    "TIPO SINIESTRO"
+  ],
+  "leakage_audit_all_admissible": true,
+  "reference_period_opened": false,
+  "canonical_artifacts_modified": false,
+  "all_paired_ci_include_zero": false,
+  "conclusion": "the enriched contract shows a nominal difference; a new holdout is required before adopting it"
+}

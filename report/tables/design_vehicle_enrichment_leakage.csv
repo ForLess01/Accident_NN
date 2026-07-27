@@ -1,0 +1,11 @@
+feature,equals_fallecidos_in_all_rows,perfectly_separates_target,spearman_with_fallecidos,verdict
+veh_lleva_personas,False,False,0.05534997537194967,admissible
+veh_lleva_carga,False,False,0.02087405916260856,admissible
+veh_elemento_desconocido,False,False,-0.019655333405815496,admissible
+veh_ambito_larga_distancia,False,False,0.03475485050532735,admissible
+veh_ambito_regional,False,False,0.04620933750851841,admissible
+veh_ambito_local,False,False,0.04757015808164267,admissible
+veh_ambito_desconocido,False,False,0.0034252645871119015,admissible
+veh_soat_irregular,False,False,-0.06837076290955556,admissible
+veh_citv_irregular,False,False,-0.029356642680262016,admissible
+veh_no_habilitado,False,False,-0.001560798820508349,admissible

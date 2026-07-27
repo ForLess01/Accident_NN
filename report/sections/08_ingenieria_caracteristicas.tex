@@ -1,8 +1,25 @@
 \section{Ingeniería de características}\label{sec:ingenieria}
 
-Las 169 características pertenecen a seis familias: tiempo cíclico; geografía; código, red y tipo de vía; clase y condiciones registradas; siete agregados VEHICULOS; e interacciones predeclaradas como noche$\times$rural, lluvia$\times$curva, tipo$\times$zona y red$\times$clase.
+Las 169 columnas del contrato procesado se derivan de los 21 campos crudos del cuadro~\ref{tab:variables-crudas} y se agrupan en seis familias, detalladas en el cuadro~\ref{tab:familias-caracteristicas}. Ninguna característica se incorporó por conveniencia numérica: cada familia responde a un hallazgo del análisis exploratorio o a una restricción de disponibilidad.
 
-\begin{table}[H]\centering\caption{Decisiones de disponibilidad.}\begin{tabularx}{\textwidth}{p{3cm}p{4cm}X}\toprule
+\begin{table}[tbp]\centering\small
+\caption{Familias de características procesadas. La suma de la columna de conteo es 169, el ancho exacto que verifica el esquema antes de cada inferencia.}
+\label{tab:familias-caracteristicas}
+\begin{tabularx}{\textwidth}{@{}p{4.1cm}r X@{}}\toprule
+Familia & Columnas & Justificación \\\midrule
+Tiempo cíclico y calendario & 14 & Mes, día de semana y hora se codifican como pares seno/coseno para que diciembre y enero, o domingo y lunes, no queden representados como extremos opuestos. Incluye franja horaria, indicador nocturno, fin de semana e indicador de hora ausente. Responde a H3 y H9. \\
+Geografía & 32 & Latitud y longitud estandarizadas, indicador de coordenada ausente, departamento y región natural. El scatter geográfico (H11) muestra que los siniestros siguen corredores viales, señal que el departamento por sí solo no captura. \\
+Vía: código, red y tipo & 38 & Frecuencia del código de vía calculada solo en la partición de ajuste, prefijo del código, red vial y tipo de vía. Responde a H7: unas pocas rutas concentran el volumen, pero el código no admite lectura ordinal. \\
+Clase y condiciones registradas & 28 & Clase de siniestro, zona, clima, característica vial, perfil longitudinal y superficie. Responde a H5 y H8, los hallazgos con mayor separación de tasa multifatal. \\
+Agregados VEHICULOS & 7 & Conteos por tipo de vehículo del registro consolidado, admitidos solo bajo alcance retrospectivo. \\
+Interacciones predeclaradas & 50 & Noche$\times$rural y lluvia$\times$curva como indicadores binarios, más los cruces completos tipo de vía$\times$zona y red vial$\times$clase. Se declararon antes de entrenar para evitar la búsqueda posterior de interacciones favorables. \\\midrule
+\textbf{Total} & \textbf{169} & \\\bottomrule
+\end{tabularx}
+\end{table}
+
+Las variables categóricas se representan con codificación \emph{one-hot} incluyendo una categoría \texttt{DESCONOCIDO} explícita, de modo que la ausencia se modela como información y no como un valor imputado en silencio. Las continuas se estandarizan con la media y la desviación de la partición de ajuste.
+
+\begin{table}[tbp]\centering\caption{Decisiones de disponibilidad por familia de origen.}\label{tab:disponibilidad}\begin{tabularx}{\textwidth}{p{3cm}p{4cm}X}\toprule
 Familia & Evidencia temporal & Decisión \\\midrule
 SINIESTROS/\allowbreak contexto & Sin timestamp por campo & Usar solo con alcance retrospectivo \\
 VEHICULOS & Registro consolidado, sin timestamp & Incluir siete agregados con alcance restringido \\
@@ -10,4 +27,4 @@ PERSONAS & Cardinalidad y fallecidos reconstruyen el target & Excluir toda la fu
 Resultados/\allowbreak causas & Posteriores o directos & Excluir \\\bottomrule
 \end{tabularx}\end{table}
 
-No se inventaron variables externas. Un código de vía no observado conserva su prefijo si es válido y recibe frecuencia cero; la demo sintética verifica esta sensibilidad sin atribución causal.
+El cuadro~\ref{tab:disponibilidad} resume por qué cada fuente entra o no al contrato. No se inventaron variables externas. Un código de vía no observado conserva su prefijo si es válido y recibe frecuencia cero; la demostración sintética de la interfaz verifica esa sensibilidad sin atribución causal.

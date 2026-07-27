@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "generated_by": "src/embedding_design_audit.py",
+  "hypothesis": "dense entity embeddings improve discrimination over the sparse one-hot contract with an identical 64-32-1 trunk",
+  "controlled": [
+    "trunk",
+    "optimizer",
+    "learning_rate",
+    "batch_size",
+    "seeds",
+    "temporal protocol",
+    "threshold policy",
+    "category vocabularies"
+  ],
+  "changed": [
+    "input representation only"
+  ],
+  "selected_seed": 42,
+  "fixed_refit_epochs_from_inner_selection": 39,
+  "reference_period_opened": false,
+  "canonical_artifacts_modified": false,
+  "all_paired_ci_include_zero": true,
+  "conclusion": "retain the canonical one-hot MLP; embeddings do not show a decisive advantage"
+}

@@ -3,10 +3,12 @@
 \begin{itemize}
 \item Se construyó una única MLP 169--64--32--1 con 12\,993 parámetros y técnicas de regularización realmente ejecutadas.
 \item La arquitectura se seleccionó con 2021/2022, se reajustó en 2021--2022 y se calibró en 2023; dos folds rolling verifican roles cronológicos disjuntos dentro de cada diagnóstico.
-\item La prueba ejecutable confirmó que PERSONAS reconstruye el objetivo para los 9\,104 registros; excluir esa familia fue obligatorio.
-\item En la referencia 2024--2025 ya consultada, PR-AUC es 0.3254, ROC-AUC 0.7916 y F1 calibrado 0.3989. El desempeño es moderado y se reporta sin sobreestimación.
+\item La prueba ejecutable confirmó que PERSONAS reconstruye el objetivo para los 9\,104 registros; excluir esa fuente completa era la única decisión defendible.
+\item En la referencia 2024--2025 ya consultada, PR-AUC es 0.3254 sobre una prevalencia de 0.099 ---una mejora de 3.3 veces---, ROC-AUC 0.7916 y F1 calibrado 0.3989. El desempeño es moderado y se reporta sin sobreestimación.
+\item Un barrido de nueve arquitecturas, de una a tres capas ocultas y de 32 a 384 neuronas, mostró que el rango completo de desempeño (0.0179) es equiparable a la dispersión entre semillas de una sola configuración (0.0162): ni más neuronas ni más capas mejoran el resultado. Extender el reajuste lleva la PR-AUC de entrenamiento a 0.727 y la de validación a 0.3054, es decir, memorización.
+\item Una auditoría de representación con \emph{embeddings} de entidad alcanzó discriminación equivalente con 54 entradas y 6\,042 parámetros frente a 169 y 12\,993, y un contrato enriquecido con diez agregados adicionales de VEHICULOS no mejoró. Ni la codificación ni la información desaprovechada del registro son el factor limitante.
+\item La curva de aprendizaje frente al tamaño de muestra no se ha estabilizado: el último cuarto de los registros aporta todavía 0.0140 de PR-AUC. El modelo está limitado por el número de observaciones además de por el conjunto de variables, de modo que acumular periodos es la vía de mejora más segura.
 \item La interfaz muestra cinco roles pedagógicos, separa verdad observada de estimación, valida paridad y no ofrece intervalos individuales inexistentes.
-\item El bundle, las fuentes, las demos, la explicabilidad y el PDF están sellados por contenido.
 \end{itemize}
 
-El artefacto entregado es reproducible y está verificado por contenido. No constituye una validación confirmatoria externa: el proyecto no dispone de una cohorte prospectiva o externa intacta. Esa distinción entre finalización del artefacto e independencia científica es una conclusión, no una nota al pie.
+El modelo obtenido es reproducible a partir de las fuentes oficiales verificadas. No constituye una validación confirmatoria externa: el proyecto no dispone de una cohorte prospectiva o externa intacta. Esa distinción entre disponer de un modelo terminado y disponer de independencia científica es una conclusión del trabajo, no una nota al pie.

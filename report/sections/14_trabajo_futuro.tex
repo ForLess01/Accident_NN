@@ -1,0 +1,33 @@
+\section{Trabajo futuro}\label{sec:futuro}
+
+Las líneas siguientes se derivan de limitaciones medidas en este trabajo, no de una lista genérica de mejoras posibles. Se ordenan por el valor esperado de la evidencia que producirían.
+
+\subsection{Acumular periodos antes que cambiar el modelo}
+Es la línea con mejor relación entre retorno y riesgo, y se apoya en la curva de la sección~\ref{sec:muestra}: el desempeño sigue creciendo con el número de registros y no se ha estabilizado. Como la fuente publica un periodo nuevo cada año, repetir el protocolo cuando el registro alcance siete u ocho años de cobertura debería mejorar el resultado sin modificar la arquitectura, sin incorporar fuentes externas y sin introducir ninguna decisión de selección adicional. Conviene fijar de antemano que esa repetición conserve el mismo desplazamiento de particiones, para que la comparación entre versiones siga siendo legítima.
+
+\subsection{Cohorte prospectiva o externa}
+Es la única vía que convierte el artefacto en evidencia confirmatoria. El proyecto carece de una partición intacta: la referencia 2024--2025 ya fue consultada y los diagnósticos rolling comparten historia. La verificación correcta consiste en congelar el paquete actual, esperar el cierre de un periodo posterior y evaluarlo una sola vez, con las reglas y umbrales fijados de antemano. Cualquier conclusión sobre superioridad frente a métodos clásicos debe posponerse hasta ese momento.
+
+\subsection{Ampliar el conjunto de variables antes que la arquitectura}
+La sección~\ref{sec:discusion} muestra que el límite no está en la representación ni en la capacidad, sino en la información disponible. Las variables que determinan físicamente el número de víctimas ---ocupación de los vehículos, velocidad de impacto y relación de masas--- no figuran en la fuente, y la sección~\ref{sec:enriquecimiento} confirma que tampoco pueden recuperarse de los campos no utilizados del propio registro.
+
+Se revisó qué fuentes oficiales peruanas podrían aportarlas. El catálogo del ONSV publica únicamente los tres registros ya empleados más un histórico agregado por año, de modo que no existe información adicional por siniestro en el origen. Fuera del ONSV, las candidatas con datos tabulares descargables son el inventario de la Red Vial Nacional del MTC y los servicios geográficos de Provías Nacional, que aportan índice medio diario de tránsito, número de carriles, superficie, estado de conservación y geometría de la vía; los conteos de flujo vehicular en unidades de peaje del MTC; y los registros individuales de exceso de velocidad detectados por cinemómetros de SUTRAN.
+
+Ese enriquecimiento, sin embargo, está sujeto a tres restricciones que deben resolverse antes de intentarlo y que condicionan su valor esperado.
+
+\begin{enumerate}
+  \item \textbf{Cobertura espacial parcial.} El inventario vial nacional solo alcanza a los siniestros ocurridos en la Red Vial Nacional, que son el 55.1\,\% de los registros; el 22.5\,\% urbano, el 10.4\,\% provincial y el 8.4\,\% departamental quedarían sin valor. Además, esa ausencia no es aleatoria: coincide exactamente con la variable \texttt{RED\_VIAL}, que el contrato ya contiene.
+  \item \textbf{Cobertura temporal incompleta.} Los registros de cinemómetros disponibles como dato abierto llegan hasta 2022. Una variable presente en el periodo de ajuste y ausente en las particiones de calibración y de referencia no es utilizable: el modelo aprendería a depender de ella y se enfrentaría después a su ausencia sistemática. Su incorporación exigiría, como mínimo, cobertura homogénea en todo el periodo 2021--2025.
+  \item \textbf{Disponibilidad en inferencia.} La interfaz estima la clase de un registro introducido por el usuario. Cualquier variable externa debe poder resolverse en ese momento a partir de los campos del formulario; los agregados mensuales de flujo vehicular no cumplen esa condición para una fecha futura.
+\end{enumerate}
+
+Bajo esas restricciones, el subconjunto defendible es el de atributos estructurales de la vía ---carriles, ancho de calzada, topografía, clase de superficie y curvatura derivada de la geometría--- que varían lentamente y pueden resolverse en inferencia mediante una tabla de consulta por código de ruta y coordenadas. Cualquier fuente nueva debe incorporarse al manifiesto sellado por hash y superar la auditoría de fuga que descartó PERSONAS antes de entrar al contrato.
+
+\subsection{Reducir la capacidad del artefacto entregado}
+La auditoría de representación alcanzó desempeño equivalente con 6\,042 parámetros y 54 dimensiones de entrada. Una versión posterior del paquete debería partir de esa evidencia: depurar las 18 columnas que nunca se activan en el ajuste, agrupar en una categoría común las que reúnen menos de 30 registros y redimensionar el modelo. El objetivo no es mejorar la métrica, que no mejoraría, sino entregar un artefacto cuya capacidad se corresponda con la información que lo sustenta.
+
+\subsection{Revisar el papel de la regularización}
+La ablación indica que L2 y \emph{dropout} desplazan la métrica menos que el ruido entre semillas, y que el control efectivo del ajuste proviene del número fijo de épocas. Un trabajo posterior debería o bien explorar intensidades de regularización que produzcan un efecto medible, o bien declarar explícitamente el presupuesto de épocas como mecanismo de control y retirar los componentes inertes.
+
+\subsection{Comparación con equivalencia declarada}
+Las comparaciones frente a las líneas base se presentaron como intervalos de diferencia sin ajuste por multiplicidad. Un diseño posterior debería fijar de antemano un margen de equivalencia práctica y contrastar formalmente equivalencia en lugar de superioridad, que es la hipótesis que los datos realmente sostienen.
