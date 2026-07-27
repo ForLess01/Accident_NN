@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "built_utc": "2026-07-27T19:07:16.979466+00:00",
+  "built_utc": "2026-07-27T19:55:53.715255+00:00",
   "python": "3.12.13",
   "engine": {
     "command": "latexmk -pdf -interaction=nonstopmode -halt-on-error main.tex",
@@ -38,7 +38,7 @@
     "report/figures/ui02_formulario.png": "b4d53c45872bb6042921ffed1be9864a058a1249a9b133c22de2d1471b489b60",
     "report/figures/ui03_resultado.png": "5a839ff823f826fc9b8d5f1745c03968f24211b51e197cd59dd82595d1e87c79",
     "report/figures/ui04_evidencia.png": "7cbc4eca55048a234c1c268d2994d5f310f4d476a77cf64edf80f00217bd4998",
-    "report/main.tex": "ee747c29d32d2bb1deec0d0b78469321fa69f64be17feaa42358c58daa0065c2",
+    "report/main.tex": "b4a5315d6ec0ce715ed07e57d57a8d1e289acc3d906d678a6721e1435c716c96",
     "report/sections/00_resumen.tex": "ff26cf7740aa3f06a3694089d4bb0dabada9e22ddfccbe43234ee93c6f1fd91c",
     "report/sections/01_introduccion.tex": "6a399dd6a4150fcab693922e17e01358f608e3ec08ba81997cc9413c0486c010",
     "report/sections/02_objetivos.tex": "93443088eefca4f9e41c1b624339144c28c164de40ba8c07a620aab83afe571a",
@@ -114,8 +114,8 @@
   },
   "pdf": {
     "path": "report/main.pdf",
-    "bytes": 3773457,
-    "sha256": "976f636e9f2bbb0dd63a0b5e1468fddeb9864bbf77c5d5c53a00d974a259d154"
+    "bytes": 3775818,
+    "sha256": "1e3eba577d3ca26553485013409ad1368fffdccb5f9238bd33e6aebfa104ba15"
   },
   "freshness_rule": "content hashes only; checkout mtimes are irrelevant"
 }
