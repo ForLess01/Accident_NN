@@ -425,7 +425,7 @@ def validate_peru_location(latitude: float, longitude: float, department: str) -
     if selected not in matches:
         raise InputContractError(
             "Las coordenadas no corresponden al departamento seleccionado. "
-            f"El mapa las ubica en {', '.join(matches)}; revisá departamento, latitud y longitud."
+            f"El mapa las ubica en {', '.join(matches)}; revise departamento, latitud y longitud."
         )
 
 
@@ -455,10 +455,10 @@ def _validate_records(records: pd.DataFrame) -> pd.DataFrame:
     longitudes = pd.to_numeric(clean["LONGITUD"], errors="coerce")
     mismatched_coordinates = latitudes.isna() ^ longitudes.isna()
     if mismatched_coordinates.any():
-        raise InputContractError("Ingresá ambas coordenadas; no se acepta solo una.")
+        raise InputContractError("Ingrese ambas coordenadas; no se acepta solo una.")
     if (latitudes.isna() | longitudes.isna()).any():
         raise InputContractError(
-            "La latitud y la longitud son obligatorias para el modelo canónico; ingresá ambas coordenadas."
+            "La latitud y la longitud son obligatorias para el modelo canónico; ingrese ambas coordenadas."
         )
     if ((latitudes.dropna() < -90) | (latitudes.dropna() > 90)).any():
         raise InputContractError("La latitud debe estar entre -90 y 90.")
@@ -494,7 +494,7 @@ def _validate_records(records: pd.DataFrame) -> pd.DataFrame:
         required_count = column == "n_vehiculos"
         if required_count and values.isna().any():
             raise InputContractError(
-                "Ingresá la cantidad de vehículos involucrados; es un hecho consolidado requerido."
+                "Ingrese la cantidad de vehículos involucrados; es un hecho consolidado requerido."
             )
         values = values.fillna(0)
         if (values < 0).any() or (values != values.round()).any():

@@ -1,9 +1,47 @@
 \section{Interfaz gráfica}\label{sec:interfaz}
 
-La interfaz Streamlit \cite{streamlit_2024} es un consumidor de solo lectura. Verifica hashes, ancho 169, orden de variables, esquema y umbrales antes de inferir. El formulario excluye todos los campos PERSONAS y solicita únicamente contexto del registro y agregados VEHICULOS, con advertencia de alcance retrospectivo.
+La interfaz Streamlit \cite{streamlit_2024} es un consumidor de solo lectura. Verifica hashes, ancho 169, orden de variables, esquema y umbrales antes de inferir. El formulario excluye todos los campos PERSONAS y solicita únicamente contexto del registro y agregados VEHICULOS, con advertencia de alcance retrospectivo. La aplicación se organiza en cinco secciones navegables: panorama, inferencia, exploración de datos, patrones regionales y evidencia del modelo.
 
-La decisión visible usa probabilidad Platt y umbral 0.15. La sigmoide cruda y su umbral 0.65 aparecen en un diagnóstico separado. Los intervalos Wilson describen tasas históricas agregadas; no se presentan como incertidumbre de una predicción individual.
+\subsection{Panorama y arquitectura visible}
+La pantalla inicial (figura~\ref{fig:ui-panorama}) declara el alcance del sistema antes de cualquier interacción y expone la arquitectura de la red como una cadena de bloques: 21 campos crudos, 169 características, las dos capas ocultas con su regularización, la calibración Platt externa y la clase estimada. Las tres tarjetas superiores anticipan el tamaño del universo, la prevalencia y la separación lograda, de modo que ninguna métrica aparece sin su referencia.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/ui01_panorama.png}
+\caption{Sección \emph{Panorama}. La cadena de bloques reproduce la arquitectura canónica del manifiesto; el texto asociado declara 12\,993 parámetros y las 9 corridas de la búsqueda, en lugar de presentar el modelo como una caja cerrada.}
+\label{fig:ui-panorama}
+\end{figure}
+
+\subsection{Formulario de inferencia}
+El formulario (figura~\ref{fig:ui-formulario}) solicita fecha, hora, ubicación, contexto de vía y agregados VEHICULOS. Las coordenadas son obligatorias y pueden fijarse con un selector cartográfico: el esquema canónico exige ubicación y la aplicación no imputa una localización de forma silenciosa. El pie del bloque de vehículos declara explícitamente por qué PERSONAS está excluida y cuál es el alcance defendible.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/ui02_formulario.png}
+\caption{Sección \emph{Probar la red} con el escenario TP de 2023 cargado. Los campos reproducen un siniestro real: choque nocturno en carretera nacional rural de Cusco, en curva, con dos vehículos de transporte público involucrados.}
+\label{fig:ui-formulario}
+\end{figure}
+
+\subsection{Salida de la red}
+La decisión visible usa probabilidad Platt y umbral 0.15; la sigmoide cruda y su umbral 0.65 permanecen en un diagnóstico separado y plegado, para que ambas escalas no se confundan. Para el escenario de la figura~\ref{fig:ui-resultado}, la red asigna 74.9\,\% de probabilidad calibrada y estima la clase multifatal, que coincide con lo observado en 2023. El gráfico de contexto sitúa esa estimación junto a las tasas históricas del subgrupo coincidente, la misma clase, la misma zona y el mismo clima, con intervalos Wilson al 95\,\%: describen tasas agregadas y no se presentan como incertidumbre de la predicción individual.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/ui03_resultado.png}
+\caption{Resultado de la inferencia. La banda del medidor marca el umbral calibrado; el contexto histórico muestra que la estimación de 74.9\,\% se aparta de todas las tasas de referencia, que se ubican entre 10\,\% y 22\,\%.}
+\label{fig:ui-resultado}
+\end{figure}
 
 Los cinco escenarios están sellados por hash y orden: TN, FP, FN limítrofe y TP reales de 2023, más un clon sintético que cambia solo \texttt{CODIGO\_VIA} a un código no visto. Para los cuatro reales se separa observado de estimado. El sintético declara verdad no disponible y muestra el delta respecto al clon base, sin lenguaje causal. La carga valida roles, fechas, paridad de predicción y hash; cualquier alteración falla cerrada.
+
+\subsection{Evidencia y límites}
+La sección de evidencia (figura~\ref{fig:ui-evidencia}) publica las métricas de la referencia histórica con sus intervalos bootstrap y encabeza el bloque con la advertencia de que 2024--2025 ya fue consultado. Debajo reproduce la auditoría de diseño: la ablación de regularización y la comparación entre una y varias redes, con las barras de error que sostienen la decisión de conservar una sola MLP.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/ui04_evidencia.png}
+\caption{Sección \emph{Evidencia del modelo}. Cada métrica aparece con su intervalo de confianza y la prevalencia se declara junto a PR-AUC, de modo que la cifra no pueda leerse contra 0.50 por descuido.}
+\label{fig:ui-evidencia}
+\end{figure}
 
 Gráficos y tablas incluyen texto además de color y alternativas descargables. La interfaz conserva navegación por teclado, foco visible, movimiento reducido y diseño responsivo; AppTest recorre la aplicación sin reentrenar ni escribir artefactos.

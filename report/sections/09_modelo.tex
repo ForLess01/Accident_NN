@@ -20,6 +20,18 @@ La configuración \texttt{MLP\_64\_32}, semilla 42, usa L2 $3\times10^{-4}$, Ada
 \label{fig:robustez-semillas}
 \end{figure}
 
+\subsection{Entrenamiento y generalización}
+La figura~\ref{fig:curvas-aprendizaje} documenta el entrenamiento de la corrida seleccionada. Ambas series usan PR-AUC no ponderada, de modo que son directamente comparables; la curva de 2021 se calcula con \emph{dropout} activo, mientras que la de 2022 se evalúa en modo inferencia, lo que explica que la serie de ajuste quede por debajo durante las primeras épocas. La época 14 es el máximo de PR-AUC en la partición de comparación y fija la duración del reajuste posterior en 2021--2022, sin \emph{callbacks} de validación.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.93\textwidth]{figures/fig14_learning_curves.png}
+\caption{Curvas de aprendizaje de la corrida seleccionada. La meseta de la serie de comparación a partir de la época 12 indica que épocas adicionales no aportan capacidad de generalización: el criterio de parada no se eligió a posteriori.}
+\label{fig:curvas-aprendizaje}
+\end{figure}
+
+Para el modelo reajustado, la PR-AUC de entrenamiento es 0.4332 y la de la partición 2023 es 0.3367, con una brecha de 0.0965. El Brier aumenta solo 0.0036 entre ambas particiones: la red no está severamente sobreajustada, pero pierde capacidad de ordenamiento fuera del periodo de ajuste.
+
 \subsection{Una red, no dos}
 La auditoría comparó una MLP congelada, un promedio de tres semillas y una multirrama contexto/VEHICULOS. Los IC pareados del ensemble frente a la red única incluyen cero en todas las métricas reportadas. Sin evidencia concluyente y sin una nueva cohorte, una segunda red agregaría complejidad y otra decisión de selección. Se conserva una sola MLP.
 

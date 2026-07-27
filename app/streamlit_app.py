@@ -654,7 +654,7 @@ def overview_page(manifest: dict[str, Any]) -> None:
         )
         _table_fallback("multifatalidad observada por quintil de score", ordering_table, key="quintiles_score")
 
-        st.subheader("Elegí una categoría y mirá cómo predice el modelo")
+        st.subheader("Comparación por categoría del registro")
         st.write(
             "La misma comparación, desagregada: para cada categoría del registro, la tasa multifatal que ocurrió en "
             "2024–2025 frente a la probabilidad media que el modelo asignó. Solo se muestran categorías con al menos "
@@ -780,15 +780,15 @@ def _location_picker() -> None:
         from streamlit_folium import st_folium
     except (ImportError, ModuleNotFoundError):
         st.info(
-            "Para elegir la ubicación con un clic en el mapa, instalá las dependencias opcionales "
-            "`folium` y `streamlit-folium` (incluidas en requirements). Mientras tanto podés escribir "
+            "Para elegir la ubicación con un clic en el mapa, instale las dependencias opcionales "
+            "`folium` y `streamlit-folium` (incluidas en requirements). Mientras tanto puede escribir "
             "las coordenadas en el formulario."
         )
         return
 
     with st.expander("Elegir la ubicación en el mapa (OpenStreetMap)", expanded=False):
         st.caption(
-            "Hacé clic sobre el punto del siniestro: la latitud y la longitud se completan solas en el "
+            "Haga clic sobre el punto del siniestro: la latitud y la longitud se completan solas en el "
             "formulario. El mapa muestra únicamente el Perú, con carreteras y calles de OpenStreetMap; "
             "requiere conexión a internet para cargar el fondo."
         )
@@ -856,7 +856,7 @@ def _location_picker() -> None:
 
 def estimate_page() -> None:
     st.header("Probar la red neuronal")
-    st.caption("Completá un registro o elegí uno de los 5 escenarios académicos. La salida es una probabilidad calibrada de multifatalidad y una clase estimada.")
+    st.caption("Complete un registro o seleccione uno de los 5 escenarios académicos. La salida es una probabilidad calibrada de multifatalidad y una clase estimada.")
     options = load_input_options()
     thresholds = load_thresholds()
     known_road_codes = load_known_road_codes()
@@ -892,7 +892,7 @@ def estimate_page() -> None:
         "Escenario de demostración",
         demo_options,
         format_func=lambda value: demo_labels.get(value, value),
-        placeholder="Elegí uno de los 5 escenarios…",
+        placeholder="Seleccione uno de los 5 escenarios…",
         index=None,
         key="demo_scenario",
     )
@@ -958,7 +958,7 @@ def estimate_page() -> None:
                 "Departamento",
                 field_values("DEPARTAMENTO"),
                 index=None,
-                placeholder="Seleccioná un departamento…",
+                placeholder="Seleccione un departamento…",
                 format_func=option_label,
                 key="input_department",
             )
@@ -975,7 +975,7 @@ def estimate_page() -> None:
                 "Código de vía (opcional)",
                 road_code_options,
                 index=0,
-                placeholder="Buscá o escribí un código…",
+                placeholder="Busque o escriba un código…",
                 format_func=option_label,
                 accept_new_options=True,
                 key="input_road_code",
@@ -988,7 +988,7 @@ def estimate_page() -> None:
         st.markdown("#### Vía y entorno")
         middle = st.columns(4)
         with middle[0]:
-            crash_class = st.selectbox("Clase de siniestro", field_values("CLASE"), index=None, placeholder="Seleccioná una clase…", format_func=option_label, key="input_class")
+            crash_class = st.selectbox("Clase de siniestro", field_values("CLASE"), index=None, placeholder="Seleccione una clase…", format_func=option_label, key="input_class")
         with middle[1]:
             zone = st.selectbox("Zona", optional_values("ZONA"), index=0, format_func=option_label, key="input_zone")
         with middle[2]:
@@ -1012,7 +1012,7 @@ def estimate_page() -> None:
             latitude = st.number_input("Latitud", min_value=-90.0, max_value=90.0, value=None, format="%.6f", placeholder="Ej.: -12.046374…", key="input_latitude")
         with coordinate_columns[1]:
             longitude = st.number_input("Longitud", min_value=-180.0, max_value=180.0, value=None, format="%.6f", placeholder="Ej.: -77.042793…", key="input_longitude")
-        st.caption("Ingresá ambas coordenadas. El esquema canónico exige ubicación para la inferencia final; la app no imputa una localización silenciosamente.")
+        st.caption("Ingrese ambas coordenadas. El esquema canónico exige ubicación para la inferencia final; la app no imputa una localización silenciosamente.")
 
         st.markdown("#### Vehículos registrados")
         scene_top = st.columns(4)
@@ -1086,7 +1086,7 @@ def estimate_page() -> None:
                 "demo_payload_modified": bool(st.session_state.get("demo_provenance_modified", False)),
             }
         except InputContractError as exc:
-            st.error(f"Revisá el formulario: {exc}")
+            st.error(f"Revise el formulario: {exc}")
         except RuntimeArtifactError as exc:
             st.error(str(exc))
 
@@ -1705,7 +1705,7 @@ def main() -> None:
         pages[selected]()
     except RuntimeArtifactError as exc:
         st.error(str(exc), icon="⚠️")
-        st.info("La interfaz opera en modo estrictamente read-only. Corregí los artefactos fuera de la app y volvé a iniciar.")
+        st.info("La interfaz opera en modo estrictamente read-only. Corrija los artefactos fuera de la app y vuelva a iniciarla.")
         st.stop()
 
 

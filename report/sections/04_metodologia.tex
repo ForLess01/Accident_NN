@@ -14,7 +14,7 @@ Periodo & $n$ & Positivos & Rol \\\midrule
 Se ejecutaron dos folds usando exclusivamente fechas anteriores a 2024. En cada fold, fit, selección, calibración y ventana outer son cronológicos y no se solapan. El primer outer corresponde a julio--diciembre de 2022 y el segundo a 2023. Los resultados son diagnósticos de variabilidad, no un test externo; los folds comparten historia y solo existen dos ventanas viables.
 
 \subsection{Técnicas aplicadas}
-La búsqueda cerrada comparó tres configuraciones por tres semillas. El paquete final usa BCE, pesos de clase, Adam, L2, \emph{dropout}, \emph{early stopping} y \emph{ReduceLROnPlateau} durante selección. La calibración Platt corrige escala; no cambia ranking. No se aplicaron L1, SMOTE, \emph{stacking} ni \emph{batch normalization}, porque añadirlos sin evidencia y sin una cohorte nueva aumentaría multiplicidad.
+La búsqueda cerrada comparó tres configuraciones por tres semillas. El paquete final usa BCE, pesos de clase, Adam, L2, \emph{dropout}, \emph{early stopping} y \emph{ReduceLROnPlateau} durante selección. La calibración Platt corrige escala; no cambia ranking. No se aplicaron L1, SMOTE \cite{chawla_smote_2002}, \emph{stacking} ni \emph{batch normalization}, porque añadirlos sin evidencia y sin una cohorte nueva aumentaría multiplicidad.
 
 \subsection{Incertidumbre}
 Los IC bootstrap son percentiles por remuestreo de filas con pipeline y predicciones congeladas, sin reajuste. No incluyen incertidumbre de entrenamiento o selección, dependencia temporal/espacial, consulta repetida de la referencia, generalización externa/futura ni incertidumbre individual.
